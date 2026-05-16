@@ -62,21 +62,19 @@ void run_p6_agent_builder_unknown_fruit_flow() {
     assert(eat_candidate->command_supported == true);
     std::cout << "  PASS: p6_action_space_built\n";
 
-    // Step 4: Manually select Eat candidate and construct AgentIntent
+    // Step 4: Select Eat candidate and construct AgentIntent from candidate data
     AgentIntent intent;
     intent.agent_id = AgentId(std::string("agent_player_001"));
     intent.decision_id = DecisionId(std::string("decision_eat_001"));
     intent.actor_id = EntityId(std::string("actor_001"));
     intent.intent_type = AgentIntentType::Eat;
     intent.confidence = 0.8;
-    intent.reason_key = "curious_about_fruit";
-    intent.action_id = ActionId(std::string("eat"));
+    intent.reason_key = eat_candidate->reason_key;
+    intent.action_id = eat_candidate->command_action_id.empty()
+        ? eat_candidate->action_id : eat_candidate->command_action_id;
     intent.command_supported_snapshot = eat_candidate->command_supported;
-
-    ActionTarget target;
-    target.target_type = ActionTargetType::Object;
-    target.target_id = TargetId(std::string("obj_unknown_fruit_001"));
-    intent.targets.push_back(target);
+    // Copy targets from candidate.suggested_targets instead of hand-writing
+    intent.targets = eat_candidate->suggested_targets;
     assert(intent.validateBasic().is_ok());
     std::cout << "  PASS: p6_intent_constructed\n";
 

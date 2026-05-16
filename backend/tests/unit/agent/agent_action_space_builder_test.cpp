@@ -75,8 +75,12 @@ void test_observed_object_generates_eat_candidate() {
             found_eat = true;
             assert(c.command_supported == true);
             assert(c.action_id == ActionId(std::string("eat_obj_001")));
+            assert(c.command_action_id == ActionId(std::string("eat")));
             assert(c.required_target_types.size() == 1);
             assert(c.required_target_types[0] == ActionTargetType::Object);
+            assert(c.suggested_targets.size() == 1);
+            assert(c.suggested_targets[0].target_type == ActionTargetType::Object);
+            assert(c.suggested_targets[0].target_id == TargetId(std::string("obj_001")));
         }
     }
     assert(found_eat);
@@ -102,6 +106,10 @@ void test_explore_candidate_command_supported_false() {
         if (c.intent_type == AgentIntentType::Explore) {
             found_explore = true;
             assert(c.command_supported == false);
+            assert(c.command_action_id == ActionId(std::string("explore")));
+            assert(c.suggested_targets.size() == 1);
+            assert(c.suggested_targets[0].target_type == ActionTargetType::Object);
+            assert(c.suggested_targets[0].target_id == TargetId(std::string("obj_001")));
         }
     }
     assert(found_explore);
@@ -130,6 +138,10 @@ void test_fire_threat_generates_flee_candidate() {
             found_flee = true;
             assert(c.command_supported == true);
             assert(c.action_id == ActionId(std::string("flee_fire_001")));
+            assert(c.command_action_id == ActionId(std::string("flee")));
+            assert(c.suggested_targets.size() == 1);
+            assert(c.suggested_targets[0].target_type == ActionTargetType::Entity);
+            assert(c.suggested_targets[0].target_id == TargetId(std::string("fire_001")));
         }
     }
     assert(found_flee);
@@ -202,6 +214,45 @@ void test_no_duplicate_action_ids() {
     std::cout << "  PASS: no_duplicate_action_ids\n";
 }
 
+void test_multi_object_eat_candidates_distinct_action_id_same_command_action_id() {
+    auto obs = makeEmptyObservation();
+    AgentObservedObject obj1;
+    obj1.object_id = ObjectId(std::string("obj_001"));
+    obs.objects.push_back(obj1);
+    AgentObservedObject obj2;
+    obj2.object_id = ObjectId(std::string("obj_002"));
+    obs.objects.push_back(obj2);
+
+    ActionSpaceBuildRequest req;
+    req.observation = obs;
+    ActionSpaceBuilder builder;
+    auto result = builder.build(req);
+    assert(result.is_ok());
+
+    int eat_count = 0;
+    for (const auto& c : result.value().action_space.candidates) {
+        if (c.intent_type == AgentIntentType::Eat) {
+            eat_count++;
+            // All Eat candidates share command_action_id = "eat"
+            assert(c.command_action_id == ActionId(std::string("eat")));
+            // But each has a unique action_id
+            assert(c.suggested_targets.size() == 1);
+            assert(c.suggested_targets[0].target_type == ActionTargetType::Object);
+        }
+    }
+    assert(eat_count == 2);
+    // Verify action_ids are different
+    ActionId id1(std::string("eat_obj_001"));
+    ActionId id2(std::string("eat_obj_002"));
+    bool found1 = false, found2 = false;
+    for (const auto& c : result.value().action_space.candidates) {
+        if (c.action_id == id1) found1 = true;
+        if (c.action_id == id2) found2 = true;
+    }
+    assert(found1 && found2);
+    std::cout << "  PASS: multi_object_eat_candidates_distinct_action_id_same_command_action_id\n";
+}
+
 void run_agent_action_space_builder_tests() {
     test_empty_observation_generates_empty_action_space();
     test_invalid_observation_fails();
@@ -212,5 +263,6 @@ void run_agent_action_space_builder_tests() {
     test_social_threat_generates_call_group_candidate();
     test_action_ids_are_deterministic();
     test_no_duplicate_action_ids();
+    test_multi_object_eat_candidates_distinct_action_id_same_command_action_id();
     std::cout << "All agent action space builder tests passed!\n";
 }

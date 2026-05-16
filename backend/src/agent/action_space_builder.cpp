@@ -1,4 +1,5 @@
 #include "pathfinder/agent/action_space_builder.h"
+#include "pathfinder/command/target.h"
 
 namespace pathfinder::agent {
 
@@ -22,23 +23,37 @@ foundation::Result<ActionSpaceBuildResult> ActionSpaceBuilder::build(
         // Eat candidate
         AgentActionCandidate eat_candidate;
         eat_candidate.action_id = foundation::ActionId(std::string("eat_") + obj.object_id.value());
+        eat_candidate.command_action_id = foundation::ActionId(std::string("eat"));
         eat_candidate.intent_type = AgentIntentType::Eat;
         eat_candidate.required_target_types.push_back(command::ActionTargetType::Object);
         eat_candidate.command_supported = true;
         eat_candidate.reason_key = "action.try_eat_observed_object";
+        {
+            command::ActionTarget eat_target;
+            eat_target.target_type = command::ActionTargetType::Object;
+            eat_target.target_id = foundation::TargetId(obj.object_id.value());
+            eat_candidate.suggested_targets.push_back(eat_target);
+        }
         result.action_space.candidates.push_back(eat_candidate);
 
         result.trace.generated_action_ids.push_back(eat_candidate.action_id);
         result.trace.reason_keys.push_back("observed_object_" + obj.object_id.value());
 
-        // Explore candidate (if requested, command_supported=false in P6)
+        // Explore candidate (if requested, command_supported=false)
         if (request.include_explore_candidates) {
             AgentActionCandidate explore_candidate;
             explore_candidate.action_id = foundation::ActionId(std::string("explore_") + obj.object_id.value());
+            explore_candidate.command_action_id = foundation::ActionId(std::string("explore"));
             explore_candidate.intent_type = AgentIntentType::Explore;
             explore_candidate.required_target_types.push_back(command::ActionTargetType::Object);
             explore_candidate.command_supported = false;
             explore_candidate.reason_key = "action.explore_observed_object";
+            {
+                command::ActionTarget explore_target;
+                explore_target.target_type = command::ActionTargetType::Object;
+                explore_target.target_id = foundation::TargetId(obj.object_id.value());
+                explore_candidate.suggested_targets.push_back(explore_target);
+            }
             result.action_space.candidates.push_back(explore_candidate);
 
             result.trace.generated_action_ids.push_back(explore_candidate.action_id);
@@ -54,10 +69,17 @@ foundation::Result<ActionSpaceBuildResult> ActionSpaceBuilder::build(
             threat.threat_type == AgentThreatType::Environmental) {
             AgentActionCandidate flee_candidate;
             flee_candidate.action_id = foundation::ActionId(std::string("flee_") + threat.source_id.value());
+            flee_candidate.command_action_id = foundation::ActionId(std::string("flee"));
             flee_candidate.intent_type = AgentIntentType::Flee;
             flee_candidate.required_target_types.push_back(command::ActionTargetType::Entity);
             flee_candidate.command_supported = true;
             flee_candidate.reason_key = "action.flee_from_threat";
+            {
+                command::ActionTarget flee_target;
+                flee_target.target_type = command::ActionTargetType::Entity;
+                flee_target.target_id = foundation::TargetId(threat.source_id.value());
+                flee_candidate.suggested_targets.push_back(flee_target);
+            }
             result.action_space.candidates.push_back(flee_candidate);
 
             result.trace.generated_action_ids.push_back(flee_candidate.action_id);
@@ -67,6 +89,7 @@ foundation::Result<ActionSpaceBuildResult> ActionSpaceBuilder::build(
         if (threat.threat_type == AgentThreatType::Social) {
             AgentActionCandidate call_group_candidate;
             call_group_candidate.action_id = foundation::ActionId(std::string("call_group_") + threat.source_id.value());
+            call_group_candidate.command_action_id = foundation::ActionId(std::string("call_group"));
             call_group_candidate.intent_type = AgentIntentType::CallGroup;
             call_group_candidate.command_supported = false;
             call_group_candidate.reason_key = "action.call_group_social_signal";

@@ -852,3 +852,80 @@ add_test(
     NAME p6_wolf_pack_action_space
     COMMAND pathfinder_tests_p6 wolf_pack_action_space
 )
+
+# Agent Runtime unit tests (P7)
+add_executable(pathfinder_tests_agent_runtime
+    unit/agent/agent_runtime_smoke_test.cpp
+    unit/agent/agent_policy_test.cpp
+    unit/agent/agent_runtime_types_test.cpp
+    unit/agent/agent_runtime_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_agent_runtime PRIVATE
+    pathfinder_agent_runtime
+    pathfinder_agent_builders
+    pathfinder_agent
+    pathfinder_pipeline
+    pathfinder_rules
+    pathfinder_state
+    pathfinder_event
+    pathfinder_object
+    pathfinder_cognition
+    pathfinder_command
+    pathfinder_foundation
+)
+
+add_test(
+    NAME agent_runtime_smoke
+    COMMAND pathfinder_tests_agent_runtime smoke
+)
+
+add_test(
+    NAME agent_policy
+    COMMAND pathfinder_tests_agent_runtime policy
+)
+
+add_test(
+    NAME agent_runtime_types
+    COMMAND pathfinder_tests_agent_runtime runtime_types
+)
+
+add_test(
+    NAME agent_runtime
+    COMMAND pathfinder_tests_agent_runtime runtime
+)
+
+# P7 integration tests
+add_executable(pathfinder_tests_p7
+    integration/p7/agent_runtime_unknown_fruit_flow_test.cpp
+    integration/p7/agent_runtime_threat_no_submit_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_p7 PRIVATE
+    pathfinder_agent_runtime
+    pathfinder_agent_builders
+    pathfinder_agent
+    pathfinder_pipeline
+    pathfinder_rules
+    pathfinder_state
+    pathfinder_event
+    pathfinder_object
+    pathfinder_cognition
+    pathfinder_command
+    pathfinder_foundation
+)
+
+add_test(
+    NAME p7_smoke
+    COMMAND pathfinder_tests_p7 smoke
+)
+
+add_test(
+    NAME p7_agent_runtime_unknown_fruit_flow
+    COMMAND pathfinder_tests_p7 p7_agent_runtime_unknown_fruit_flow
+)
+
+add_test(
+    NAME p7_agent_runtime_threat_no_submit
+    COMMAND pathfinder_tests_p7 p7_agent_runtime_threat_no_submit
+)

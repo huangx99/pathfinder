@@ -25,6 +25,27 @@ foundation::Result<void> AgentActionCandidate::validateBasic() const {
                     "required_target_types must not contain None"));
         }
     }
+    // Validate suggested_targets
+    for (const auto& target : suggested_targets) {
+        auto tr = target.validateBasic();
+        if (tr.is_error()) return tr;
+    }
+    // If suggested_targets is non-empty, verify it covers required_target_types
+    if (!suggested_targets.empty() && !required_target_types.empty()) {
+        std::set<command::ActionTargetType> covered;
+        for (const auto& target : suggested_targets) {
+            covered.insert(target.target_type);
+        }
+        for (const auto& required : required_target_types) {
+            if (covered.find(required) == covered.end()) {
+                return foundation::Result<void>::fail(
+                    foundation::makeError(foundation::ErrorCode::command_invalid_argument,
+                        "action_candidate_target_type_not_covered",
+                        "suggested_targets does not cover required_target_types: missing type " +
+                            std::to_string(static_cast<int>(required))));
+            }
+        }
+    }
     return foundation::Result<void>::ok();
 }
 

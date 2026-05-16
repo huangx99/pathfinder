@@ -237,5 +237,27 @@ target_link_libraries(pathfinder_agent_builders PUBLIC
     pathfinder_foundation
 )
 
+# Agent Runtime library (P7)
+add_library(pathfinder_agent_runtime STATIC
+    src/agent/policy.cpp
+    src/agent/runtime_types.cpp
+    src/agent/runtime.cpp
+)
+
+target_include_directories(pathfinder_agent_runtime PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(pathfinder_agent_runtime PUBLIC
+    pathfinder_agent
+    pathfinder_agent_builders
+    pathfinder_pipeline
+    pathfinder_state
+    pathfinder_object
+    pathfinder_cognition
+    pathfinder_command
+    pathfinder_foundation
+)
+
 # Tests
 add_subdirectory(tests)

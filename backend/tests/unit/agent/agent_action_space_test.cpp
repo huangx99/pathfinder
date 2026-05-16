@@ -121,6 +121,40 @@ void test_action_space_bad_agent_id_format() {
     std::cout << "  PASS: action_space_bad_agent_id_format\n";
 }
 
+void test_suggested_target_type_mismatch_fails() {
+    AgentActionCandidate candidate;
+    candidate.action_id = pathfinder::foundation::ActionId(std::string("eat_obj_001"));
+    candidate.intent_type = AgentIntentType::Eat;
+    candidate.required_target_types.push_back(ActionTargetType::Object);
+    candidate.command_supported = true;
+    candidate.reason_key = "hungry";
+    // Suggested target is Entity, but required is Object
+    pathfinder::command::ActionTarget wrong_target;
+    wrong_target.target_type = ActionTargetType::Entity;
+    wrong_target.target_id = pathfinder::foundation::TargetId(std::string("actor_001"));
+    candidate.suggested_targets.push_back(wrong_target);
+    auto result = candidate.validateBasic();
+    assert(result.is_error());
+    std::cout << "  PASS: suggested_target_type_mismatch_fails\n";
+}
+
+void test_suggested_target_covers_required() {
+    AgentActionCandidate candidate;
+    candidate.action_id = pathfinder::foundation::ActionId(std::string("eat_obj_001"));
+    candidate.intent_type = AgentIntentType::Eat;
+    candidate.required_target_types.push_back(ActionTargetType::Object);
+    candidate.command_supported = true;
+    candidate.reason_key = "hungry";
+    // Suggested target matches required
+    pathfinder::command::ActionTarget correct_target;
+    correct_target.target_type = ActionTargetType::Object;
+    correct_target.target_id = pathfinder::foundation::TargetId(std::string("obj_001"));
+    candidate.suggested_targets.push_back(correct_target);
+    auto result = candidate.validateBasic();
+    assert(result.is_ok());
+    std::cout << "  PASS: suggested_target_covers_required\n";
+}
+
 void run_agent_action_space_tests() {
     test_empty_action_space_valid();
     test_action_space_with_eat_candidate();
@@ -130,5 +164,7 @@ void run_agent_action_space_tests() {
     test_action_candidate_target_type_none();
     test_action_space_command_supported_false();
     test_action_space_bad_agent_id_format();
+    test_suggested_target_type_mismatch_fails();
+    test_suggested_target_covers_required();
     std::cout << "All agent action space tests passed!\n";
 }

@@ -70,20 +70,18 @@ void run_spider_fire_action_space_tests() {
     std::cout << "  PASS: spider_fire_flee_candidate_generated\n";
 
     // Step 4: Verify Flee can be converted to AvoidRisk CommandEnvelope
+    // Copy targets from candidate.suggested_targets instead of hand-writing
     AgentIntent intent;
     intent.agent_id = AgentId(std::string("agent_spider_001"));
     intent.decision_id = DecisionId(std::string("decision_flee_001"));
     intent.actor_id = EntityId(std::string("actor_spider_001"));
     intent.intent_type = AgentIntentType::Flee;
     intent.confidence = 0.99;
-    intent.reason_key = "flee_from_fire";
-    intent.action_id = flee_candidate->action_id;
+    intent.reason_key = flee_candidate->reason_key;
+    intent.action_id = flee_candidate->command_action_id.empty()
+        ? flee_candidate->action_id : flee_candidate->command_action_id;
     intent.command_supported_snapshot = flee_candidate->command_supported;
-
-    ActionTarget target;
-    target.target_type = ActionTargetType::Entity;
-    target.target_id = TargetId(std::string("fire_001"));
-    intent.targets.push_back(target);
+    intent.targets = flee_candidate->suggested_targets;
 
     AgentCommandAdapter adapter;
     auto cmd_result = adapter.toCommandEnvelope(intent, CommandSource::Ai, Tick(0));

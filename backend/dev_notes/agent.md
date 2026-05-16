@@ -1,4 +1,4 @@
-# Agent 模块开发笔记 (P5 + P6)
+# Agent 模块开发笔记 (P5 + P6 + P7)
 
 ## 模块职责
 
@@ -132,5 +132,78 @@ rg -n "edible_profile|hunger_delta|health_delta|effect_kind" \
 cmake -S backend -B build/backend
 cmake --build build/backend
 ctest --test-dir build/backend -R "agent_builder|p6" --output-on-failure
+ctest --test-dir build/backend --output-on-failure
+```
+
+## P7: AgentRuntime 最小调度闭环
+
+### 新增职责
+
+- `AgentPolicy` / `FirstSupportedPolicy`: 最小策略接口，从 action_space 选择第一个 command_supported=true 的候选
+- `AgentRuntime`: 编排 observe → decide → adapt → submit 流程
+- `AgentRuntimeStatus` / `AgentTickRequest` / `AgentTickResult`: 运行时类型
+- `AgentActionCandidate.command_action_id` / `suggested_targets`: 语义 action id 和预构建目标
+
+### 目录
+
+- `backend/include/pathfinder/agent/policy.h` - Policy 接口和 FirstSupportedPolicy
+- `backend/include/pathfinder/agent/runtime_types.h` - Runtime 请求/结果/状态类型
+- `backend/include/pathfinder/agent/runtime.h` - AgentRuntime
+- `backend/src/agent/policy.cpp` - Policy 实现
+- `backend/src/agent/runtime_types.cpp` - Runtime 类型实现
+- `backend/src/agent/runtime.cpp` - Runtime 实现
+- `backend/tests/unit/agent/agent_policy_test.cpp` - Policy 单元测试
+- `backend/tests/unit/agent/agent_runtime_types_test.cpp` - Runtime 类型测试
+- `backend/tests/unit/agent/agent_runtime_test.cpp` - Runtime 单元测试
+- `backend/tests/integration/p7/` - P7 集成测试
+
+### 允许依赖 (pathfinder_agent_runtime)
+
+- pathfinder_agent (P5 类型 + P6 builders)
+- pathfinder_pipeline (RulePipeline, PipelineContext, PipelineResult)
+- pathfinder_state (GameState)
+- pathfinder_object (WorldObject)
+- pathfinder_cognition (CognitionState)
+- pathfinder_command (CommandEnvelope)
+- pathfinder_foundation
+
+### 禁止依赖
+
+- AgentService / AgentStore / AgentGoal
+- BehaviorTree / GOAP / UtilityPolicy / NeuralPolicy / LLMPolicy / RLPolicy
+- FleeResolver / GroupCombat / WarResolver / tribe_split
+- H5 / HTTP / WebSocket / SaveManager
+- Policy 不读取 GameState
+- Runtime 不直接修改 GameState
+
+### 边界扫描命令
+
+```bash
+# 扫描1: Policy 不引用 GameState
+rg -n "GameState|object_store|actor_store|RulePipeline|EatObjectResolver|edible_profile|hunger_delta|health_delta|effect_kind" \
+  backend/include/pathfinder/agent/policy.h \
+  backend/src/agent/policy.cpp \
+  backend/tests/unit/agent/agent_policy_test.cpp
+
+# 扫描2: 不暴露真实效果数据
+rg -n "edible_profile|hunger_delta|health_delta|effect_kind" \
+  backend/include/pathfinder/agent \
+  backend/src/agent \
+  backend/tests/unit/agent \
+  backend/tests/integration/p7
+
+# 扫描3: 不引入禁止系统
+rg -n "FleeResolver|GroupCombat|WarResolver|tribe_split|pack_combat|rl_environment|BehaviorTree|GOAP|UtilityPolicy|NeuralPolicy|LLMPolicy|WebSocket|HTTP|SaveManager" \
+  backend/include/pathfinder/agent \
+  backend/src/agent \
+  backend/tests/integration/p7
+```
+
+### 测试入口
+
+```bash
+cmake -S backend -B build/backend
+cmake --build build/backend
+ctest --test-dir build/backend -R "agent_policy|agent_runtime_types|agent_runtime|p7" --output-on-failure
 ctest --test-dir build/backend --output-on-failure
 ```

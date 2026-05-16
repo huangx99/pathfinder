@@ -55,24 +55,29 @@ void run_wolf_pack_action_space_tests() {
 
     // Should have CallGroup candidate with command_supported=false
     bool found_call_group = false;
+    const AgentActionCandidate* call_group_candidate = nullptr;
     for (const auto& c : as_result.value().action_space.candidates) {
         if (c.intent_type == AgentIntentType::CallGroup) {
             found_call_group = true;
+            call_group_candidate = &c;
             assert(c.command_supported == false);
+            assert(c.command_action_id == ActionId(std::string("call_group")));
         }
     }
     assert(found_call_group);
     std::cout << "  PASS: wolf_call_group_candidate_generated\n";
 
     // Step 4: Verify Adapter rejects CallGroup
+    // Use candidate data instead of hand-writing
     AgentIntent intent;
     intent.agent_id = AgentId(std::string("agent_wolf_001"));
     intent.decision_id = DecisionId(std::string("decision_call_pack_001"));
     intent.actor_id = EntityId(std::string("actor_wolf_001"));
     intent.intent_type = AgentIntentType::CallGroup;
     intent.confidence = 0.7;
-    intent.reason_key = "pack_hunting_signal";
-    intent.action_id = ActionId(std::string("call_group_pack_signal_001"));
+    intent.reason_key = call_group_candidate->reason_key;
+    intent.action_id = call_group_candidate->command_action_id.empty()
+        ? call_group_candidate->action_id : call_group_candidate->command_action_id;
     intent.command_supported_snapshot = false;
 
     AgentCommandAdapter adapter;

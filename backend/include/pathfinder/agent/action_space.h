@@ -4,6 +4,7 @@
 #include "pathfinder/foundation/id.h"
 #include "pathfinder/foundation/version.h"
 #include "pathfinder/command/types.h"
+#include "pathfinder/command/target.h"
 #include <vector>
 #include <string>
 
@@ -11,10 +12,12 @@ namespace pathfinder::agent {
 
 // AgentActionCandidate: a single action the agent can choose
 struct AgentActionCandidate {
-    pathfinder::foundation::ActionId action_id;
+    pathfinder::foundation::ActionId action_id;              // candidate instance id (e.g. eat_obj_xxx)
+    pathfinder::foundation::ActionId command_action_id;      // semantic action id for CommandEnvelope (e.g. eat)
     AgentIntentType intent_type = AgentIntentType::Unknown;
     std::vector<command::ActionTargetType> required_target_types;
-    bool command_supported = false;  // whether this can be converted to CommandEnvelope
+    std::vector<command::ActionTarget> suggested_targets;    // pre-built targets for Policy to copy into Intent
+    bool command_supported = false;
     std::string reason_key;
 
     pathfinder::foundation::Result<void> validateBasic() const;
