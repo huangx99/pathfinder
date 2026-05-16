@@ -53,5 +53,170 @@ target_link_libraries(pathfinder_command PUBLIC
     pathfinder_foundation
 )
 
+# State library (P2 + P3)
+add_library(pathfinder_state STATIC
+    src/state/types.cpp
+    src/state/game_state.cpp
+    src/state/state_change.cpp
+    src/state/state_change_gate.cpp
+    src/state/actor_state.cpp
+    src/state/state_value.cpp
+    src/state/minimal_state_applier.cpp
+)
+
+target_include_directories(pathfinder_state PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(pathfinder_state PUBLIC
+    pathfinder_foundation
+    pathfinder_config
+    pathfinder_command
+    pathfinder_object
+    pathfinder_cognition
+)
+
+# Event library (P2)
+add_library(pathfinder_event STATIC
+    src/event/types.cpp
+    src/event/event_record.cpp
+    src/event/event_stream.cpp
+)
+
+target_include_directories(pathfinder_event PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(pathfinder_event PUBLIC
+    pathfinder_foundation
+    pathfinder_state
+)
+
+# Pipeline library (P2)
+add_library(pathfinder_pipeline STATIC
+    src/pipeline/types.cpp
+    src/pipeline/context.cpp
+    src/pipeline/result.cpp
+    src/pipeline/rule_pipeline.cpp
+)
+
+target_include_directories(pathfinder_pipeline PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(pathfinder_pipeline PUBLIC
+    pathfinder_foundation
+    pathfinder_config
+    pathfinder_command
+    pathfinder_state
+    pathfinder_event
+    pathfinder_rules
+)
+
+# Object library (P3)
+add_library(pathfinder_object STATIC
+    src/object/types.cpp
+    src/object/world_object.cpp
+)
+
+target_include_directories(pathfinder_object PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(pathfinder_object PUBLIC
+    pathfinder_foundation
+)
+
+# Cognition library (P3)
+add_library(pathfinder_cognition STATIC
+    src/cognition/types.cpp
+    src/cognition/cognition_state.cpp
+)
+
+target_include_directories(pathfinder_cognition PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(pathfinder_cognition PUBLIC
+    pathfinder_foundation
+)
+
+# Rules library (P3)
+add_library(pathfinder_rules STATIC
+    src/rules/rules_smoke.cpp
+    src/rules/unknown_fruit_fixture.cpp
+    src/rules/eat_object_resolver.cpp
+)
+
+target_include_directories(pathfinder_rules PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(pathfinder_rules PUBLIC
+    pathfinder_foundation
+    pathfinder_command
+    pathfinder_state
+    pathfinder_event
+    pathfinder_object
+    pathfinder_cognition
+)
+
+# Replay library (P4)
+add_library(pathfinder_replay STATIC
+    src/replay/types.cpp
+    src/replay/command_replay.cpp
+    src/replay/random_replay.cpp
+    src/replay/replay_runner.cpp
+)
+
+target_include_directories(pathfinder_replay PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(pathfinder_replay PUBLIC
+    pathfinder_foundation
+    pathfinder_command
+    pathfinder_state
+    pathfinder_event
+    pathfinder_pipeline
+)
+
+# Protocol library (P4)
+add_library(pathfinder_protocol STATIC
+    src/protocol/types.cpp
+    src/protocol/envelope.cpp
+    src/protocol/command_result_adapter.cpp
+)
+
+target_include_directories(pathfinder_protocol PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(pathfinder_protocol PUBLIC
+    pathfinder_foundation
+    pathfinder_command
+    pathfinder_pipeline
+)
+
+# Agent library (P5)
+add_library(pathfinder_agent STATIC
+    src/agent/types.cpp
+    src/agent/definition.cpp
+    src/agent/binding.cpp
+    src/agent/observation.cpp
+    src/agent/action_space.cpp
+    src/agent/intent.cpp
+    src/agent/command_adapter.cpp
+)
+
+target_include_directories(pathfinder_agent PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(pathfinder_agent PUBLIC
+    pathfinder_foundation
+    pathfinder_command
+)
+
 # Tests
 add_subdirectory(tests)
