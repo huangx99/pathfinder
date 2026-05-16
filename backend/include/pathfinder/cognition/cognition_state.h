@@ -23,6 +23,17 @@ public:
 
     const CognitionClaim* findClaim(const CognitionKey& key) const;
 
+    // Convenience queries: find claims by semantic meaning, hiding effect_kind from callers
+    const CognitionClaim* findEdibleClaim(
+        const EntityId& subject_id,
+        const ObjectDefinitionId& object_definition_id,
+        const ActionId& action_id) const;
+
+    const CognitionClaim* findHarmfulClaim(
+        const EntityId& subject_id,
+        const ObjectDefinitionId& object_definition_id,
+        const ActionId& action_id) const;
+
     // Upsert: create or update a claim
     void upsertClaim(CognitionClaim claim);
 

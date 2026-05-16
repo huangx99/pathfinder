@@ -771,3 +771,84 @@ add_test(
     NAME p5_wolf_call_pack
     COMMAND pathfinder_tests_p5 wolf_call_pack
 )
+
+# Agent Builder unit tests (P6)
+add_executable(pathfinder_tests_agent_builders
+    unit/agent/agent_builder_smoke_test.cpp
+    unit/agent/agent_builder_types_test.cpp
+    unit/agent/agent_observation_builder_test.cpp
+    unit/agent/agent_action_space_builder_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_agent_builders PRIVATE
+    pathfinder_agent_builders
+    pathfinder_agent
+    pathfinder_pipeline
+    pathfinder_rules
+    pathfinder_state
+    pathfinder_event
+    pathfinder_object
+    pathfinder_cognition
+    pathfinder_command
+    pathfinder_foundation
+)
+
+add_test(
+    NAME agent_builder_smoke
+    COMMAND pathfinder_tests_agent_builders smoke
+)
+
+add_test(
+    NAME agent_builder_types
+    COMMAND pathfinder_tests_agent_builders builder_types
+)
+
+add_test(
+    NAME agent_observation_builder
+    COMMAND pathfinder_tests_agent_builders observation_builder
+)
+
+add_test(
+    NAME agent_action_space_builder
+    COMMAND pathfinder_tests_agent_builders action_space_builder
+)
+
+# P6 integration tests
+add_executable(pathfinder_tests_p6
+    integration/p6/agent_builder_unknown_fruit_flow_test.cpp
+    integration/p6/spider_fire_action_space_test.cpp
+    integration/p6/wolf_pack_action_space_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_p6 PRIVATE
+    pathfinder_agent_builders
+    pathfinder_agent
+    pathfinder_pipeline
+    pathfinder_rules
+    pathfinder_state
+    pathfinder_event
+    pathfinder_object
+    pathfinder_cognition
+    pathfinder_command
+    pathfinder_foundation
+)
+
+add_test(
+    NAME p6_smoke
+    COMMAND pathfinder_tests_p6 smoke
+)
+
+add_test(
+    NAME p6_agent_builder_unknown_fruit_flow
+    COMMAND pathfinder_tests_p6 agent_builder_unknown_fruit_flow
+)
+
+add_test(
+    NAME p6_spider_fire_action_space
+    COMMAND pathfinder_tests_p6 spider_fire_action_space
+)
+
+add_test(
+    NAME p6_wolf_pack_action_space
+    COMMAND pathfinder_tests_p6 wolf_pack_action_space
+)

@@ -10,6 +10,30 @@ const CognitionClaim* CognitionState::findClaim(const CognitionKey& key) const {
     return nullptr;
 }
 
+const CognitionClaim* CognitionState::findEdibleClaim(
+    const EntityId& subject_id,
+    const ObjectDefinitionId& object_definition_id,
+    const ActionId& action_id) const {
+    CognitionKey key;
+    key.subject_id = subject_id;
+    key.object_definition_id = object_definition_id;
+    key.action_id = action_id;
+    key.effect_kind = CognitionEffectKind::Edible;
+    return findClaim(key);
+}
+
+const CognitionClaim* CognitionState::findHarmfulClaim(
+    const EntityId& subject_id,
+    const ObjectDefinitionId& object_definition_id,
+    const ActionId& action_id) const {
+    CognitionKey key;
+    key.subject_id = subject_id;
+    key.object_definition_id = object_definition_id;
+    key.action_id = action_id;
+    key.effect_kind = CognitionEffectKind::Harmful;
+    return findClaim(key);
+}
+
 void CognitionState::upsertClaim(CognitionClaim claim) {
     for (auto& c : claims_) {
         if (c.key == claim.key) {

@@ -1,8 +1,9 @@
-# Agent 模块开发笔记 (P5)
+# Agent 模块开发笔记 (P5 + P6)
 
 ## 模块职责
 
-Agent 模块负责定义智能体的数据契约和命令适配器。P5 只做最小闭环，不做完整 AI。
+Agent 模块负责定义智能体的数据契约、命令适配器、以及观察/动作空间构建器。
+P5 做最小闭环，P6 引入 ObservationBuilder 和 ActionSpaceBuilder。
 
 ## 目录
 
@@ -67,3 +68,69 @@ ctest --test-dir build/backend -R agent --output-on-failure
 - [ ] TASK-P5-010: spider flee fire 测试
 - [ ] TASK-P5-011: wolf call pack 测试
 - [ ] TASK-P5-012: 边界审计
+
+## P6: ObservationBuilder & ActionSpaceBuilder
+
+### 新增职责
+
+- `ObservationBuilder`: GameState + VisibilityInput → AgentObservation（只读，不修改状态，不调用游戏逻辑）
+- `ActionSpaceBuilder`: AgentObservation → AgentActionSpace（只读观察，不访问世界内部）
+- `builder_types`: ObservedThreatSeed、VisibilityInput、ObservationBuildRequest 等请求/结果类型
+
+### 目录
+
+- `backend/include/pathfinder/agent/builder_types.h` - Builder 请求/结果类型
+- `backend/include/pathfinder/agent/observation_builder.h` - ObservationBuilder
+- `backend/include/pathfinder/agent/action_space_builder.h` - ActionSpaceBuilder
+- `backend/src/agent/builder_types.cpp` - 类型校验实现
+- `backend/src/agent/observation_builder.cpp` - 观察构建实现
+- `backend/src/agent/action_space_builder.cpp` - 动作空间构建实现
+- `backend/tests/unit/agent/agent_builder_*_test.cpp` - Builder 单元测试
+- `backend/tests/integration/p6/` - P6 集成测试
+
+### 允许依赖 (pathfinder_agent_builders)
+
+- pathfinder_agent (P5 类型)
+- pathfinder_state (GameState 只读)
+- pathfinder_object (WorldObject, ObjectRuntimeFlag)
+- pathfinder_cognition (CognitionState 语义查询)
+- pathfinder_foundation
+
+### 禁止依赖
+
+- pipeline / rules (Builder 不执行游戏逻辑)
+- AgentRuntime / AgentPolicy / RL
+- HTTP / WebSocket / SaveManager
+- 真实逃跑/群体战斗结算
+
+### 边界扫描命令
+
+```bash
+# 扫描1: Builder 代码不引用游戏逻辑
+rg -n "RulePipeline|EatObjectResolver|StateChange|EventRecord" \
+  backend/include/pathfinder/agent/observation_builder.h \
+  backend/src/agent/observation_builder.cpp \
+  backend/include/pathfinder/agent/action_space_builder.h \
+  backend/src/agent/action_space_builder.cpp
+
+# 扫描2: ActionSpaceBuilder 不引用 GameState
+rg -n "GameState|state::" \
+  backend/include/pathfinder/agent/action_space_builder.h \
+  backend/src/agent/action_space_builder.cpp
+
+# 扫描3: 不暴露真实效果数据
+rg -n "edible_profile|hunger_delta|health_delta|effect_kind" \
+  backend/include/pathfinder/agent \
+  backend/src/agent \
+  backend/tests/unit/agent \
+  backend/tests/integration/p6
+```
+
+### 测试入口
+
+```bash
+cmake -S backend -B build/backend
+cmake --build build/backend
+ctest --test-dir build/backend -R "agent_builder|p6" --output-on-failure
+ctest --test-dir build/backend --output-on-failure
+```

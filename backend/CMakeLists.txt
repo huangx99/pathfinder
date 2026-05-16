@@ -218,5 +218,24 @@ target_link_libraries(pathfinder_agent PUBLIC
     pathfinder_command
 )
 
+# Agent Builders library (P6)
+add_library(pathfinder_agent_builders STATIC
+    src/agent/builder_types.cpp
+    src/agent/observation_builder.cpp
+    src/agent/action_space_builder.cpp
+)
+
+target_include_directories(pathfinder_agent_builders PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(pathfinder_agent_builders PUBLIC
+    pathfinder_agent
+    pathfinder_state
+    pathfinder_object
+    pathfinder_cognition
+    pathfinder_foundation
+)
+
 # Tests
 add_subdirectory(tests)
