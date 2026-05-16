@@ -259,5 +259,27 @@ target_link_libraries(pathfinder_agent_runtime PUBLIC
     pathfinder_foundation
 )
 
+# Agent Record library (P8)
+add_library(pathfinder_agent_record STATIC
+    src/agent/record_types.cpp
+    src/agent/record_builder.cpp
+    src/agent/replay_bridge.cpp
+)
+
+target_include_directories(pathfinder_agent_record PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(pathfinder_agent_record PUBLIC
+    pathfinder_agent
+    pathfinder_agent_runtime
+    pathfinder_replay
+    pathfinder_pipeline
+    pathfinder_state
+    pathfinder_event
+    pathfinder_command
+    pathfinder_foundation
+)
+
 # Tests
 add_subdirectory(tests)

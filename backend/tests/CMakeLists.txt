@@ -929,3 +929,351 @@ add_test(
     NAME p7_agent_runtime_threat_no_submit
     COMMAND pathfinder_tests_p7 p7_agent_runtime_threat_no_submit
 )
+
+# Agent Record type tests (P8)
+add_executable(pathfinder_tests_agent_record_types
+    unit/agent/agent_record_types_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_agent_record_types PRIVATE
+    pathfinder_agent_record
+    pathfinder_agent_runtime
+    pathfinder_agent_builders
+    pathfinder_agent
+    pathfinder_replay
+    pathfinder_pipeline
+    pathfinder_rules
+    pathfinder_state
+    pathfinder_event
+    pathfinder_object
+    pathfinder_cognition
+    pathfinder_command
+    pathfinder_foundation
+)
+
+# Agent Record builder tests (P8)
+add_executable(pathfinder_tests_agent_record_builder
+    unit/agent/agent_record_builder_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_agent_record_builder PRIVATE
+    pathfinder_agent_record
+    pathfinder_agent_runtime
+    pathfinder_agent_builders
+    pathfinder_agent
+    pathfinder_replay
+    pathfinder_pipeline
+    pathfinder_rules
+    pathfinder_state
+    pathfinder_event
+    pathfinder_object
+    pathfinder_cognition
+    pathfinder_command
+    pathfinder_foundation
+)
+
+# Agent Replay bridge tests (P8)
+add_executable(pathfinder_tests_agent_replay_bridge
+    unit/agent/agent_replay_bridge_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_agent_replay_bridge PRIVATE
+    pathfinder_agent_record
+    pathfinder_agent_runtime
+    pathfinder_agent_builders
+    pathfinder_agent
+    pathfinder_replay
+    pathfinder_pipeline
+    pathfinder_rules
+    pathfinder_state
+    pathfinder_event
+    pathfinder_object
+    pathfinder_cognition
+    pathfinder_command
+    pathfinder_foundation
+)
+
+add_test(
+    NAME agent_record_smoke
+    COMMAND pathfinder_tests_agent_record_types smoke
+)
+
+add_test(
+    NAME agent_record_decision_status_roundtrip
+    COMMAND pathfinder_tests_agent_record_types decision_record_status_roundtrip
+)
+
+add_test(
+    NAME agent_record_tick_status_roundtrip
+    COMMAND pathfinder_tests_agent_record_types tick_record_status_roundtrip
+)
+
+add_test(
+    NAME agent_record_id_helpers
+    COMMAND pathfinder_tests_agent_record_types id_helpers
+)
+
+add_test(
+    NAME agent_record_valid_decision_passes
+    COMMAND pathfinder_tests_agent_record_types valid_decision_record_passes
+)
+
+add_test(
+    NAME agent_record_missing_record_id
+    COMMAND pathfinder_tests_agent_record_types missing_record_id_fails
+)
+
+add_test(
+    NAME agent_record_unknown_status
+    COMMAND pathfinder_tests_agent_record_types unknown_status_fails
+)
+
+add_test(
+    NAME agent_record_confidence_range
+    COMMAND pathfinder_tests_agent_record_types confidence_out_of_range_fails
+)
+
+add_test(
+    NAME agent_record_pipeline_needs_cmd_id
+    COMMAND pathfinder_tests_agent_record_types pipeline_succeeded_requires_command_id
+)
+
+add_test(
+    NAME agent_record_no_decision_empty_id
+    COMMAND pathfinder_tests_agent_record_types no_decision_allows_empty_decision_id
+)
+
+add_test(
+    NAME agent_record_no_decision_no_explanation
+    COMMAND pathfinder_tests_agent_record_types no_decision_no_explanation_fails
+)
+
+add_test(
+    NAME agent_record_no_decision_phase_keys
+    COMMAND pathfinder_tests_agent_record_types no_decision_with_phase_keys_passes
+)
+
+add_test(
+    NAME agent_record_valid_tick_passes
+    COMMAND pathfinder_tests_agent_record_types valid_tick_record_passes
+)
+
+add_test(
+    NAME agent_record_missing_input_hash
+    COMMAND pathfinder_tests_agent_record_types missing_input_hash_fails
+)
+
+add_test(
+    NAME agent_record_missing_output_hash
+    COMMAND pathfinder_tests_agent_record_types missing_output_hash_fails
+)
+
+add_test(
+    NAME agent_record_pipeline_needs_status
+    COMMAND pathfinder_tests_agent_record_types pipeline_succeeded_requires_pipeline_status
+)
+
+add_test(
+    NAME agent_record_submit_skipped_no_cmd
+    COMMAND pathfinder_tests_agent_record_types submit_skipped_no_command_required
+)
+
+add_test(
+    NAME agent_record_unknown_record_status
+    COMMAND pathfinder_tests_agent_record_types unknown_record_status_fails
+)
+
+add_test(
+    NAME agent_record_unknown_runtime_status
+    COMMAND pathfinder_tests_agent_record_types unknown_runtime_status_fails
+)
+
+add_test(
+    NAME agent_record_append_valid
+    COMMAND pathfinder_tests_agent_record_types append_valid_record
+)
+
+add_test(
+    NAME agent_record_append_duplicate
+    COMMAND pathfinder_tests_agent_record_types append_duplicate_rejected
+)
+
+add_test(
+    NAME agent_record_append_invalid
+    COMMAND pathfinder_tests_agent_record_types append_invalid_rejected
+)
+
+add_test(
+    NAME agent_record_find_by_record_id
+    COMMAND pathfinder_tests_agent_record_types find_by_record_id
+)
+
+add_test(
+    NAME agent_record_find_by_agent_id
+    COMMAND pathfinder_tests_agent_record_types find_by_agent_id
+)
+
+add_test(
+    NAME agent_record_find_by_decision_id
+    COMMAND pathfinder_tests_agent_record_types find_by_decision_id
+)
+
+add_test(
+    NAME agent_record_empty_log_valid
+    COMMAND pathfinder_tests_agent_record_types empty_log_valid
+)
+
+add_test(
+    NAME agent_record_find_nonexistent
+    COMMAND pathfinder_tests_agent_record_types find_nonexistent_returns_empty
+)
+
+add_test(
+    NAME agent_record_build_req_hash
+    COMMAND pathfinder_tests_agent_record_types build_request_missing_hash_fails
+)
+
+# Record builder tests
+add_test(
+    NAME agent_record_builder_pipeline_succeeded
+    COMMAND pathfinder_tests_agent_record_builder pipeline_succeeded_build
+)
+
+add_test(
+    NAME agent_record_builder_submit_skipped
+    COMMAND pathfinder_tests_agent_record_builder submit_skipped_build
+)
+
+add_test(
+    NAME agent_record_builder_no_decision
+    COMMAND pathfinder_tests_agent_record_builder no_decision_build
+)
+
+add_test(
+    NAME agent_record_builder_missing_hash
+    COMMAND pathfinder_tests_agent_record_builder missing_hash_returns_error
+)
+
+add_test(
+    NAME agent_record_builder_deterministic_id
+    COMMAND pathfinder_tests_agent_record_builder record_id_deterministic
+)
+
+add_test(
+    NAME agent_record_builder_selected_candidate
+    COMMAND pathfinder_tests_agent_record_builder selected_candidate_from_trace
+)
+
+# Replay bridge tests
+add_test(
+    NAME agent_replay_bridge_pipeline_succeeded
+    COMMAND pathfinder_tests_agent_replay_bridge pipeline_succeeded_to_replay_record
+)
+
+add_test(
+    NAME agent_replay_bridge_cmd_id_match
+    COMMAND pathfinder_tests_agent_replay_bridge command_id_matches
+)
+
+add_test(
+    NAME agent_replay_bridge_state_changes
+    COMMAND pathfinder_tests_agent_replay_bridge state_change_ids_preserved
+)
+
+add_test(
+    NAME agent_replay_bridge_submit_skipped
+    COMMAND pathfinder_tests_agent_replay_bridge submit_skipped_fails
+)
+
+add_test(
+    NAME agent_replay_bridge_no_decision
+    COMMAND pathfinder_tests_agent_replay_bridge no_decision_fails
+)
+
+add_test(
+    NAME agent_replay_bridge_append_log
+    COMMAND pathfinder_tests_agent_replay_bridge append_to_log
+)
+
+add_test(
+    NAME agent_replay_bridge_append_dup
+    COMMAND pathfinder_tests_agent_replay_bridge append_duplicate_returns_error
+)
+
+# ReplayLockChecker tests
+add_test(
+    NAME agent_lock_check_with_cmd
+    COMMAND pathfinder_tests_agent_replay_bridge lock_check_with_matching_command
+)
+
+add_test(
+    NAME agent_lock_check_missing_cmd
+    COMMAND pathfinder_tests_agent_replay_bridge lock_check_missing_command
+)
+
+add_test(
+    NAME agent_lock_check_no_decision
+    COMMAND pathfinder_tests_agent_replay_bridge lock_check_no_decision
+)
+
+add_test(
+    NAME agent_lock_check_submit_skipped
+    COMMAND pathfinder_tests_agent_replay_bridge lock_check_submit_skipped
+)
+
+# P8 integration test: unknown fruit replay
+add_executable(pathfinder_tests_p8_unknown_fruit
+    integration/p8/agent_runtime_record_unknown_fruit_replay_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_p8_unknown_fruit PRIVATE
+    pathfinder_agent_record
+    pathfinder_agent_runtime
+    pathfinder_agent_builders
+    pathfinder_agent
+    pathfinder_replay
+    pathfinder_pipeline
+    pathfinder_rules
+    pathfinder_state
+    pathfinder_event
+    pathfinder_object
+    pathfinder_cognition
+    pathfinder_command
+    pathfinder_foundation
+)
+
+add_test(
+    NAME p8_smoke
+    COMMAND pathfinder_tests_p8_unknown_fruit smoke
+)
+
+add_test(
+    NAME p8_unknown_fruit_replay
+    COMMAND pathfinder_tests_p8_unknown_fruit p8_unknown_fruit_replay
+)
+
+# P8 integration test: no-submit / no-decision
+add_executable(pathfinder_tests_p8_no_submit
+    integration/p8/agent_runtime_record_no_submit_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_p8_no_submit PRIVATE
+    pathfinder_agent_record
+    pathfinder_agent_runtime
+    pathfinder_agent_builders
+    pathfinder_agent
+    pathfinder_replay
+    pathfinder_pipeline
+    pathfinder_rules
+    pathfinder_state
+    pathfinder_event
+    pathfinder_object
+    pathfinder_cognition
+    pathfinder_command
+    pathfinder_foundation
+)
+
+add_test(
+    NAME p8_no_submit_record
+    COMMAND pathfinder_tests_p8_no_submit p8_no_submit_record
+)

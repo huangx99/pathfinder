@@ -1,9 +1,9 @@
-# Agent 模块开发笔记 (P5 + P6 + P7)
+# Agent 模块开发笔记 (P5 + P6 + P7 + P8)
 
 ## 模块职责
 
-Agent 模块负责定义智能体的数据契约、命令适配器、以及观察/动作空间构建器。
-P5 做最小闭环，P6 引入 ObservationBuilder 和 ActionSpaceBuilder。
+Agent 模块负责定义智能体的数据契约、命令适配器、观察/动作空间构建器、运行时调度、以及记录与复盘桥接。
+P5 做最小闭环，P6 引入 ObservationBuilder 和 ActionSpaceBuilder，P7 引入 AgentRuntime，P8 引入记录与复盘兼容。
 
 ## 目录
 
@@ -207,3 +207,82 @@ cmake --build build/backend
 ctest --test-dir build/backend -R "agent_policy|agent_runtime_types|agent_runtime|p7" --output-on-failure
 ctest --test-dir build/backend --output-on-failure
 ```
+
+## P8: Agent Runtime Record & Replay Bridge
+
+### 新增职责
+
+- `AgentTickRecord` / `AgentDecisionRecord` / `AgentTickLog`: Agent tick/decision 的内存级记录
+- `AgentRecordBuilder`: 从 AgentTickRequest + AgentTickResult 生成稳定 AgentTickRecord
+- `AgentReplayBridge`: 将 AgentTickRecord 转换为 P4 CommandReplayRecord
+- `AgentReplayLockChecker`: 验证记录与命令日志的回放锁定状态
+
+### 目录
+
+- `backend/include/pathfinder/agent/record_types.h` - 记录类型定义
+- `backend/include/pathfinder/agent/record_builder.h` - AgentRecordBuilder
+- `backend/include/pathfinder/agent/replay_bridge.h` - AgentReplayBridge + LockChecker
+- `backend/src/agent/record_types.cpp` - 记录类型实现
+- `backend/src/agent/record_builder.cpp` - AgentRecordBuilder 实现
+- `backend/src/agent/replay_bridge.cpp` - ReplayBridge 实现
+- `backend/tests/unit/agent/agent_record_types_test.cpp` - 记录类型单元测试
+- `backend/tests/unit/agent/agent_record_builder_test.cpp` - Builder 单元测试
+- `backend/tests/unit/agent/agent_replay_bridge_test.cpp` - Bridge 单元测试
+- `backend/tests/integration/p8/` - P8 集成测试
+
+### 允许依赖 (pathfinder_agent_record)
+
+- pathfinder_agent (P5 类型 + P6 builders + P7 runtime)
+- pathfinder_replay (CommandReplayRecord, CommandReplayLog, ReplayRunner)
+- pathfinder_pipeline (PipelineResult, PipelineStatus)
+- pathfinder_state (StateChange, StateChangeSet)
+- pathfinder_event (EventRecord, EventStream)
+- pathfinder_command (CommandEnvelope)
+- pathfinder_foundation
+
+### 禁止依赖
+
+- AgentRuntime / Policy / RulePipeline (record_builder 不调用运行时)
+- ReplayRunner (replay_bridge 不执行回放)
+- SaveManager / H5 / HTTP / WebSocket
+- FleeResolver / GroupCombat / WarResolver
+- edible_profile / hunger_delta / health_delta / effect_kind
+
+### 边界扫描命令
+
+```bash
+# 扫描1: record_builder/replay_bridge 不调用运行时
+rg -n "AgentRuntime\(|FirstSupportedPolicy|decide\(|tickOne\(|RulePipeline|execute\(" \
+  backend/include/pathfinder/agent/record_builder.h \
+  backend/src/agent/record_builder.cpp \
+  backend/include/pathfinder/agent/replay_bridge.h \
+  backend/src/agent/replay_bridge.cpp
+
+# 扫描2: 不暴露真实效果数据
+rg -n "edible_profile|hunger_delta|health_delta|effect_kind" \
+  backend/include/pathfinder/agent \
+  backend/src/agent \
+  backend/tests/unit/agent \
+  backend/tests/integration/p8
+
+# 扫描3: 不引入禁止系统
+rg -n "SaveManager|WebSocket|HTTP|rl_environment|RLPolicy|NeuralPolicy|LLMPolicy|BehaviorTree|GOAP|FleeResolver|GroupCombat|WarResolver|tribe_split|pack_combat" \
+  backend/include/pathfinder/agent \
+  backend/src/agent \
+  backend/tests/integration/p8
+```
+
+### 测试入口
+
+```bash
+cmake -S backend -B build/backend
+cmake --build build/backend
+ctest --test-dir build/backend -R "agent_record|agent_replay_bridge|p8" --output-on-failure
+ctest --test-dir build/backend --output-on-failure
+```
+
+### P8 测试结果 (2026-05-17)
+
+- 171/171 全量测试通过
+- 边界扫描全部通过
+- 状态版本修复: state_version_after 从 pipeline 执行后捕获，不再使用计算值

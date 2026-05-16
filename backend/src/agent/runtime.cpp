@@ -138,6 +138,7 @@ foundation::Result<AgentTickResult> AgentRuntime::tickOne(
         return foundation::Result<AgentTickResult>::ok(std::move(result));
     }
     result.pipeline_result = std::move(pipeline_result.value());
+    result.state_version_after = request.state->metadata.state_version;
     result.trace.pipeline_submitted = true;
     result.trace.phase_keys.push_back("pipeline_executed");
 

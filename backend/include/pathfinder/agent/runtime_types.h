@@ -78,6 +78,7 @@ struct AgentTickResult {
     std::optional<pipeline::PipelineResult> pipeline_result;
     AgentRuntimeTrace trace;
     std::vector<foundation::ErrorDetail> warnings;
+    std::optional<foundation::StateVersion> state_version_after;
 
     foundation::Result<void> validateBasic() const;
 };
