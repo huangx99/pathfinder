@@ -581,3 +581,78 @@ ctest --test-dir build/backend --output-on-failure
 - P12 定向测试: 61/61 通过 (57 unit + 2 integration flow + 2 integration security)
 - 边界扫描全部通过
 - P8/P9/P10/P11 回归测试全部通过
+
+---
+
+## P13: Agent 本地调试 CLI 前置
+
+### 目标
+
+P13 在 P12 基础上增加 CLI Shell，将 P11/P12 的报告-导出-校验流程暴露为命令行工具:
+
+1. **AgentDebugCliParser**: 解析 argc/argv 参数
+2. **AgentDebugFixtureFactory**: 内置 fixture 数据 (UnknownFruit/NoDecision/PublicSafe)
+3. **AgentDebugCliRunner**: 编排 validate → fixture → draft → plan → write → verify 流程
+4. **CLI main**: 独立可执行文件入口
+
+### 新增文件
+
+```
+backend/include/pathfinder/agent/debug_cli.h
+backend/src/agent/debug_cli.cpp
+backend/tools/agent_debug_cli_main.cpp
+backend/tests/unit/agent/agent_debug_cli_test.cpp
+backend/tests/integration/p13/agent_debug_cli_flow_test.cpp
+backend/tests/integration/p13/agent_debug_cli_security_test.cpp
+context_packs/agent_p13.md
+```
+
+### 核心类型
+
+**CLI 枚举:**
+- `AgentDebugCliCommand`: Unknown/Help/Export
+- `AgentDebugCliFixture`: Unknown/UnknownFruit/NoDecision/PublicSafe
+- `AgentDebugCliFormat`: Unknown/Text/Markdown/ProtocolText
+- `AgentDebugCliExitCode`: Success=0/InvalidArguments=2/BuildFailed=3/WriteFailed=4/VerificationFailed=5/InternalError=10
+
+**数据契约:**
+- `AgentDebugCliOptions`: 解析后的 CLI 选项
+- `AgentDebugCliResult`: 执行结果 (exit_code/summary_text/output_files)
+- `AgentDebugCliParseResult`: 解析结果 (options + result + should_execute)
+- `AgentDebugFixtureBundle`: fixture 数据包 (report + diagnostics)
+
+**服务:**
+- `AgentDebugCliParser`: argc/argv → AgentDebugCliParseResult
+- `AgentDebugFixtureFactory`: fixture 枚举 → AgentDebugFixtureBundle
+- `AgentDebugCliRunner`: AgentDebugCliOptions → AgentDebugCliResult
+
+### 设计约束
+
+- 不读取真实 GameState/AgentDefinition/SaveManager
+- 内置 fixture 替代真实数据
+- 不做 JSON/HTTP/WebSocket
+- 解析错误返回 Result::ok() + exit_code=InvalidArguments
+- base_name 仅允许 [a-zA-Z0-9_-]
+- dry-run 不写文件
+- overwrite=false 时文件冲突返回 WriteFailed
+- 输出路径均为相对路径
+
+### 测试入口
+
+```bash
+cmake -S backend -B build/backend
+cmake --build build/backend
+ctest --test-dir build/backend -R "agent_debug_cli|p13" --output-on-failure
+ctest --test-dir build/backend --output-on-failure
+```
+
+### P13 测试结果 (2026-05-17)
+
+- 447/447 全量测试通过
+- P13 定向测试: 54/54 通过
+- P3-P13/agent/replay/protocol 相关回归: 401/401 通过
+- 边界扫描全部通过
+- P13 修复: 输出可执行文件名为 `pathfinder_agent_debug_cli`
+- P13 修复: `--scan-content` / `--no-scan-content` 已作为非法参数拒绝，CLI 不再允许关闭内容安全扫描
+- P13 修复: 正常执行路径不再额外打印 `Parse OK`
+- 历史修复: 2 个 SEGFAULT 由测试中 argc 与 argv 数组大小不匹配导致 (argc=9 但 argv 仅 8 个元素)

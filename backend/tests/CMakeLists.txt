@@ -2767,3 +2767,333 @@ add_test(
     NAME p12_path_security
     COMMAND pathfinder_tests_p12_security p12_path_security
 )
+
+# Agent Debug CLI tests (P13)
+add_executable(pathfinder_tests_agent_debug_cli
+    unit/agent/agent_debug_cli_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_agent_debug_cli PRIVATE
+    pathfinder_agent_debug_cli_lib
+    pathfinder_agent_local_export
+    pathfinder_agent_debug_export
+    pathfinder_agent_debug_report
+    pathfinder_agent_projection
+    pathfinder_agent_history_query
+    pathfinder_agent_replay_lock
+    pathfinder_agent_training_sample
+    pathfinder_agent_record
+    pathfinder_agent
+    pathfinder_protocol
+    pathfinder_foundation
+)
+
+add_test(
+    NAME agent_debug_cli_smoke
+    COMMAND pathfinder_tests_agent_debug_cli smoke
+)
+
+add_test(
+    NAME agent_debug_cli_command_roundtrip
+    COMMAND pathfinder_tests_agent_debug_cli command_roundtrip
+)
+
+add_test(
+    NAME agent_debug_cli_fixture_roundtrip
+    COMMAND pathfinder_tests_agent_debug_cli fixture_roundtrip
+)
+
+add_test(
+    NAME agent_debug_cli_format_roundtrip
+    COMMAND pathfinder_tests_agent_debug_cli format_roundtrip
+)
+
+add_test(
+    NAME agent_debug_cli_exit_code_int
+    COMMAND pathfinder_tests_agent_debug_cli exit_code_int
+)
+
+add_test(
+    NAME agent_debug_cli_format_conversion
+    COMMAND pathfinder_tests_agent_debug_cli format_conversion
+)
+
+add_test(
+    NAME agent_debug_cli_options_unknown_command_fails
+    COMMAND pathfinder_tests_agent_debug_cli options_unknown_command_fails
+)
+
+add_test(
+    NAME agent_debug_cli_options_export_missing_fixture_fails
+    COMMAND pathfinder_tests_agent_debug_cli options_export_missing_fixture_fails
+)
+
+add_test(
+    NAME agent_debug_cli_options_export_missing_output_dir_fails
+    COMMAND pathfinder_tests_agent_debug_cli options_export_missing_output_dir_fails
+)
+
+add_test(
+    NAME agent_debug_cli_options_invalid_base_name_fails
+    COMMAND pathfinder_tests_agent_debug_cli options_invalid_base_name_fails
+)
+
+add_test(
+    NAME agent_debug_cli_options_max_items_zero_fails
+    COMMAND pathfinder_tests_agent_debug_cli options_max_items_zero_fails
+)
+
+add_test(
+    NAME agent_debug_cli_options_help_valid
+    COMMAND pathfinder_tests_agent_debug_cli options_help_valid
+)
+
+add_test(
+    NAME agent_debug_cli_result_success_with_error_keys_fails
+    COMMAND pathfinder_tests_agent_debug_cli result_success_with_error_keys_fails
+)
+
+add_test(
+    NAME agent_debug_cli_result_failure_without_error_keys_fails
+    COMMAND pathfinder_tests_agent_debug_cli result_failure_without_error_keys_fails
+)
+
+add_test(
+    NAME agent_debug_cli_result_absolute_path_in_output_files_fails
+    COMMAND pathfinder_tests_agent_debug_cli result_absolute_path_in_output_files_fails
+)
+
+add_test(
+    NAME agent_debug_cli_result_empty_summary_text_fails
+    COMMAND pathfinder_tests_agent_debug_cli result_empty_summary_text_fails
+)
+
+add_test(
+    NAME agent_debug_cli_result_valid_success_passes
+    COMMAND pathfinder_tests_agent_debug_cli result_valid_success_passes
+)
+
+add_test(
+    NAME agent_debug_cli_result_valid_failure_passes
+    COMMAND pathfinder_tests_agent_debug_cli result_valid_failure_passes
+)
+
+add_test(
+    NAME agent_debug_cli_parser_help
+    COMMAND pathfinder_tests_agent_debug_cli parser_help
+)
+
+add_test(
+    NAME agent_debug_cli_parser_export_unknown_fruit_markdown
+    COMMAND pathfinder_tests_agent_debug_cli parser_export_unknown_fruit_markdown
+)
+
+add_test(
+    NAME agent_debug_cli_parser_dry_run
+    COMMAND pathfinder_tests_agent_debug_cli parser_dry_run
+)
+
+add_test(
+    NAME agent_debug_cli_parser_overwrite
+    COMMAND pathfinder_tests_agent_debug_cli parser_overwrite
+)
+
+add_test(
+    NAME agent_debug_cli_parser_unknown_arg_fails
+    COMMAND pathfinder_tests_agent_debug_cli parser_unknown_arg_fails
+)
+
+add_test(
+    NAME agent_debug_cli_parser_json_fails
+    COMMAND pathfinder_tests_agent_debug_cli parser_json_fails
+)
+
+add_test(
+    NAME agent_debug_cli_parser_load_save_fails
+    COMMAND pathfinder_tests_agent_debug_cli parser_load_save_fails
+)
+
+add_test(
+    NAME agent_debug_cli_parser_scan_content_fails
+    COMMAND pathfinder_tests_agent_debug_cli parser_scan_content_fails
+)
+
+add_test(
+    NAME agent_debug_cli_parser_no_scan_content_fails
+    COMMAND pathfinder_tests_agent_debug_cli parser_no_scan_content_fails
+)
+
+add_test(
+    NAME agent_debug_cli_parser_fixture_missing_value_fails
+    COMMAND pathfinder_tests_agent_debug_cli parser_fixture_missing_value_fails
+)
+
+add_test(
+    NAME agent_debug_cli_parser_max_items_non_number_fails
+    COMMAND pathfinder_tests_agent_debug_cli parser_max_items_non_number_fails
+)
+
+add_test(
+    NAME agent_debug_cli_parser_base_name_escape_fails
+    COMMAND pathfinder_tests_agent_debug_cli parser_base_name_escape_fails
+)
+
+add_test(
+    NAME agent_debug_cli_fixture_unknown_fruit_valid
+    COMMAND pathfinder_tests_agent_debug_cli fixture_unknown_fruit_valid
+)
+
+add_test(
+    NAME agent_debug_cli_fixture_no_decision_valid
+    COMMAND pathfinder_tests_agent_debug_cli fixture_no_decision_valid
+)
+
+add_test(
+    NAME agent_debug_cli_fixture_public_safe_valid
+    COMMAND pathfinder_tests_agent_debug_cli fixture_public_safe_valid
+)
+
+add_test(
+    NAME agent_debug_cli_fixture_unknown_fails
+    COMMAND pathfinder_tests_agent_debug_cli fixture_unknown_fails
+)
+
+add_test(
+    NAME agent_debug_cli_fixture_no_hidden_truth
+    COMMAND pathfinder_tests_agent_debug_cli fixture_no_hidden_truth
+)
+
+add_test(
+    NAME agent_debug_cli_runner_help
+    COMMAND pathfinder_tests_agent_debug_cli runner_help
+)
+
+add_test(
+    NAME agent_debug_cli_runner_dry_run
+    COMMAND pathfinder_tests_agent_debug_cli runner_dry_run
+)
+
+add_test(
+    NAME agent_debug_cli_runner_unknown_fruit_markdown
+    COMMAND pathfinder_tests_agent_debug_cli runner_unknown_fruit_markdown
+)
+
+add_test(
+    NAME agent_debug_cli_runner_no_decision_text
+    COMMAND pathfinder_tests_agent_debug_cli runner_no_decision_text
+)
+
+add_test(
+    NAME agent_debug_cli_runner_public_safe_protocol_text
+    COMMAND pathfinder_tests_agent_debug_cli runner_public_safe_protocol_text
+)
+
+add_test(
+    NAME agent_debug_cli_runner_no_overwrite_conflict
+    COMMAND pathfinder_tests_agent_debug_cli runner_no_overwrite_conflict
+)
+
+add_test(
+    NAME agent_debug_cli_runner_invalid_output_dir
+    COMMAND pathfinder_tests_agent_debug_cli runner_invalid_output_dir
+)
+
+# P13 integration test: CLI export flow
+add_executable(pathfinder_tests_p13_flow
+    integration/p13/agent_debug_cli_flow_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_p13_flow PRIVATE
+    pathfinder_agent_debug_cli_lib
+    pathfinder_agent_local_export
+    pathfinder_agent_debug_export
+    pathfinder_agent_debug_report
+    pathfinder_agent_projection
+    pathfinder_agent_history_query
+    pathfinder_agent_replay_lock
+    pathfinder_agent_training_sample
+    pathfinder_agent_record
+    pathfinder_agent
+    pathfinder_protocol
+    pathfinder_foundation
+)
+
+add_test(
+    NAME p13_smoke
+    COMMAND pathfinder_tests_p13_flow smoke
+)
+
+add_test(
+    NAME p13_agent_debug_cli_flow
+    COMMAND pathfinder_tests_p13_flow p13_agent_debug_cli_flow
+)
+
+# P13 integration test: CLI security
+add_executable(pathfinder_tests_p13_security
+    integration/p13/agent_debug_cli_security_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_p13_security PRIVATE
+    pathfinder_agent_debug_cli_lib
+    pathfinder_agent_local_export
+    pathfinder_agent_debug_export
+    pathfinder_agent_debug_report
+    pathfinder_agent_projection
+    pathfinder_agent_history_query
+    pathfinder_agent_replay_lock
+    pathfinder_agent_training_sample
+    pathfinder_agent_record
+    pathfinder_agent
+    pathfinder_protocol
+    pathfinder_foundation
+)
+
+add_test(
+    NAME p13_security_smoke
+    COMMAND pathfinder_tests_p13_security smoke
+)
+
+add_test(
+    NAME p13_base_name_escape
+    COMMAND pathfinder_tests_p13_security p13_base_name_escape
+)
+
+add_test(
+    NAME p13_json_rejected
+    COMMAND pathfinder_tests_p13_security p13_json_rejected
+)
+
+add_test(
+    NAME p13_load_save_rejected
+    COMMAND pathfinder_tests_p13_security p13_load_save_rejected
+)
+
+add_test(
+    NAME p13_scan_content_rejected
+    COMMAND pathfinder_tests_p13_security p13_scan_content_rejected
+)
+
+add_test(
+    NAME p13_no_scan_content_rejected
+    COMMAND pathfinder_tests_p13_security p13_no_scan_content_rejected
+)
+
+add_test(
+    NAME p13_output_dir_missing_value
+    COMMAND pathfinder_tests_p13_security p13_output_dir_missing_value
+)
+
+add_test(
+    NAME p13_dry_run_no_files
+    COMMAND pathfinder_tests_p13_security p13_dry_run_no_files
+)
+
+add_test(
+    NAME p13_overwrite_false_conflict
+    COMMAND pathfinder_tests_p13_security p13_overwrite_false_conflict
+)
+
+add_test(
+    NAME p13_no_files_outside_root
+    COMMAND pathfinder_tests_p13_security p13_no_files_outside_root
+)
