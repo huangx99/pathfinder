@@ -488,6 +488,24 @@ target_link_libraries(pathfinder_memory PUBLIC
     pathfinder_cognition
 )
 
+# Knowledge library (P18)
+add_library(pathfinder_knowledge STATIC
+    src/knowledge/knowledge_types.cpp
+    src/knowledge/knowledge_claim.cpp
+    src/knowledge/knowledge_repository.cpp
+    src/knowledge/knowledge_formation.cpp
+    src/knowledge/knowledge_projection.cpp
+)
+
+target_include_directories(pathfinder_knowledge PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(pathfinder_knowledge PUBLIC
+    pathfinder_foundation
+    pathfinder_memory
+)
+
 # Agent Debug CLI executable (P13)
 add_executable(pathfinder_agent_debug_cli_exe
     tools/agent_debug_cli_main.cpp

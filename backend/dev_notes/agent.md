@@ -922,3 +922,80 @@ backend/tests/CMakeLists.txt
 - P17 定向测试: 8/8 通过
 - P3-P17 相关回归: 197/197 通过
 - 边界扫描全部通过
+
+---
+
+## P18: 知识系统 (Knowledge System)
+
+### 新增文件
+
+```
+backend/include/pathfinder/knowledge/knowledge_types.h
+backend/include/pathfinder/knowledge/knowledge_claim.h
+backend/include/pathfinder/knowledge/knowledge_repository.h
+backend/include/pathfinder/knowledge/knowledge_formation.h
+backend/include/pathfinder/knowledge/knowledge_projection.h
+backend/src/knowledge/knowledge_types.cpp
+backend/src/knowledge/knowledge_claim.cpp
+backend/src/knowledge/knowledge_repository.cpp
+backend/src/knowledge/knowledge_formation.cpp
+backend/src/knowledge/knowledge_projection.cpp
+backend/tests/unit/knowledge/knowledge_types_test.cpp
+backend/tests/unit/knowledge/knowledge_claim_test.cpp
+backend/tests/unit/knowledge/knowledge_repository_test.cpp
+backend/tests/unit/knowledge/knowledge_formation_test.cpp
+backend/tests/unit/knowledge/knowledge_projection_test.cpp
+backend/tests/integration/p18/knowledge_from_memory_summary_flow_test.cpp
+backend/tests/integration/p18/knowledge_projection_flow_test.cpp
+backend/tests/integration/p18/knowledge_boundary_security_test.cpp
+context_packs/knowledge_p18.md
+```
+
+### 修改文件
+
+```
+backend/CMakeLists.txt
+backend/tests/CMakeLists.txt
+backend/dev_notes/agent.md
+```
+
+### 核心类型
+
+**枚举:**
+- `KnowledgeOwnerKind`: Unknown/Agent/Actor/Tribe/Region/Civilization/ExternalRecord/TestOnly
+- `KnowledgeSubjectKind`: Unknown/ObjectDefinition/ObjectInstance/Trait/Region/Action/Combination/Agent/Tribe/TestOnly
+- `KnowledgeRelationType`: Unknown/HasEffect/HasRisk/IsEdibleUnder/IsDangerousUnder/IsUsableFor/ReactsWith/TransformsInto/Produces/Prevents/Requires/FailsUnder/LocatedAt/Indicates/TestOnly
+- `KnowledgeConfidenceBand`: Unknown/Weak/Plausible/Reliable/Strong/Established
+- `KnowledgeStatus`: Unknown/Candidate/Hypothesis/Active/Teachable/Shared/Operational/Deprecated/Disproven/TestOnly
+- `KnowledgeEvidenceKind`: Unknown/MemoryRecord/MemorySummary/CognitionEvidence/DirectExperience/RepeatedExperience/Teaching/ExternalRecord/TestOnly
+- `KnowledgeFormationDecision`: Unknown/Skipped/CreatedClaim/UpdatedClaim/Rejected
+- `KnowledgeQueryMode`: Unknown/ByOwner/ExactSubject/ByRelation/Actionable/Teachable/RiskRelated/HighConfidence/TestOnly
+
+**DTO:**
+- `KnowledgeOwner`, `KnowledgeSubject`, `KnowledgePredicate`, `KnowledgeCondition`, `KnowledgeEvidence`, `KnowledgeConfidence`, `KnowledgeTeachingProfile`, `KnowledgeProjectionFlags`
+- `KnowledgeClaim`, `KnowledgeFormationOptions`, `KnowledgeFormationInput`, `KnowledgeFormationPlan`, `KnowledgeFormationResult`
+- `KnowledgeQuery`, `KnowledgeProjectionItem`, `KnowledgeProjection`
+- `KnowledgeEventDraft`, `KnowledgeStateChangeDraft`
+
+**服务:**
+- `KnowledgeIdFactory`: 确定性生成 KnowledgeId / KnowledgeEvidenceId / KnowledgeTraceId
+- `KnowledgeRepository`: 内存级知识存储与确定性查询
+- `KnowledgeFormationPlanner`: 从 MemorySummary 生成知识形成计划
+- `KnowledgeFormationService`: 将计划转换为知识声明或 Skipped 结果
+- `KnowledgeProjectionBuilder`: 构建安全知识投影（不暴露证据详情）
+
+### 设计约束
+
+- 知识是主观断言，不是 ObjectDefinition 真值
+- 只从 MemorySummary / MemoryRecord 安全字段形成知识
+- 不实现 KnowledgeConflictResolver / KnowledgeRevision / KnowledgeMergePolicy
+- 不实现传播系统
+- 不依赖 AgentRuntime / Policy / RulePipeline / GameState / SaveManager / HTTP / JSON
+- Hidden truth guard 覆盖所有 DTO 字符串字段（含大小写不敏感）
+
+### 测试结果 (2026-05-17)
+
+- 526/526 全量测试通过 (P17 517 + P18 9)
+- P18 定向测试: 9/9 通过
+- P3-P18 相关回归: 206/206 通过
+- 边界扫描全部通过

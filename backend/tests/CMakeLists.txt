@@ -1237,6 +1237,133 @@ add_test(
     COMMAND pathfinder_tests_p17_memory_security test_only_gate
 )
 
+# Knowledge unit tests (P18)
+add_executable(pathfinder_tests_knowledge_types
+    unit/knowledge/knowledge_types_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_knowledge_types PRIVATE
+    pathfinder_knowledge
+    pathfinder_memory
+    pathfinder_foundation
+)
+
+add_test(
+    NAME knowledge_types_roundtrip
+    COMMAND pathfinder_tests_knowledge_types types
+)
+
+add_executable(pathfinder_tests_knowledge_claim
+    unit/knowledge/knowledge_claim_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_knowledge_claim PRIVATE
+    pathfinder_knowledge
+    pathfinder_memory
+    pathfinder_foundation
+)
+
+add_test(
+    NAME knowledge_claim_validate_basic
+    COMMAND pathfinder_tests_knowledge_claim claim
+)
+
+add_executable(pathfinder_tests_knowledge_repository
+    unit/knowledge/knowledge_repository_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_knowledge_repository PRIVATE
+    pathfinder_knowledge
+    pathfinder_memory
+    pathfinder_foundation
+)
+
+add_test(
+    NAME knowledge_repository_query_order
+    COMMAND pathfinder_tests_knowledge_repository repository
+)
+
+add_executable(pathfinder_tests_knowledge_formation
+    unit/knowledge/knowledge_formation_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_knowledge_formation PRIVATE
+    pathfinder_knowledge
+    pathfinder_memory
+    pathfinder_foundation
+)
+
+add_test(
+    NAME knowledge_formation_planner_service
+    COMMAND pathfinder_tests_knowledge_formation formation
+)
+
+add_executable(pathfinder_tests_knowledge_projection
+    unit/knowledge/knowledge_projection_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_knowledge_projection PRIVATE
+    pathfinder_knowledge
+    pathfinder_memory
+    pathfinder_foundation
+)
+
+add_test(
+    NAME knowledge_projection_builder
+    COMMAND pathfinder_tests_knowledge_projection projection
+)
+
+# P18 integration tests
+add_executable(pathfinder_tests_p18_knowledge_from_memory
+    integration/p18/knowledge_from_memory_summary_flow_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_p18_knowledge_from_memory PRIVATE
+    pathfinder_knowledge
+    pathfinder_memory
+    pathfinder_foundation
+)
+
+add_test(
+    NAME p18_knowledge_from_memory_summary_flow
+    COMMAND pathfinder_tests_p18_knowledge_from_memory flow
+)
+
+add_executable(pathfinder_tests_p18_knowledge_projection
+    integration/p18/knowledge_projection_flow_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_p18_knowledge_projection PRIVATE
+    pathfinder_knowledge
+    pathfinder_memory
+    pathfinder_foundation
+)
+
+add_test(
+    NAME p18_knowledge_projection_flow
+    COMMAND pathfinder_tests_p18_knowledge_projection projection_flow
+)
+
+add_executable(pathfinder_tests_p18_knowledge_security
+    integration/p18/knowledge_boundary_security_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_p18_knowledge_security PRIVATE
+    pathfinder_knowledge
+    pathfinder_memory
+    pathfinder_foundation
+)
+
+add_test(
+    NAME p18_knowledge_security_hidden_truth
+    COMMAND pathfinder_tests_p18_knowledge_security hidden_truth
+)
+
+add_test(
+    NAME p18_knowledge_security_test_only_gate
+    COMMAND pathfinder_tests_p18_knowledge_security test_only_gate
+)
+
 # Agent Record type tests (P8)
 add_executable(pathfinder_tests_agent_record_types
     unit/agent/agent_record_types_test.cpp
