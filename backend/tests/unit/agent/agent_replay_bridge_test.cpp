@@ -225,6 +225,16 @@ void test_lock_check_submit_skipped() {
     std::cout << "  PASS: lock_check_submit_skipped\n";
 }
 
+void test_custom_replay_record_id_passthrough() {
+    AgentReplayBridge bridge;
+    auto rec = makePipelineSucceededTickRecord();
+    rec.decision_record.replay_record_id = ReplayRecordId("agent_replay_custom_001");
+    auto result = bridge.toCommandReplayRecord(rec);
+    assert(result.is_ok());
+    assert(result.value().record_id == ReplayRecordId("agent_replay_custom_001"));
+    std::cout << "  PASS: custom_replay_record_id_passthrough\n";
+}
+
 int main(int argc, char* argv[]) {
     if (argc < 2) return 1;
     std::string test_name = argv[1];
@@ -245,6 +255,7 @@ int main(int argc, char* argv[]) {
     if (test_name == "lock_check_missing_command") { test_lock_check_missing_command(); return 0; }
     if (test_name == "lock_check_no_decision") { test_lock_check_no_decision(); return 0; }
     if (test_name == "lock_check_submit_skipped") { test_lock_check_submit_skipped(); return 0; }
+    if (test_name == "custom_replay_record_id_passthrough") { test_custom_replay_record_id_passthrough(); return 0; }
 
     std::cout << "Unknown test: " << test_name << std::endl;
     return 1;

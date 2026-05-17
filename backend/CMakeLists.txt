@@ -281,5 +281,40 @@ target_link_libraries(pathfinder_agent_record PUBLIC
     pathfinder_foundation
 )
 
+# Agent Replay Lock library (P9)
+add_library(pathfinder_agent_replay_lock STATIC
+    src/agent/replay_lock.cpp
+)
+
+target_include_directories(pathfinder_agent_replay_lock PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(pathfinder_agent_replay_lock PUBLIC
+    pathfinder_agent_record
+    pathfinder_agent
+    pathfinder_replay
+    pathfinder_foundation
+)
+
+# Agent Training Sample library (P9)
+add_library(pathfinder_agent_training_sample STATIC
+    src/agent/training_sample.cpp
+)
+
+target_include_directories(pathfinder_agent_training_sample PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(pathfinder_agent_training_sample PUBLIC
+    pathfinder_agent_record
+    pathfinder_agent_replay_lock
+    pathfinder_agent
+    pathfinder_replay
+    pathfinder_pipeline
+    pathfinder_command
+    pathfinder_foundation
+)
+
 # Tests
 add_subdirectory(tests)

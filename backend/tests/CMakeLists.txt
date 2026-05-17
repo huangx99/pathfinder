@@ -1277,3 +1277,375 @@ add_test(
     NAME p8_no_submit_record
     COMMAND pathfinder_tests_p8_no_submit p8_no_submit_record
 )
+
+# Agent Replay Lock tests (P9)
+add_executable(pathfinder_tests_agent_replay_lock
+    unit/agent/agent_replay_lock_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_agent_replay_lock PRIVATE
+    pathfinder_agent_replay_lock
+    pathfinder_agent_record
+    pathfinder_agent_runtime
+    pathfinder_agent_builders
+    pathfinder_agent
+    pathfinder_replay
+    pathfinder_pipeline
+    pathfinder_rules
+    pathfinder_state
+    pathfinder_event
+    pathfinder_object
+    pathfinder_cognition
+    pathfinder_command
+    pathfinder_foundation
+)
+
+add_test(
+    NAME agent_replay_lock_smoke
+    COMMAND pathfinder_tests_agent_replay_lock smoke
+)
+
+add_test(
+    NAME agent_replay_lock_status_roundtrip
+    COMMAND pathfinder_tests_agent_replay_lock lock_status_roundtrip
+)
+
+add_test(
+    NAME agent_replay_lock_reason_roundtrip
+    COMMAND pathfinder_tests_agent_replay_lock lock_reason_roundtrip
+)
+
+add_test(
+    NAME agent_replay_lock_locked_entry_passes
+    COMMAND pathfinder_tests_agent_replay_lock locked_entry_passes
+)
+
+add_test(
+    NAME agent_replay_lock_locked_entry_no_cmd
+    COMMAND pathfinder_tests_agent_replay_lock locked_entry_missing_command_id_fails
+)
+
+add_test(
+    NAME agent_replay_lock_locked_entry_no_replay_id
+    COMMAND pathfinder_tests_agent_replay_lock locked_entry_missing_replay_record_id_fails
+)
+
+add_test(
+    NAME agent_replay_lock_explained_only
+    COMMAND pathfinder_tests_agent_replay_lock explained_only_no_command_passes
+)
+
+add_test(
+    NAME agent_replay_lock_broken_needs_reason
+    COMMAND pathfinder_tests_agent_replay_lock broken_entry_requires_reason
+)
+
+add_test(
+    NAME agent_replay_lock_unknown_status
+    COMMAND pathfinder_tests_agent_replay_lock unknown_status_fails
+)
+
+add_test(
+    NAME agent_replay_lock_empty_record_id
+    COMMAND pathfinder_tests_agent_replay_lock empty_agent_record_id_fails
+)
+
+add_test(
+    NAME agent_replay_lock_empty_agent_id
+    COMMAND pathfinder_tests_agent_replay_lock empty_agent_id_fails
+)
+
+add_test(
+    NAME agent_replay_lock_valid_set
+    COMMAND pathfinder_tests_agent_replay_lock valid_lock_set_passes
+)
+
+add_test(
+    NAME agent_replay_lock_empty_set
+    COMMAND pathfinder_tests_agent_replay_lock empty_lock_set_fails
+)
+
+add_test(
+    NAME agent_replay_lock_all_replayable
+    COMMAND pathfinder_tests_agent_replay_lock all_replayable_without_policy
+)
+
+add_test(
+    NAME agent_replay_lock_has_broken
+    COMMAND pathfinder_tests_agent_replay_lock has_broken_entry
+)
+
+add_test(
+    NAME agent_replay_lock_set_id_helper
+    COMMAND pathfinder_tests_agent_replay_lock lock_set_id_helper
+)
+
+add_test(
+    NAME agent_replay_lock_builder_locked
+    COMMAND pathfinder_tests_agent_replay_lock builder_matching_command_locked
+)
+
+add_test(
+    NAME agent_replay_lock_builder_broken
+    COMMAND pathfinder_tests_agent_replay_lock builder_missing_command_broken
+)
+
+add_test(
+    NAME agent_replay_lock_builder_submit_skipped
+    COMMAND pathfinder_tests_agent_replay_lock builder_submit_skipped_explained_only
+)
+
+add_test(
+    NAME agent_replay_lock_builder_no_decision
+    COMMAND pathfinder_tests_agent_replay_lock builder_no_decision_explained_only
+)
+
+add_test(
+    NAME agent_replay_lock_builder_empty_hash
+    COMMAND pathfinder_tests_agent_replay_lock builder_source_hash_empty_fails
+)
+
+add_test(
+    NAME agent_replay_lock_builder_null_log
+    COMMAND pathfinder_tests_agent_replay_lock builder_null_agent_log_fails
+)
+
+add_test(
+    NAME agent_replay_lock_builder_empty_log
+    COMMAND pathfinder_tests_agent_replay_lock builder_empty_agent_log_fails
+)
+
+add_test(
+    NAME agent_replay_lock_set_empty_source_hash
+    COMMAND pathfinder_tests_agent_replay_lock lock_set_empty_source_hash_fails
+)
+
+# Agent Training Sample tests (P9)
+add_executable(pathfinder_tests_agent_training_sample
+    unit/agent/agent_training_sample_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_agent_training_sample PRIVATE
+    pathfinder_agent_training_sample
+    pathfinder_agent_replay_lock
+    pathfinder_agent_record
+    pathfinder_agent_runtime
+    pathfinder_agent_builders
+    pathfinder_agent
+    pathfinder_replay
+    pathfinder_pipeline
+    pathfinder_rules
+    pathfinder_state
+    pathfinder_event
+    pathfinder_object
+    pathfinder_cognition
+    pathfinder_command
+    pathfinder_foundation
+)
+
+add_test(
+    NAME agent_training_sample_smoke
+    COMMAND pathfinder_tests_agent_training_sample smoke
+)
+
+add_test(
+    NAME agent_training_sample_status_roundtrip
+    COMMAND pathfinder_tests_agent_training_sample sample_status_roundtrip
+)
+
+add_test(
+    NAME agent_training_sample_reward_roundtrip
+    COMMAND pathfinder_tests_agent_training_sample reward_status_roundtrip
+)
+
+add_test(
+    NAME agent_training_sample_done_roundtrip
+    COMMAND pathfinder_tests_agent_training_sample done_status_roundtrip
+)
+
+add_test(
+    NAME agent_training_sample_id_deterministic
+    COMMAND pathfinder_tests_agent_training_sample sample_id_deterministic
+)
+
+add_test(
+    NAME agent_training_sample_valid_passes
+    COMMAND pathfinder_tests_agent_training_sample valid_sample_passes
+)
+
+add_test(
+    NAME agent_training_sample_no_sample_id
+    COMMAND pathfinder_tests_agent_training_sample missing_sample_id_fails
+)
+
+add_test(
+    NAME agent_training_sample_no_source_id
+    COMMAND pathfinder_tests_agent_training_sample missing_source_record_id_fails
+)
+
+add_test(
+    NAME agent_training_sample_unknown_status
+    COMMAND pathfinder_tests_agent_training_sample unknown_status_fails
+)
+
+add_test(
+    NAME agent_training_sample_unknown_runtime
+    COMMAND pathfinder_tests_agent_training_sample result_unknown_runtime_status_fails
+)
+
+add_test(
+    NAME agent_training_sample_empty_input_hash
+    COMMAND pathfinder_tests_agent_training_sample empty_input_hash_fails
+)
+
+add_test(
+    NAME agent_training_sample_empty_output_hash
+    COMMAND pathfinder_tests_agent_training_sample empty_output_hash_fails
+)
+
+add_test(
+    NAME agent_training_sample_reward_unknown
+    COMMAND pathfinder_tests_agent_training_sample reward_status_unknown_fails
+)
+
+add_test(
+    NAME agent_training_sample_done_unknown
+    COMMAND pathfinder_tests_agent_training_sample done_status_unknown_fails
+)
+
+add_test(
+    NAME agent_training_sample_pipeline_needs_cmd
+    COMMAND pathfinder_tests_agent_training_sample pipeline_succeeded_requires_command_id
+)
+
+add_test(
+    NAME agent_training_sample_no_decision_no_cmd
+    COMMAND pathfinder_tests_agent_training_sample no_decision_allows_no_command_id
+)
+
+add_test(
+    NAME agent_training_sample_no_decision_no_reason
+    COMMAND pathfinder_tests_agent_training_sample no_decision_trace_no_reason_fails
+)
+
+add_test(
+    NAME agent_training_sample_builder_draft
+    COMMAND pathfinder_tests_agent_training_sample builder_pipeline_succeeded_draft
+)
+
+add_test(
+    NAME agent_training_sample_builder_replay_locked
+    COMMAND pathfinder_tests_agent_training_sample builder_replay_locked_sample
+)
+
+add_test(
+    NAME agent_training_sample_builder_skipped
+    COMMAND pathfinder_tests_agent_training_sample builder_submit_skipped_sample
+)
+
+add_test(
+    NAME agent_training_sample_builder_no_decision
+    COMMAND pathfinder_tests_agent_training_sample builder_no_decision_sample
+)
+
+add_test(
+    NAME agent_training_sample_builder_no_obs_hash
+    COMMAND pathfinder_tests_agent_training_sample builder_missing_observation_hash_fails
+)
+
+add_test(
+    NAME agent_training_sample_builder_deterministic
+    COMMAND pathfinder_tests_agent_training_sample builder_sample_id_deterministic
+)
+
+add_test(
+    NAME agent_training_sample_builder_counts
+    COMMAND pathfinder_tests_agent_training_sample builder_state_counts_preserved
+)
+
+add_test(
+    NAME agent_training_sample_trace_replay_locked
+    COMMAND pathfinder_tests_agent_training_sample trace_replay_locked_consistency
+)
+
+add_test(
+    NAME agent_training_sample_trace_phase_not_reason
+    COMMAND pathfinder_tests_agent_training_sample trace_phase_keys_not_in_reason_keys
+)
+
+add_test(
+    NAME agent_training_sample_trace_rejected_reasons
+    COMMAND pathfinder_tests_agent_training_sample trace_rejected_reason_keys_in_reason_keys
+)
+
+# P8 replay_record_id passthrough test
+add_test(
+    NAME agent_replay_bridge_custom_replay_id
+    COMMAND pathfinder_tests_agent_replay_bridge custom_replay_record_id_passthrough
+)
+
+# P9 integration test: replay locked training draft
+add_executable(pathfinder_tests_p9_replay_locked
+    integration/p9/agent_replay_locked_training_draft_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_p9_replay_locked PRIVATE
+    pathfinder_agent_training_sample
+    pathfinder_agent_replay_lock
+    pathfinder_agent_record
+    pathfinder_agent_runtime
+    pathfinder_agent_builders
+    pathfinder_agent
+    pathfinder_replay
+    pathfinder_pipeline
+    pathfinder_rules
+    pathfinder_state
+    pathfinder_event
+    pathfinder_object
+    pathfinder_cognition
+    pathfinder_command
+    pathfinder_foundation
+)
+
+add_test(
+    NAME p9_smoke
+    COMMAND pathfinder_tests_p9_replay_locked smoke
+)
+
+add_test(
+    NAME p9_replay_locked_training_draft
+    COMMAND pathfinder_tests_p9_replay_locked p9_replay_locked_training_draft
+)
+
+# P9 integration test: no-decision / skipped training draft
+add_executable(pathfinder_tests_p9_no_decision
+    integration/p9/agent_no_decision_training_draft_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_p9_no_decision PRIVATE
+    pathfinder_agent_training_sample
+    pathfinder_agent_replay_lock
+    pathfinder_agent_record
+    pathfinder_agent_runtime
+    pathfinder_agent_builders
+    pathfinder_agent
+    pathfinder_replay
+    pathfinder_pipeline
+    pathfinder_rules
+    pathfinder_state
+    pathfinder_event
+    pathfinder_object
+    pathfinder_cognition
+    pathfinder_command
+    pathfinder_foundation
+)
+
+add_test(
+    NAME p9_no_decision_smoke
+    COMMAND pathfinder_tests_p9_no_decision smoke
+)
+
+add_test(
+    NAME p9_no_decision_training_draft
+    COMMAND pathfinder_tests_p9_no_decision p9_no_decision_training_draft
+)
