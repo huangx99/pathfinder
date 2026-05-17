@@ -274,6 +274,111 @@ Result<KnowledgeQueryMode> knowledgeQueryModeFromString(const std::string& str) 
 }
 
 // ============================================================
+// KnowledgeConflictType
+// ============================================================
+
+std::string toString(KnowledgeConflictType type) {
+    switch (type) {
+        case KnowledgeConflictType::Unknown: return "unknown";
+        case KnowledgeConflictType::SameClaimSupport: return "same_claim_support";
+        case KnowledgeConflictType::OppositeEffect: return "opposite_effect";
+        case KnowledgeConflictType::RiskDiscovered: return "risk_discovered";
+        case KnowledgeConflictType::ConditionMismatch: return "condition_mismatch";
+        case KnowledgeConflictType::Overgeneralized: return "overgeneralized";
+        case KnowledgeConflictType::DuplicateClaim: return "duplicate_claim";
+        case KnowledgeConflictType::WeakContradiction: return "weak_contradiction";
+        case KnowledgeConflictType::StrongContradiction: return "strong_contradiction";
+        case KnowledgeConflictType::SourceInvalid: return "source_invalid";
+        case KnowledgeConflictType::TestOnly: return "test_only";
+    }
+    return "unknown";
+}
+
+Result<KnowledgeConflictType> knowledgeConflictTypeFromString(const std::string& str) {
+    if (str == "unknown") return Result<KnowledgeConflictType>::ok(KnowledgeConflictType::Unknown);
+    if (str == "same_claim_support") return Result<KnowledgeConflictType>::ok(KnowledgeConflictType::SameClaimSupport);
+    if (str == "opposite_effect") return Result<KnowledgeConflictType>::ok(KnowledgeConflictType::OppositeEffect);
+    if (str == "risk_discovered") return Result<KnowledgeConflictType>::ok(KnowledgeConflictType::RiskDiscovered);
+    if (str == "condition_mismatch") return Result<KnowledgeConflictType>::ok(KnowledgeConflictType::ConditionMismatch);
+    if (str == "overgeneralized") return Result<KnowledgeConflictType>::ok(KnowledgeConflictType::Overgeneralized);
+    if (str == "duplicate_claim") return Result<KnowledgeConflictType>::ok(KnowledgeConflictType::DuplicateClaim);
+    if (str == "weak_contradiction") return Result<KnowledgeConflictType>::ok(KnowledgeConflictType::WeakContradiction);
+    if (str == "strong_contradiction") return Result<KnowledgeConflictType>::ok(KnowledgeConflictType::StrongContradiction);
+    if (str == "source_invalid") return Result<KnowledgeConflictType>::ok(KnowledgeConflictType::SourceInvalid);
+    if (str == "test_only") return Result<KnowledgeConflictType>::ok(KnowledgeConflictType::TestOnly);
+    return Result<KnowledgeConflictType>::fail(
+        makeError(ErrorCode::validation_enum_unknown, "invalid KnowledgeConflictType: " + str));
+}
+
+// ============================================================
+// KnowledgeRevisionDecision
+// ============================================================
+
+std::string toString(KnowledgeRevisionDecision decision) {
+    switch (decision) {
+        case KnowledgeRevisionDecision::Unknown: return "unknown";
+        case KnowledgeRevisionDecision::Skipped: return "skipped";
+        case KnowledgeRevisionDecision::NoChange: return "no_change";
+        case KnowledgeRevisionDecision::ReinforcedClaim: return "reinforced_claim";
+        case KnowledgeRevisionDecision::WeakenedClaim: return "weakened_claim";
+        case KnowledgeRevisionDecision::CreatedSpecializedClaim: return "created_specialized_claim";
+        case KnowledgeRevisionDecision::DeprecatedClaim: return "deprecated_claim";
+        case KnowledgeRevisionDecision::DisprovenClaim: return "disproven_claim";
+        case KnowledgeRevisionDecision::Rejected: return "rejected";
+        case KnowledgeRevisionDecision::TestOnly: return "test_only";
+    }
+    return "unknown";
+}
+
+Result<KnowledgeRevisionDecision> knowledgeRevisionDecisionFromString(const std::string& str) {
+    if (str == "unknown") return Result<KnowledgeRevisionDecision>::ok(KnowledgeRevisionDecision::Unknown);
+    if (str == "skipped") return Result<KnowledgeRevisionDecision>::ok(KnowledgeRevisionDecision::Skipped);
+    if (str == "no_change") return Result<KnowledgeRevisionDecision>::ok(KnowledgeRevisionDecision::NoChange);
+    if (str == "reinforced_claim") return Result<KnowledgeRevisionDecision>::ok(KnowledgeRevisionDecision::ReinforcedClaim);
+    if (str == "weakened_claim") return Result<KnowledgeRevisionDecision>::ok(KnowledgeRevisionDecision::WeakenedClaim);
+    if (str == "created_specialized_claim") return Result<KnowledgeRevisionDecision>::ok(KnowledgeRevisionDecision::CreatedSpecializedClaim);
+    if (str == "deprecated_claim") return Result<KnowledgeRevisionDecision>::ok(KnowledgeRevisionDecision::DeprecatedClaim);
+    if (str == "disproven_claim") return Result<KnowledgeRevisionDecision>::ok(KnowledgeRevisionDecision::DisprovenClaim);
+    if (str == "rejected") return Result<KnowledgeRevisionDecision>::ok(KnowledgeRevisionDecision::Rejected);
+    if (str == "test_only") return Result<KnowledgeRevisionDecision>::ok(KnowledgeRevisionDecision::TestOnly);
+    return Result<KnowledgeRevisionDecision>::fail(
+        makeError(ErrorCode::validation_enum_unknown, "invalid KnowledgeRevisionDecision: " + str));
+}
+
+// ============================================================
+// KnowledgeResolutionStrategy
+// ============================================================
+
+std::string toString(KnowledgeResolutionStrategy strategy) {
+    switch (strategy) {
+        case KnowledgeResolutionStrategy::Unknown: return "unknown";
+        case KnowledgeResolutionStrategy::Reinforce: return "reinforce";
+        case KnowledgeResolutionStrategy::Weaken: return "weaken";
+        case KnowledgeResolutionStrategy::Specialize: return "specialize";
+        case KnowledgeResolutionStrategy::Deprecate: return "deprecate";
+        case KnowledgeResolutionStrategy::Disprove: return "disprove";
+        case KnowledgeResolutionStrategy::MergeDuplicate: return "merge_duplicate";
+        case KnowledgeResolutionStrategy::KeepBoth: return "keep_both";
+        case KnowledgeResolutionStrategy::TestOnly: return "test_only";
+    }
+    return "unknown";
+}
+
+Result<KnowledgeResolutionStrategy> knowledgeResolutionStrategyFromString(const std::string& str) {
+    if (str == "unknown") return Result<KnowledgeResolutionStrategy>::ok(KnowledgeResolutionStrategy::Unknown);
+    if (str == "reinforce") return Result<KnowledgeResolutionStrategy>::ok(KnowledgeResolutionStrategy::Reinforce);
+    if (str == "weaken") return Result<KnowledgeResolutionStrategy>::ok(KnowledgeResolutionStrategy::Weaken);
+    if (str == "specialize") return Result<KnowledgeResolutionStrategy>::ok(KnowledgeResolutionStrategy::Specialize);
+    if (str == "deprecate") return Result<KnowledgeResolutionStrategy>::ok(KnowledgeResolutionStrategy::Deprecate);
+    if (str == "disprove") return Result<KnowledgeResolutionStrategy>::ok(KnowledgeResolutionStrategy::Disprove);
+    if (str == "merge_duplicate") return Result<KnowledgeResolutionStrategy>::ok(KnowledgeResolutionStrategy::MergeDuplicate);
+    if (str == "keep_both") return Result<KnowledgeResolutionStrategy>::ok(KnowledgeResolutionStrategy::KeepBoth);
+    if (str == "test_only") return Result<KnowledgeResolutionStrategy>::ok(KnowledgeResolutionStrategy::TestOnly);
+    return Result<KnowledgeResolutionStrategy>::fail(
+        makeError(ErrorCode::validation_enum_unknown, "invalid KnowledgeResolutionStrategy: " + str));
+}
+
+// ============================================================
 // Hidden Truth Guard
 // ============================================================
 

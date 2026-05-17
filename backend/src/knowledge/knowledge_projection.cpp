@@ -105,6 +105,11 @@ Result<KnowledgeProjection> KnowledgeProjectionBuilder::buildProjection(
             if (claim.status == KnowledgeStatus::Teachable) continue;
         }
 
+        // Deprecated/Disproven filter - P19: ordinary projection never outputs these
+        if (claim.status == KnowledgeStatus::Deprecated || claim.status == KnowledgeStatus::Disproven) {
+            continue;
+        }
+
         // Min confidence band filter
         if (query.min_confidence_band.has_value()) {
             auto required = static_cast<int>(query.min_confidence_band.value());

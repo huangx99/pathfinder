@@ -1364,6 +1364,148 @@ add_test(
     COMMAND pathfinder_tests_p18_knowledge_security test_only_gate
 )
 
+# P19 unit tests
+add_executable(pathfinder_tests_knowledge_revision
+    unit/knowledge/knowledge_revision_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_knowledge_revision PRIVATE
+    pathfinder_knowledge
+    pathfinder_memory
+    pathfinder_foundation
+)
+
+add_test(
+    NAME knowledge_revision_options_validate
+    COMMAND pathfinder_tests_knowledge_revision test_knowledge_revision_options_validate_basic
+)
+
+add_test(
+    NAME knowledge_revision_conflict_signal_validate
+    COMMAND pathfinder_tests_knowledge_revision test_knowledge_conflict_signal_validate_basic
+)
+
+add_test(
+    NAME knowledge_revision_input_owner_mismatch
+    COMMAND pathfinder_tests_knowledge_revision test_knowledge_revision_input_owner_mismatch_rejected
+)
+
+add_test(
+    NAME knowledge_revision_input_invalid_claim
+    COMMAND pathfinder_tests_knowledge_revision test_knowledge_revision_input_invalid_existing_claim_rejected
+)
+
+add_test(
+    NAME knowledge_revision_assessment_invalid_enum
+    COMMAND pathfinder_tests_knowledge_revision test_knowledge_revision_assessment_invalid_enum_rejected
+)
+
+add_test(
+    NAME knowledge_revision_patch_disproven_requires_negative
+    COMMAND pathfinder_tests_knowledge_revision test_knowledge_claim_patch_disproven_requires_negative_evidence
+)
+
+add_test(
+    NAME knowledge_revision_plan_validate
+    COMMAND pathfinder_tests_knowledge_revision test_knowledge_revision_plan_ok_dto_validate_basic
+)
+
+add_test(
+    NAME knowledge_revision_result_validate
+    COMMAND pathfinder_tests_knowledge_revision test_knowledge_revision_result_ok_dto_validate_basic
+)
+
+add_test(
+    NAME knowledge_revision_reinforce
+    COMMAND pathfinder_tests_knowledge_revision test_supporting_evidence_reinforces
+)
+
+add_test(
+    NAME knowledge_revision_weaken
+    COMMAND pathfinder_tests_knowledge_revision test_weak_contradiction_lowers_confidence
+)
+
+add_test(
+    NAME knowledge_revision_disprove
+    COMMAND pathfinder_tests_knowledge_revision test_strong_contradiction_disproves
+)
+
+add_test(
+    NAME knowledge_revision_specialize
+    COMMAND pathfinder_tests_knowledge_revision test_condition_mismatch_creates_specialized_claim
+)
+
+add_test(
+    NAME knowledge_revision_skipped
+    COMMAND pathfinder_tests_knowledge_revision test_no_change_skipped_valid
+)
+
+add_test(
+    NAME knowledge_revision_repo_store_deprecated
+    COMMAND pathfinder_tests_knowledge_revision test_repository_stores_deprecated_disproven
+)
+
+add_test(
+    NAME knowledge_revision_repo_query_exclude
+    COMMAND pathfinder_tests_knowledge_revision test_repository_default_query_excludes_deprecated_disproven
+)
+
+add_test(
+    NAME knowledge_revision_repo_query_include
+    COMMAND pathfinder_tests_knowledge_revision test_repository_include_deprecated_disproven
+)
+
+add_test(
+    NAME knowledge_revision_projection_skip
+    COMMAND pathfinder_tests_knowledge_revision test_projection_builder_skips_deprecated_disproven
+)
+
+add_test(
+    NAME knowledge_revision_hidden_truth
+    COMMAND pathfinder_tests_knowledge_revision test_hidden_truth_rejected
+)
+
+add_test(
+    NAME knowledge_revision_test_only_gate
+    COMMAND pathfinder_tests_knowledge_revision test_test_only_enum_rejected
+)
+
+add_test(
+    NAME knowledge_revision_invalid_fail
+    COMMAND pathfinder_tests_knowledge_revision test_invalid_claim_input_returns_fail
+)
+
+# P19 integration tests
+add_executable(pathfinder_tests_p19_knowledge_revision_flow
+    integration/p19/knowledge_revision_flow_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_p19_knowledge_revision_flow PRIVATE
+    pathfinder_knowledge
+    pathfinder_memory
+    pathfinder_foundation
+)
+
+add_test(
+    NAME p19_knowledge_revision_flow
+    COMMAND pathfinder_tests_p19_knowledge_revision_flow
+)
+
+add_executable(pathfinder_tests_p19_knowledge_revision_security
+    integration/p19/knowledge_revision_security_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_p19_knowledge_revision_security PRIVATE
+    pathfinder_knowledge
+    pathfinder_memory
+    pathfinder_foundation
+)
+
+add_test(
+    NAME p19_knowledge_revision_security
+    COMMAND pathfinder_tests_p19_knowledge_revision_security
+)
+
 # Agent Record type tests (P8)
 add_executable(pathfinder_tests_agent_record_types
     unit/agent/agent_record_types_test.cpp

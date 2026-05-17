@@ -142,6 +142,58 @@ std::string toString(KnowledgeQueryMode mode);
 pathfinder::foundation::Result<KnowledgeQueryMode> knowledgeQueryModeFromString(const std::string& str);
 
 // ============================================================
+// P19 Enums
+// ============================================================
+
+enum class KnowledgeConflictType {
+    Unknown,
+    SameClaimSupport,
+    OppositeEffect,
+    RiskDiscovered,
+    ConditionMismatch,
+    Overgeneralized,
+    DuplicateClaim,
+    WeakContradiction,
+    StrongContradiction,
+    SourceInvalid,
+    TestOnly
+};
+
+std::string toString(KnowledgeConflictType type);
+pathfinder::foundation::Result<KnowledgeConflictType> knowledgeConflictTypeFromString(const std::string& str);
+
+enum class KnowledgeRevisionDecision {
+    Unknown,
+    Skipped,
+    NoChange,
+    ReinforcedClaim,
+    WeakenedClaim,
+    CreatedSpecializedClaim,
+    DeprecatedClaim,
+    DisprovenClaim,
+    Rejected,
+    TestOnly
+};
+
+std::string toString(KnowledgeRevisionDecision decision);
+pathfinder::foundation::Result<KnowledgeRevisionDecision> knowledgeRevisionDecisionFromString(const std::string& str);
+
+enum class KnowledgeResolutionStrategy {
+    Unknown,
+    Reinforce,
+    Weaken,
+    Specialize,
+    Deprecate,
+    Disprove,
+    MergeDuplicate,
+    KeepBoth,
+    TestOnly
+};
+
+std::string toString(KnowledgeResolutionStrategy strategy);
+pathfinder::foundation::Result<KnowledgeResolutionStrategy> knowledgeResolutionStrategyFromString(const std::string& str);
+
+// ============================================================
 // Hidden Truth Guard
 // ============================================================
 

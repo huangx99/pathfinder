@@ -19,6 +19,8 @@ struct KnowledgeQuery {
     std::optional<KnowledgeConfidenceBand> min_confidence_band;
     bool include_teachable = true;
     bool include_inactive = false;
+    bool include_deprecated = false;
+    bool include_disproven = false;
     size_t limit = 20;
     std::vector<std::string> reason_keys;
 

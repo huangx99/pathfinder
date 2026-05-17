@@ -488,13 +488,14 @@ target_link_libraries(pathfinder_memory PUBLIC
     pathfinder_cognition
 )
 
-# Knowledge library (P18)
+# Knowledge library (P18 + P19)
 add_library(pathfinder_knowledge STATIC
     src/knowledge/knowledge_types.cpp
     src/knowledge/knowledge_claim.cpp
     src/knowledge/knowledge_repository.cpp
     src/knowledge/knowledge_formation.cpp
     src/knowledge/knowledge_projection.cpp
+    src/knowledge/knowledge_revision.cpp
 )
 
 target_include_directories(pathfinder_knowledge PUBLIC

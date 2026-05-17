@@ -263,7 +263,51 @@ Result<void> KnowledgeClaim::validateBasic() const {
         return Result<void>::fail(makeError(ErrorCode::validation_failed, "KnowledgeClaim status TestOnly not allowed"));
     }
     if (status == KnowledgeStatus::Deprecated || status == KnowledgeStatus::Disproven) {
-        return Result<void>::fail(makeError(ErrorCode::validation_failed, "KnowledgeClaim P18 cannot create Deprecated/Disproven"));
+        // P19 allows Deprecated/Disproven with stricter evidence requirements
+        if (status == KnowledgeStatus::Deprecated) {
+            if (superseded_by_knowledge_id.empty()) {
+                bool has_valid_reason = false;
+                for (const auto& rk : reason_keys) {
+                    if (rk.find("deprecated_by_specialization") != std::string::npos ||
+                        rk.find("deprecated_by_revision") != std::string::npos) {
+                        has_valid_reason = true;
+                        break;
+                    }
+                }
+                if (!has_valid_reason) {
+                    return Result<void>::fail(makeError(ErrorCode::validation_failed, "KnowledgeClaim Deprecated requires superseded_by_knowledge_id or valid reason"));
+                }
+            }
+            if (evidence_refs.empty()) {
+                return Result<void>::fail(makeError(ErrorCode::validation_failed, "KnowledgeClaim Deprecated requires evidence_refs"));
+            }
+        }
+        if (status == KnowledgeStatus::Disproven) {
+            if (confidence.conflict_count == 0) {
+                return Result<void>::fail(makeError(ErrorCode::validation_failed, "KnowledgeClaim Disproven requires conflict_count > 0"));
+            }
+            bool has_negative_evidence = false;
+            for (const auto& ev : evidence_refs) {
+                if (!ev.supports_claim) {
+                    has_negative_evidence = true;
+                    break;
+                }
+            }
+            if (!has_negative_evidence) {
+                return Result<void>::fail(makeError(ErrorCode::validation_failed, "KnowledgeClaim Disproven requires negative evidence"));
+            }
+            bool has_valid_reason = false;
+            for (const auto& rk : reason_keys) {
+                if (rk.find("disproven_by_contradiction") != std::string::npos ||
+                    rk.find("disproven_by_revision") != std::string::npos) {
+                    has_valid_reason = true;
+                    break;
+                }
+            }
+            if (!has_valid_reason) {
+                return Result<void>::fail(makeError(ErrorCode::validation_failed, "KnowledgeClaim Disproven requires valid reason_key"));
+            }
+        }
     }
 
     if (evidence_refs.empty()) {

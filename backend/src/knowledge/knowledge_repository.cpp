@@ -129,6 +129,14 @@ Result<std::vector<KnowledgeClaim>> KnowledgeRepository::query(
             if (claim.status == KnowledgeStatus::Candidate || claim.status == KnowledgeStatus::Hypothesis) continue;
         }
 
+        // Deprecated/Disproven filter
+        if (!query.include_deprecated) {
+            if (claim.status == KnowledgeStatus::Deprecated) continue;
+        }
+        if (!query.include_disproven) {
+            if (claim.status == KnowledgeStatus::Disproven) continue;
+        }
+
         // Mode-specific filters
         if (query.mode == KnowledgeQueryMode::Actionable) {
             if (!claim.projection_flags.usable_for_action) continue;
