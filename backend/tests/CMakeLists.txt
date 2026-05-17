@@ -993,6 +993,148 @@ add_test(
     COMMAND pathfinder_tests_p15 hidden_truth
 )
 
+# Memory unit tests (P16)
+add_executable(pathfinder_tests_memory_types
+    unit/memory/memory_types_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_memory_types PRIVATE
+    pathfinder_memory
+    pathfinder_cognition
+    pathfinder_foundation
+)
+
+add_test(
+    NAME memory_types_roundtrip
+    COMMAND pathfinder_tests_memory_types types
+)
+
+add_executable(pathfinder_tests_memory_record
+    unit/memory/memory_record_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_memory_record PRIVATE
+    pathfinder_memory
+    pathfinder_cognition
+    pathfinder_foundation
+)
+
+add_test(
+    NAME memory_record_validate_basic
+    COMMAND pathfinder_tests_memory_record record
+)
+
+add_executable(pathfinder_tests_memory_store
+    unit/memory/memory_store_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_memory_store PRIVATE
+    pathfinder_memory
+    pathfinder_cognition
+    pathfinder_foundation
+)
+
+add_test(
+    NAME memory_store_put_find_query
+    COMMAND pathfinder_tests_memory_store store
+)
+
+add_executable(pathfinder_tests_memory_writer
+    unit/memory/memory_writer_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_memory_writer PRIVATE
+    pathfinder_memory
+    pathfinder_cognition
+    pathfinder_foundation
+)
+
+add_test(
+    NAME memory_writer_creates_short_term
+    COMMAND pathfinder_tests_memory_writer writer
+)
+
+add_executable(pathfinder_tests_memory_decay
+    unit/memory/memory_decay_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_memory_decay PRIVATE
+    pathfinder_memory
+    pathfinder_cognition
+    pathfinder_foundation
+)
+
+add_test(
+    NAME memory_decay_short_term
+    COMMAND pathfinder_tests_memory_decay decay
+)
+
+# P16 integration tests
+add_executable(pathfinder_tests_p16_memory_from_cognition
+    integration/p16/memory_from_cognition_flow_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_p16_memory_from_cognition PRIVATE
+    pathfinder_memory
+    pathfinder_cognition
+    pathfinder_foundation
+)
+
+add_test(
+    NAME p16_memory_from_cognition
+    COMMAND pathfinder_tests_p16_memory_from_cognition from_cognition
+)
+
+add_test(
+    NAME p16_memory_repeated_evidence_promotes
+    COMMAND pathfinder_tests_p16_memory_from_cognition repeated_evidence_promotes
+)
+
+add_test(
+    NAME p16_memory_critical_risk_protected
+    COMMAND pathfinder_tests_p16_memory_from_cognition critical_risk_protected
+)
+
+add_executable(pathfinder_tests_p16_memory_decay
+    integration/p16/memory_decay_flow_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_p16_memory_decay PRIVATE
+    pathfinder_memory
+    pathfinder_cognition
+    pathfinder_foundation
+)
+
+add_test(
+    NAME p16_memory_decay_flow
+    COMMAND pathfinder_tests_p16_memory_decay decay_flow
+)
+
+add_executable(pathfinder_tests_p16_memory_security
+    integration/p16/memory_boundary_security_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_p16_memory_security PRIVATE
+    pathfinder_memory
+    pathfinder_cognition
+    pathfinder_foundation
+)
+
+add_test(
+    NAME p16_memory_security_hidden_truth
+    COMMAND pathfinder_tests_p16_memory_security hidden_truth
+)
+
+add_test(
+    NAME p16_memory_security_raw_state
+    COMMAND pathfinder_tests_p16_memory_security raw_state
+)
+
+add_test(
+    NAME p16_memory_security_test_only_gate
+    COMMAND pathfinder_tests_p16_memory_security test_only_gate
+)
+
 # Agent Record type tests (P8)
 add_executable(pathfinder_tests_agent_record_types
     unit/agent/agent_record_types_test.cpp

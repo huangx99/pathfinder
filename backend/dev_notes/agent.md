@@ -767,3 +767,93 @@ ctest --test-dir build/backend --output-on-failure
 - 不实现颜色、形状、视觉 reveal
 - P3 legacy 认知保持不变
 
+
+
+---
+
+## P16: 记忆系统基础 (Memory System Foundation)
+
+### 新增文件
+
+- `backend/include/pathfinder/memory/types.h` - 记忆系统枚举与辅助函数
+- `backend/src/memory/types.cpp` - 枚举实现与隐藏真值防护
+- `backend/include/pathfinder/memory/memory_record.h` - 核心 DTO (MemoryOwner, MemorySubject, MemoryRecord 等)
+- `backend/src/memory/memory_record.cpp` - DTO validateBasic 实现
+- `backend/include/pathfinder/memory/memory_store.h` - 内存记忆仓库
+- `backend/src/memory/memory_store.cpp` - MemoryStore 实现
+- `backend/include/pathfinder/memory/memory_writer.h` - 候选工厂、ID工厂、写入服务
+- `backend/src/memory/memory_writer.cpp` - MemoryWriteService 实现
+- `backend/include/pathfinder/memory/memory_decay.h` - 记忆衰减服务
+- `backend/src/memory/memory_decay.cpp` - MemoryDecayService 实现
+- `backend/include/pathfinder/memory/memory_events.h` - 事件与状态变更构造器
+- `backend/src/memory/memory_events.cpp` - MemoryEventBuilder / MemoryStateChangeBuilder 实现
+
+### 测试
+
+- 单元测试: `memory_types`, `memory_record`, `memory_store`, `memory_writer`, `memory_decay`
+- 集成测试: `p16_memory_from_cognition`, `p16_memory_decay_flow`, `p16_memory_boundary_security`
+
+### 边界
+
+- 不实现 MemorySummary / MemoryBundle / MemoryCompressionPolicy (P17)
+- 不实现 KnowledgeClaim / KnowledgeRepository (P18)
+- 不实现传播系统 (P20)
+- 不依赖 AgentRuntime / Policy / RulePipeline 执行 / GameState 原始读取 / SaveManager / HTTP / JSON
+- 隐藏真值扫描: edible_profile / hunger_delta / health_delta / effect_kind / GameState / AgentTickRecord / reward_value / done = / is_done / SaveGame / SaveManager / raw_state / hidden_truth
+
+### 测试结果 (2026-05-17)
+
+- 509/509 全量测试通过
+- P16 定向测试: 12/12 通过
+- P3-P16 相关回归: 170/170 通过
+- 边界扫描全部通过
+
+
+### P16 审核修复 (2026-05-17)
+
+审核结论：暂不通过 -> 修复后通过
+
+修复内容：
+
+**BLOCKER-1: 工厂入口校验**
+- `fromCognitionEvidence()` 首行校验 `evidence.validateBasic()`
+- 工厂返回前校验 `candidate.validateBasic()`
+- 非法 evidence 返回 `Result::fail`
+
+**BLOCKER-2: 显式enum映射**
+- 新增 `mapCognitionSubjectKindToMemoryOwnerKind()` / `mapCognitionTargetKindToMemorySubjectKind()`
+- 移除裸 `static_cast`
+- Unknown/TestOnly 返回 `Result::fail`
+
+**BLOCKER-3: 证据追踪防线**
+- `MemoryRecord::validateBasic()` 要求 `evidence_refs` 非空
+- `MemoryEvidenceRef::validateBasic()` 要求 cognition 来源必须有 `cognition_evidence_id` 或 `source_event_id`
+- 所有测试构造器补齐合法 evidence ref
+
+**BLOCKER-4: 隐藏真值case-insensitive**
+- `containsMemoryForbiddenKey()` 改为先 lowercase 再匹配
+- 安全测试新增大小写变体：`gamestate` / `GAMESTATE` / `Health_Delta` / `HIDDEN_TRUTH`
+
+**BLOCKER-5: High/Critical风险统一保护**
+- 工厂层：`High/Critical` risk 显式设置 `protect_from_decay`
+- Writer强化分支：遇到 `Critical` 候选强制保护已有记忆并设 `lifecycle=Protected`
+- 新增 high-risk reinforcement 保护测试
+
+**BLOCKER-6: Discovery/TeachingRelated/Contradiction语义补齐**
+- `fromCognitionUpdate()` Created -> 加入 `Discovery`
+- `fromCognitionUpdate()` Teachable -> 加入 `TeachingRelated`
+- `isSimilarMemory()` contradiction 匹配不依赖其他 kind 交集
+- `shouldPromoteShortToMid()` 加入 `Contradiction` / `TeachingRelated`
+
+**ISSUE-1/2/3: 校验补强**
+- `MemoryEventDraft::validateBasic()` 校验 owner/subject/scope/lifecycle
+- `MemoryStateChangeDraft::validateBasic()` 校验 before/after record
+- `MemoryWriteOptions` 校验 `short_to_mid <= mid_to_long`
+- `MemoryDecayOptions` 校验 `forgotten <= fading`
+- `MemoryIdFactory::makeMemoryId()` 改为 `Result<MemoryId>`
+
+修复后测试：
+- 509/509 全量测试通过
+- P16 定向测试: 12/12 通过
+- P3-P16 相关回归: 189/189 通过
+- 边界扫描全部通过

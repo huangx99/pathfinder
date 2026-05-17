@@ -465,6 +465,26 @@ target_link_libraries(pathfinder_agent_debug_input PUBLIC
     pathfinder_foundation
 )
 
+# Memory library (P16)
+add_library(pathfinder_memory STATIC
+    src/memory/types.cpp
+    src/memory/memory_record.cpp
+    src/memory/memory_store.cpp
+    src/memory/memory_writer.cpp
+    src/memory/memory_decay.cpp
+    src/memory/memory_events.cpp
+)
+
+target_include_directories(pathfinder_memory PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(pathfinder_memory PUBLIC
+    pathfinder_foundation
+    pathfinder_event
+    pathfinder_cognition
+)
+
 # Agent Debug CLI executable (P13)
 add_executable(pathfinder_agent_debug_cli_exe
     tools/agent_debug_cli_main.cpp
