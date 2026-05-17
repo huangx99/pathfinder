@@ -1984,3 +1984,394 @@ add_test(
     NAME p10_agent_no_decision_projection_flow
     COMMAND pathfinder_tests_p10_no_decision_projection p10_agent_no_decision_projection_flow
 )
+
+# Agent Debug Report tests (P11)
+add_executable(pathfinder_tests_agent_debug_report
+    unit/agent/agent_debug_report_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_agent_debug_report PRIVATE
+    pathfinder_agent_debug_report
+    pathfinder_agent_projection
+    pathfinder_agent_history_query
+    pathfinder_agent_replay_lock
+    pathfinder_agent_training_sample
+    pathfinder_agent_record
+    pathfinder_agent_runtime
+    pathfinder_agent_builders
+    pathfinder_agent
+    pathfinder_protocol
+    pathfinder_replay
+    pathfinder_pipeline
+    pathfinder_rules
+    pathfinder_state
+    pathfinder_event
+    pathfinder_object
+    pathfinder_cognition
+    pathfinder_command
+    pathfinder_foundation
+)
+
+add_test(
+    NAME agent_debug_report_smoke
+    COMMAND pathfinder_tests_agent_debug_report smoke
+)
+
+add_test(
+    NAME agent_debug_report_mode_roundtrip
+    COMMAND pathfinder_tests_agent_debug_report mode_roundtrip
+)
+
+add_test(
+    NAME agent_debug_report_severity_roundtrip
+    COMMAND pathfinder_tests_agent_debug_report severity_roundtrip
+)
+
+add_test(
+    NAME agent_debug_report_diagnostics_status_roundtrip
+    COMMAND pathfinder_tests_agent_debug_report diagnostics_status_roundtrip
+)
+
+add_test(
+    NAME agent_debug_report_id_helper
+    COMMAND pathfinder_tests_agent_debug_report id_helper
+)
+
+add_test(
+    NAME agent_debug_report_valid_item_passes
+    COMMAND pathfinder_tests_agent_debug_report valid_item_passes
+)
+
+add_test(
+    NAME agent_debug_report_missing_record_id_fails
+    COMMAND pathfinder_tests_agent_debug_report missing_record_id_fails
+)
+
+add_test(
+    NAME agent_debug_report_missing_agent_id_fails
+    COMMAND pathfinder_tests_agent_debug_report missing_agent_id_fails
+)
+
+add_test(
+    NAME agent_debug_report_missing_actor_id_fails
+    COMMAND pathfinder_tests_agent_debug_report missing_actor_id_fails
+)
+
+add_test(
+    NAME agent_debug_report_missing_runtime_status_fails
+    COMMAND pathfinder_tests_agent_debug_report missing_runtime_status_fails
+)
+
+add_test(
+    NAME agent_debug_report_missing_decision_status_fails
+    COMMAND pathfinder_tests_agent_debug_report missing_decision_status_fails
+)
+
+add_test(
+    NAME agent_debug_report_severity_unknown_fails
+    COMMAND pathfinder_tests_agent_debug_report severity_unknown_fails
+)
+
+add_test(
+    NAME agent_debug_report_valid_report_passes
+    COMMAND pathfinder_tests_agent_debug_report valid_report_passes
+)
+
+add_test(
+    NAME agent_debug_report_empty_report_id_fails
+    COMMAND pathfinder_tests_agent_debug_report empty_report_id_fails
+)
+
+add_test(
+    NAME agent_debug_report_mode_unknown_fails
+    COMMAND pathfinder_tests_agent_debug_report mode_unknown_fails
+)
+
+add_test(
+    NAME agent_debug_report_items_exceed_total_fails
+    COMMAND pathfinder_tests_agent_debug_report items_exceed_total_fails
+)
+
+add_test(
+    NAME agent_debug_report_count_exceeds_total_fails
+    COMMAND pathfinder_tests_agent_debug_report count_exceeds_total_fails
+)
+
+add_test(
+    NAME agent_debug_report_invalid_item_in_report_fails
+    COMMAND pathfinder_tests_agent_debug_report invalid_item_in_report_fails
+)
+
+add_test(
+    NAME agent_debug_report_valid_issue_passes
+    COMMAND pathfinder_tests_agent_debug_report valid_issue_passes
+)
+
+add_test(
+    NAME agent_debug_report_issue_unknown_severity_fails
+    COMMAND pathfinder_tests_agent_debug_report issue_unknown_severity_fails
+)
+
+add_test(
+    NAME agent_debug_report_issue_empty_key_fails
+    COMMAND pathfinder_tests_agent_debug_report issue_empty_key_fails
+)
+
+add_test(
+    NAME agent_debug_report_valid_diagnostics_passes
+    COMMAND pathfinder_tests_agent_debug_report valid_diagnostics_passes
+)
+
+add_test(
+    NAME agent_debug_report_diagnostics_unknown_status_fails
+    COMMAND pathfinder_tests_agent_debug_report diagnostics_unknown_status_fails
+)
+
+add_test(
+    NAME agent_debug_report_builder_pipeline_succeeded
+    COMMAND pathfinder_tests_agent_debug_report builder_pipeline_succeeded_has_command_id
+)
+
+add_test(
+    NAME agent_debug_report_builder_no_decision
+    COMMAND pathfinder_tests_agent_debug_report builder_no_decision_no_command_id
+)
+
+add_test(
+    NAME agent_debug_report_builder_broken_severity
+    COMMAND pathfinder_tests_agent_debug_report builder_broken_item_severity_error
+)
+
+add_test(
+    NAME agent_debug_report_builder_public_clears_trace
+    COMMAND pathfinder_tests_agent_debug_report builder_public_clears_trace_keys
+)
+
+add_test(
+    NAME agent_debug_report_builder_debug_keeps_trace
+    COMMAND pathfinder_tests_agent_debug_report builder_debug_keeps_trace_keys
+)
+
+add_test(
+    NAME agent_debug_report_builder_explained_only
+    COMMAND pathfinder_tests_agent_debug_report builder_explained_only_count
+)
+
+add_test(
+    NAME agent_debug_report_builder_public_trace_not_allowed
+    COMMAND pathfinder_tests_agent_debug_report builder_public_trace_keys_not_allowed
+)
+
+add_test(
+    NAME agent_debug_report_diagnostics_clean
+    COMMAND pathfinder_tests_agent_debug_report diagnostics_clean_report
+)
+
+add_test(
+    NAME agent_debug_report_diagnostics_broken_error
+    COMMAND pathfinder_tests_agent_debug_report diagnostics_broken_item_error
+)
+
+add_test(
+    NAME agent_debug_report_diagnostics_no_decision_warning
+    COMMAND pathfinder_tests_agent_debug_report diagnostics_no_decision_no_explanation_warning
+)
+
+add_test(
+    NAME agent_debug_report_diagnostics_public_trace_leak
+    COMMAND pathfinder_tests_agent_debug_report diagnostics_public_trace_leak_error
+)
+
+add_test(
+    NAME agent_debug_report_diagnostics_public_no_decision_clean
+    COMMAND pathfinder_tests_agent_debug_report diagnostics_no_decision_public_no_warning
+)
+
+# Agent Debug Export tests (P11)
+add_executable(pathfinder_tests_agent_debug_export
+    unit/agent/agent_debug_export_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_agent_debug_export PRIVATE
+    pathfinder_agent_debug_export
+    pathfinder_agent_debug_report
+    pathfinder_agent_projection
+    pathfinder_agent_history_query
+    pathfinder_agent_replay_lock
+    pathfinder_agent_training_sample
+    pathfinder_agent_record
+    pathfinder_agent_runtime
+    pathfinder_agent_builders
+    pathfinder_agent
+    pathfinder_protocol
+    pathfinder_replay
+    pathfinder_pipeline
+    pathfinder_rules
+    pathfinder_state
+    pathfinder_event
+    pathfinder_object
+    pathfinder_cognition
+    pathfinder_command
+    pathfinder_foundation
+)
+
+add_test(
+    NAME agent_debug_export_smoke
+    COMMAND pathfinder_tests_agent_debug_export smoke
+)
+
+add_test(
+    NAME agent_debug_export_format_roundtrip
+    COMMAND pathfinder_tests_agent_debug_export format_roundtrip
+)
+
+add_test(
+    NAME agent_debug_export_valid_chunk_passes
+    COMMAND pathfinder_tests_agent_debug_export valid_chunk_passes
+)
+
+add_test(
+    NAME agent_debug_export_empty_chunk_id_fails
+    COMMAND pathfinder_tests_agent_debug_export empty_chunk_id_fails
+)
+
+add_test(
+    NAME agent_debug_export_format_unknown_fails
+    COMMAND pathfinder_tests_agent_debug_export format_unknown_fails
+)
+
+add_test(
+    NAME agent_debug_export_empty_payload_fails
+    COMMAND pathfinder_tests_agent_debug_export empty_payload_fails
+)
+
+add_test(
+    NAME agent_debug_export_valid_manifest_passes
+    COMMAND pathfinder_tests_agent_debug_export valid_manifest_passes
+)
+
+add_test(
+    NAME agent_debug_export_manifest_chunk_count_mismatch
+    COMMAND pathfinder_tests_agent_debug_export manifest_chunk_count_mismatch_fails
+)
+
+add_test(
+    NAME agent_debug_export_valid_draft_passes
+    COMMAND pathfinder_tests_agent_debug_export valid_draft_passes
+)
+
+add_test(
+    NAME agent_debug_export_draft_manifest_mismatch
+    COMMAND pathfinder_tests_agent_debug_export draft_manifest_mismatch_fails
+)
+
+add_test(
+    NAME agent_debug_export_builder_plaintext
+    COMMAND pathfinder_tests_agent_debug_export builder_plaintext_export
+)
+
+add_test(
+    NAME agent_debug_export_builder_markdown
+    COMMAND pathfinder_tests_agent_debug_export builder_markdown_export
+)
+
+add_test(
+    NAME agent_debug_export_builder_protocol_text
+    COMMAND pathfinder_tests_agent_debug_export builder_protocol_text_export
+)
+
+add_test(
+    NAME agent_debug_export_builder_zero_chunk_fails
+    COMMAND pathfinder_tests_agent_debug_export builder_max_items_zero_fails
+)
+
+add_test(
+    NAME agent_debug_export_builder_chunk_count
+    COMMAND pathfinder_tests_agent_debug_export builder_chunk_count_correct
+)
+
+add_test(
+    NAME agent_debug_export_builder_warning_keys
+    COMMAND pathfinder_tests_agent_debug_export builder_manifest_warning_keys
+)
+
+add_test(
+    NAME agent_debug_export_builder_no_hidden_truth
+    COMMAND pathfinder_tests_agent_debug_export builder_payload_no_hidden_truth
+)
+
+# P11 integration test: unknown fruit debug report export flow
+add_executable(pathfinder_tests_p11_debug_report_export
+    integration/p11/agent_debug_report_export_flow_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_p11_debug_report_export PRIVATE
+    pathfinder_agent_debug_export
+    pathfinder_agent_debug_report
+    pathfinder_agent_projection
+    pathfinder_agent_history_query
+    pathfinder_agent_replay_lock
+    pathfinder_agent_training_sample
+    pathfinder_agent_record
+    pathfinder_agent_runtime
+    pathfinder_agent_builders
+    pathfinder_agent
+    pathfinder_protocol
+    pathfinder_replay
+    pathfinder_pipeline
+    pathfinder_rules
+    pathfinder_state
+    pathfinder_event
+    pathfinder_object
+    pathfinder_cognition
+    pathfinder_command
+    pathfinder_foundation
+)
+
+add_test(
+    NAME p11_smoke
+    COMMAND pathfinder_tests_p11_debug_report_export smoke
+)
+
+add_test(
+    NAME p11_agent_debug_report_export_flow
+    COMMAND pathfinder_tests_p11_debug_report_export p11_agent_debug_report_export_flow
+)
+
+# P11 integration test: no-decision debug report
+add_executable(pathfinder_tests_p11_no_decision_debug
+    integration/p11/agent_no_decision_debug_report_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_p11_no_decision_debug PRIVATE
+    pathfinder_agent_debug_export
+    pathfinder_agent_debug_report
+    pathfinder_agent_projection
+    pathfinder_agent_history_query
+    pathfinder_agent_replay_lock
+    pathfinder_agent_training_sample
+    pathfinder_agent_record
+    pathfinder_agent_runtime
+    pathfinder_agent_builders
+    pathfinder_agent
+    pathfinder_protocol
+    pathfinder_replay
+    pathfinder_pipeline
+    pathfinder_rules
+    pathfinder_state
+    pathfinder_event
+    pathfinder_object
+    pathfinder_cognition
+    pathfinder_command
+    pathfinder_foundation
+)
+
+add_test(
+    NAME p11_no_decision_smoke
+    COMMAND pathfinder_tests_p11_no_decision_debug smoke
+)
+
+add_test(
+    NAME p11_agent_no_decision_debug_report
+    COMMAND pathfinder_tests_p11_no_decision_debug p11_agent_no_decision_debug_report
+)

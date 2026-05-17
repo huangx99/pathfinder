@@ -428,3 +428,80 @@ ctest --test-dir build/backend --output-on-failure
 - P10 定向测试: 66/66 通过 (19 history_query + 24 projection + 4 integration + 19 protocol)
 - 边界扫描全部通过
 - P8/P9 回归测试全部通过
+
+---
+
+## P11: Agent 本地调试报告与导出前置
+
+### 目标
+
+P11 在 P10 基础上将只读投影整理成可读的本地调试报告和内存级导出片段:
+
+1. **AgentDebugReport**: 从 AgentHistoryProjection 生成结构化调试报告
+2. **AgentDiagnosticsSummary**: 从 DebugReport 生成失败/风险/边界摘要
+3. **AgentExportDraft**: 从 Report + Diagnostics 生成内存级导出清单和片段
+
+### 新增文件
+
+```
+backend/include/pathfinder/agent/debug_report.h
+backend/include/pathfinder/agent/debug_export.h
+backend/src/agent/debug_report.cpp
+backend/src/agent/debug_export.cpp
+backend/tests/unit/agent/agent_debug_report_test.cpp
+backend/tests/unit/agent/agent_debug_export_test.cpp
+backend/tests/integration/p11/agent_debug_report_export_flow_test.cpp
+backend/tests/integration/p11/agent_no_decision_debug_report_test.cpp
+context_packs/agent_p11.md
+```
+
+### 核心类型
+
+**DebugReport 类型:**
+- `AgentDebugReportId`: 报告 ID (StrongId)
+- `AgentDebugReportMode`: Unknown/Public/Debug/Training
+- `AgentDebugReportSeverity`: Unknown/Info/Warning/Error
+- `AgentDebugReportItem`: 单条报告项
+- `AgentDebugReport`: 完整调试报告
+- `AgentDebugReportBuildRequest`: 构建请求
+- `AgentDebugReportBuilder`: 从 AgentHistoryProjection 构建
+
+**Diagnostics 类型:**
+- `AgentDiagnosticsStatus`: Unknown/Clean/HasWarnings/HasErrors
+- `AgentDiagnosticsIssue`: 单条诊断问题
+- `AgentDiagnosticsSummary`: 诊断摘要
+- `AgentDiagnosticsBuilder`: 从 DebugReport 构建
+
+**ExportDraft 类型:**
+- `AgentExportFormat`: Unknown/PlainText/MarkdownLike/ProtocolText
+- `AgentExportChunk`: 内存级导出片段
+- `AgentExportManifest`: 导出清单
+- `AgentExportDraft`: 完整导出草稿
+- `AgentExportDraftBuildRequest`: 构建请求
+- `AgentExportDraftBuilder`: 从 Report + Diagnostics 构建
+
+### 设计约束
+
+- DebugReportBuilder/DiagnosticsBuilder/ExportDraftBuilder 不调用 AgentRuntime/Policy/RulePipeline/ReplayRunner
+- 不读取 AgentTickRecord 原始结构
+- 不读取 GameState/ObjectDefinition/hidden truth
+- 不包含 reward_value/done bool
+- Public 模式清空 reason_keys/phase_keys/warning_keys
+- 不写文件、不访问 filesystem
+- 不做 JSON/HTTP/WebSocket/H5/SaveManager
+
+### 测试入口
+
+```bash
+cmake -S backend -B build/backend
+cmake --build build/backend
+ctest --test-dir build/backend -R "agent_debug_report|agent_debug_export|p11" --output-on-failure
+ctest --test-dir build/backend --output-on-failure
+```
+
+### P11 测试结果 (2026-05-17)
+
+- 332/332 全量测试通过 (P10 276 + P11 56)
+- P11 定向测试: 56/56 通过 (35 debug_report + 17 debug_export + 4 integration)
+- 边界扫描全部通过
+- P8/P9/P10 回归测试全部通过
