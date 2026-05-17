@@ -26,6 +26,12 @@ pathfinder::foundation::Result<void> GameState::validateBasic() const {
     // StateVersion and Tick are uint64_t, always >= 0
     // No need to check for negative values
 
+    // Validate P15 cognition state
+    auto cog_v2_result = cognition_state_v2.validateBasic();
+    if (cog_v2_result.is_error()) {
+        return cog_v2_result;
+    }
+
     return pathfinder::foundation::Result<void>::ok();
 }
 

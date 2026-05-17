@@ -2,6 +2,8 @@
 #include "pathfinder/rules/eat_object_resolver.h"
 #include "pathfinder/state/minimal_state_applier.h"
 #include "pathfinder/cognition/cognition_state.h"
+#include "pathfinder/cognition/cognition_evidence_builder.h"
+#include "pathfinder/cognition/cognition_confidence.h"
 
 namespace pathfinder::pipeline {
 
@@ -37,7 +39,7 @@ pathfinder::foundation::Result<PipelineResult> RulePipeline::execute(const Pipel
             return pathfinder::foundation::Result<PipelineResult>::ok(std::move(result));
         }
 
-        // Apply cognition evidence
+        // Apply cognition evidence (P3 legacy)
         for (const auto& evidence : draft.cognition_evidence) {
             auto cognition_result = pathfinder::cognition::CognitionUpdater::applyEvidence(context.game_state->cognition_state, evidence);
             if (cognition_result.is_error()) {
@@ -45,6 +47,30 @@ pathfinder::foundation::Result<PipelineResult> RulePipeline::execute(const Pipel
                 result.status = PipelineStatus::Failed;
                 result.errors.push_back(cognition_result.errors()[0]);
                 return pathfinder::foundation::Result<PipelineResult>::ok(std::move(result));
+            }
+        }
+
+        // Apply V2 cognition evidence (P15 bridge from legacy)
+        {
+            pathfinder::cognition::CognitionEvidenceBuilder builder;
+            pathfinder::cognition::CognitionUpdaterV2 updater_v2;
+            for (const auto& legacy_evidence : draft.cognition_evidence) {
+                auto v2_evidence_result = builder.fromLegacyEvidence(legacy_evidence);
+                if (v2_evidence_result.is_error()) {
+                    PipelineResult result;
+                    result.status = PipelineStatus::Failed;
+                    result.errors.push_back(v2_evidence_result.errors()[0]);
+                    return pathfinder::foundation::Result<PipelineResult>::ok(std::move(result));
+                }
+                for (const auto& v2_evidence : v2_evidence_result.value()) {
+                    auto update_result = updater_v2.applyEvidence(context.game_state->cognition_state_v2, v2_evidence);
+                    if (update_result.is_error()) {
+                        PipelineResult result;
+                        result.status = PipelineStatus::Failed;
+                        result.errors.push_back(update_result.errors()[0]);
+                        return pathfinder::foundation::Result<PipelineResult>::ok(std::move(result));
+                    }
+                }
             }
         }
 

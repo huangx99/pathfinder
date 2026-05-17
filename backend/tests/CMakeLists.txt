@@ -294,11 +294,15 @@ add_test(
     COMMAND pathfinder_tests_object world_object
 )
 
-# Cognition tests (P3)
+# Cognition tests (P3 + P15)
 add_executable(pathfinder_tests_cognition
     unit/cognition/cognition_smoke_test.cpp
     unit/cognition/cognition_types_test.cpp
     unit/cognition/cognition_state_test.cpp
+    unit/cognition/cognition_v2_types_test.cpp
+    unit/cognition/cognition_confidence_model_test.cpp
+    unit/cognition/cognition_query_service_test.cpp
+    unit/cognition/cognition_v2_update_test.cpp
 )
 
 target_link_libraries(pathfinder_tests_cognition PRIVATE
@@ -318,6 +322,26 @@ add_test(
 add_test(
     NAME cognition_state
     COMMAND pathfinder_tests_cognition cognition_state
+)
+
+add_test(
+    NAME cognition_v2_types
+    COMMAND pathfinder_tests_cognition v2_types
+)
+
+add_test(
+    NAME cognition_confidence_model
+    COMMAND pathfinder_tests_cognition confidence_model
+)
+
+add_test(
+    NAME cognition_query_service
+    COMMAND pathfinder_tests_cognition query_service
+)
+
+add_test(
+    NAME cognition_v2_update
+    COMMAND pathfinder_tests_cognition v2_update
 )
 
 # Rules tests (P3)
@@ -928,6 +952,45 @@ add_test(
 add_test(
     NAME p7_agent_runtime_threat_no_submit
     COMMAND pathfinder_tests_p7 p7_agent_runtime_threat_no_submit
+)
+
+# P15 integration tests
+add_executable(pathfinder_tests_p15
+    integration/p15/p15_main.cpp
+    integration/p15/cognition_eat_feedback_flow_test.cpp
+    integration/p15/cognition_use_feedback_flow_test.cpp
+    integration/p15/cognition_hidden_truth_boundary_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_p15 PRIVATE
+    pathfinder_pipeline
+    pathfinder_rules
+    pathfinder_state
+    pathfinder_event
+    pathfinder_object
+    pathfinder_cognition
+    pathfinder_command
+    pathfinder_foundation
+)
+
+add_test(
+    NAME p15_smoke
+    COMMAND pathfinder_tests_p15 smoke
+)
+
+add_test(
+    NAME p15_eat_feedback_flow
+    COMMAND pathfinder_tests_p15 eat_feedback
+)
+
+add_test(
+    NAME p15_use_feedback_flow
+    COMMAND pathfinder_tests_p15 use_feedback
+)
+
+add_test(
+    NAME p15_hidden_truth_boundary
+    COMMAND pathfinder_tests_p15 hidden_truth
 )
 
 # Agent Record type tests (P8)

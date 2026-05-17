@@ -127,10 +127,15 @@ target_link_libraries(pathfinder_object PUBLIC
     pathfinder_foundation
 )
 
-# Cognition library (P3)
+# Cognition library (P3 + P15)
 add_library(pathfinder_cognition STATIC
     src/cognition/types.cpp
     src/cognition/cognition_state.cpp
+    src/cognition/cognition_v2_types.cpp
+    src/cognition/cognition_v2_state.cpp
+    src/cognition/cognition_confidence.cpp
+    src/cognition/cognition_evidence_builder.cpp
+    src/cognition/cognition_query.cpp
 )
 
 target_include_directories(pathfinder_cognition PUBLIC

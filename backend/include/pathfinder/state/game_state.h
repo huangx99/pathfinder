@@ -9,6 +9,7 @@
 #include "pathfinder/state/actor_state.h"
 #include "pathfinder/object/world_object.h"
 #include "pathfinder/cognition/cognition_state.h"
+#include "pathfinder/cognition/cognition_v2_state.h"
 
 namespace pathfinder::state {
 
@@ -29,6 +30,9 @@ struct GameState {
     pathfinder::object::ObjectStore object_store;
     ActorStateStore actor_store;
     pathfinder::cognition::CognitionState cognition_state;
+
+    // P15: formal cognition layer
+    pathfinder::cognition::CognitionStateV2 cognition_state_v2;
 
     // Validate basic structure
     pathfinder::foundation::Result<void> validateBasic() const;

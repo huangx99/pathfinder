@@ -730,3 +730,40 @@ ctest --test-dir build/backend --output-on-failure
 - 边界扫描全部通过
 - P3-P13/agent/replay/protocol 相关回归: 443/443 通过
 - 隐藏真相扫描: 黑名单声明与安全测试允许出现，业务 DTO 中不允许
+
+
+## P15 认知系统正式化 (Cognition V2)
+
+### 新增文件
+
+- `backend/include/pathfinder/cognition/cognition_v2_types.h` - V2 枚举与 DTO
+- `backend/src/cognition/cognition_v2_types.cpp` - V2 类型实现
+- `backend/include/pathfinder/cognition/cognition_v2_state.h` - CognitionStateV2
+- `backend/src/cognition/cognition_v2_state.cpp` - 状态实现
+- `backend/include/pathfinder/cognition/cognition_confidence.h` - 置信模型与更新器
+- `backend/src/cognition/cognition_confidence.cpp` - 置信模型实现
+- `backend/include/pathfinder/cognition/cognition_query.h` - 查询服务
+- `backend/src/cognition/cognition_query.cpp` - 查询实现
+- `backend/include/pathfinder/cognition/cognition_evidence_builder.h` - 证据构造器
+- `backend/src/cognition/cognition_evidence_builder.cpp` - 证据构造实现
+
+### 修改文件
+
+- `backend/include/pathfinder/state/game_state.h` - 新增 `cognition_state_v2`
+- `backend/src/state/game_state.cpp` - 验证 `cognition_state_v2`
+- `backend/src/pipeline/rule_pipeline.cpp` - P3 legacy 桥接 V2 evidence
+- `backend/CMakeLists.txt` - 添加 V2 源文件到 pathfinder_cognition
+- `backend/tests/CMakeLists.txt` - 新增 V2 单元测试与 P15 集成测试
+
+### 测试
+
+- 单元测试: `cognition_v2_types`, `cognition_confidence_model`, `cognition_query_service`, `cognition_v2_update`
+- 集成测试: `p15_eat_feedback_flow`, `p15_use_feedback_flow`, `p15_hidden_truth_boundary`
+
+### 边界
+
+- 不读取 ObjectDefinition hidden truth
+- 不实现记忆、知识、传播
+- 不实现颜色、形状、视觉 reveal
+- P3 legacy 认知保持不变
+
