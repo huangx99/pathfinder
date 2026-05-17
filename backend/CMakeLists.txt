@@ -465,7 +465,7 @@ target_link_libraries(pathfinder_agent_debug_input PUBLIC
     pathfinder_foundation
 )
 
-# Memory library (P16)
+# Memory library (P16 + P17)
 add_library(pathfinder_memory STATIC
     src/memory/types.cpp
     src/memory/memory_record.cpp
@@ -473,6 +473,9 @@ add_library(pathfinder_memory STATIC
     src/memory/memory_writer.cpp
     src/memory/memory_decay.cpp
     src/memory/memory_events.cpp
+    src/memory/memory_summary.cpp
+    src/memory/memory_compression.cpp
+    src/memory/memory_recall.cpp
 )
 
 target_include_directories(pathfinder_memory PUBLIC

@@ -857,3 +857,68 @@ ctest --test-dir build/backend --output-on-failure
 - P16 定向测试: 12/12 通过
 - P3-P16 相关回归: 189/189 通过
 - 边界扫描全部通过
+
+---
+
+## P17: 记忆压缩与检索 (Memory Compression & Recall)
+
+### 新增文件
+
+```
+backend/include/pathfinder/memory/memory_summary.h
+backend/include/pathfinder/memory/memory_compression.h
+backend/include/pathfinder/memory/memory_recall.h
+backend/src/memory/memory_summary.cpp
+backend/src/memory/memory_compression.cpp
+backend/src/memory/memory_recall.cpp
+backend/tests/unit/memory/memory_summary_test.cpp
+backend/tests/unit/memory/memory_compression_test.cpp
+backend/tests/unit/memory/memory_recall_test.cpp
+backend/tests/integration/p17/memory_compression_flow_test.cpp
+backend/tests/integration/p17/memory_recall_flow_test.cpp
+backend/tests/integration/p17/memory_boundary_security_test.cpp
+```
+
+### 修改文件
+
+```
+backend/CMakeLists.txt
+backend/tests/CMakeLists.txt
+```
+
+### 核心类型
+
+**枚举:**
+- `MemorySummaryKind`: Unknown/OwnerSubjectPattern/RiskPattern/TeachingPattern/ContradictionPattern/LongTermPattern/TestOnly
+- `MemoryCompressionLevel`: Unknown/None/LightSummary/StatisticalSummary/ArchivedProjection/TestOnly
+- `MemoryCompressionDecision`: Unknown/Skipped/CreatedSummary/UpdatedSummary/Rejected
+- `MemoryRecallMode`: Unknown/ExactSubject/OwnerRecent/ByMemoryKind/ImportantOrCritical/TeachingCandidates/RiskRelated/ContradictionRelated/LongTermOnly/TestOnly
+- `MemoryRecallSort`: Unknown/StrengthDesc/LastTouchedDesc/CreatedDesc/ImportanceDesc/EvidenceCountDesc/DeterministicKeyAsc
+- `MemoryRecallItemKind`: Unknown/Record/Summary/TestOnly
+
+**DTO:**
+- `MemorySummaryKey`, `MemorySummary`, `MemoryCompressionOptions`, `MemoryCompressionPlan`, `MemoryCompressionResult`
+- `MemoryRecallQuery`, `MemoryRecallItem`, `MemoryRecallResult`
+
+**服务:**
+- `MemorySummaryIdFactory`: 确定性生成 MemorySummaryId
+- `MemorySummaryStore`: 内存级摘要存储
+- `MemoryCompressionPlanner`: 按 owner+subject 过滤并生成压缩计划
+- `MemoryCompressionService`: 生成 MemorySummary 及事件/状态变更草稿
+- `MemoryRecallService`: 支持 8 种召回模式的确定性检索
+
+### 设计约束
+
+- 不删除原始 MemoryRecord
+- Protected/LongTerm 记忆可参与摘要但不被删除
+- 召回排序确定性（ID tie-break）
+- 不创建 KnowledgeClaim / KnowledgeRepository
+- 不依赖 AgentRuntime / Policy / RulePipeline / GameState / SaveManager / HTTP / JSON
+- 复用 P16 hidden truth 黑名单扫描
+
+### 测试结果 (2026-05-17)
+
+- 517/517 全量测试通过 (P16 509 + P17 8)
+- P17 定向测试: 8/8 通过
+- P3-P17 相关回归: 197/197 通过
+- 边界扫描全部通过

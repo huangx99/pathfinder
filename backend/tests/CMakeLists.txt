@@ -1135,6 +1135,108 @@ add_test(
     COMMAND pathfinder_tests_p16_memory_security test_only_gate
 )
 
+# Memory unit tests (P17)
+add_executable(pathfinder_tests_memory_summary
+    unit/memory/memory_summary_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_memory_summary PRIVATE
+    pathfinder_memory
+    pathfinder_cognition
+    pathfinder_foundation
+)
+
+add_test(
+    NAME memory_summary_validate_basic
+    COMMAND pathfinder_tests_memory_summary summary
+)
+
+add_executable(pathfinder_tests_memory_compression
+    unit/memory/memory_compression_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_memory_compression PRIVATE
+    pathfinder_memory
+    pathfinder_cognition
+    pathfinder_foundation
+)
+
+add_test(
+    NAME memory_compression_validate_basic
+    COMMAND pathfinder_tests_memory_compression compression
+)
+
+add_executable(pathfinder_tests_memory_recall
+    unit/memory/memory_recall_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_memory_recall PRIVATE
+    pathfinder_memory
+    pathfinder_cognition
+    pathfinder_foundation
+)
+
+add_test(
+    NAME memory_recall_validate_basic
+    COMMAND pathfinder_tests_memory_recall recall
+)
+
+# P17 integration tests
+add_executable(pathfinder_tests_p17_memory_compression
+    integration/p17/memory_compression_flow_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_p17_memory_compression PRIVATE
+    pathfinder_memory
+    pathfinder_cognition
+    pathfinder_foundation
+)
+
+add_test(
+    NAME p17_memory_compression_flow
+    COMMAND pathfinder_tests_p17_memory_compression compression_flow
+)
+
+add_executable(pathfinder_tests_p17_memory_recall
+    integration/p17/memory_recall_flow_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_p17_memory_recall PRIVATE
+    pathfinder_memory
+    pathfinder_cognition
+    pathfinder_foundation
+)
+
+add_test(
+    NAME p17_memory_recall_flow
+    COMMAND pathfinder_tests_p17_memory_recall recall_flow
+)
+
+add_executable(pathfinder_tests_p17_memory_security
+    integration/p17/memory_boundary_security_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_p17_memory_security PRIVATE
+    pathfinder_memory
+    pathfinder_cognition
+    pathfinder_foundation
+)
+
+add_test(
+    NAME p17_memory_security_hidden_truth
+    COMMAND pathfinder_tests_p17_memory_security hidden_truth
+)
+
+add_test(
+    NAME p17_memory_security_raw_state
+    COMMAND pathfinder_tests_p17_memory_security raw_state
+)
+
+add_test(
+    NAME p17_memory_security_test_only_gate
+    COMMAND pathfinder_tests_p17_memory_security test_only_gate
+)
+
 # Agent Record type tests (P8)
 add_executable(pathfinder_tests_agent_record_types
     unit/agent/agent_record_types_test.cpp
