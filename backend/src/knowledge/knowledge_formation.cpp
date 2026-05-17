@@ -190,7 +190,7 @@ Result<KnowledgeFormationPlan> KnowledgeFormationPlanner::planFromMemorySummary(
 
     // Status decision
     KnowledgeStatus projected_status;
-    if (confidence < 0.35) {
+    if (confidence < options.min_hypothesis_confidence) {
         return Result<KnowledgeFormationPlan>::fail(
             makeError(ErrorCode::knowledge_insufficient_confidence, "confidence below Hypothesis threshold"));
     } else if (confidence < options.active_confidence_threshold) {

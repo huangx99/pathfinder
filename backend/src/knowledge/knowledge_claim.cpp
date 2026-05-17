@@ -356,6 +356,9 @@ Result<void> KnowledgeFormationOptions::validateBasic() const {
     if (min_summary_strength < 0.0 || min_summary_strength > 1.0) {
         return Result<void>::fail(makeError(ErrorCode::validation_value_out_of_range, "KnowledgeFormationOptions min_summary_strength out of range"));
     }
+    if (min_hypothesis_confidence < 0.0 || min_hypothesis_confidence > 1.0) {
+        return Result<void>::fail(makeError(ErrorCode::validation_value_out_of_range, "KnowledgeFormationOptions min_hypothesis_confidence out of range"));
+    }
     if (active_confidence_threshold < 0.0 || active_confidence_threshold > 1.0) {
         return Result<void>::fail(makeError(ErrorCode::validation_value_out_of_range, "KnowledgeFormationOptions active_confidence_threshold out of range"));
     }
@@ -364,6 +367,9 @@ Result<void> KnowledgeFormationOptions::validateBasic() const {
     }
     if (teachable_confidence_threshold < active_confidence_threshold) {
         return Result<void>::fail(makeError(ErrorCode::validation_failed, "KnowledgeFormationOptions teachable_confidence_threshold < active_confidence_threshold"));
+    }
+    if (active_confidence_threshold < min_hypothesis_confidence) {
+        return Result<void>::fail(makeError(ErrorCode::validation_failed, "KnowledgeFormationOptions active_confidence_threshold < min_hypothesis_confidence"));
     }
     return Result<void>::ok();
 }

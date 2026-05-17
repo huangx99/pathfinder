@@ -152,6 +152,7 @@ struct KnowledgeFormationOptions {
     size_t min_source_memory_count = 3;
     size_t min_representative_count = 1;
     double min_summary_strength = 0.55;
+    double min_hypothesis_confidence = 0.35;
     double active_confidence_threshold = 0.55;
     double teachable_confidence_threshold = 0.75;
     size_t max_evidence_refs = 50;

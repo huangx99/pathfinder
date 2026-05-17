@@ -4133,3 +4133,210 @@ add_test(
     NAME p14_test_only_allowed
     COMMAND pathfinder_tests_p14_security test_only_allowed
 )
+
+# P21 unit tests
+add_executable(pathfinder_tests_learning
+    unit/learning/learning_loop_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_learning PRIVATE
+    pathfinder_learning
+    pathfinder_knowledge
+    pathfinder_memory
+    pathfinder_cognition
+    pathfinder_foundation
+)
+
+add_test(
+    NAME learning_smoke
+    COMMAND pathfinder_tests_learning smoke
+)
+
+add_test(
+    NAME learning_enum_roundtrip
+    COMMAND pathfinder_tests_learning enum_roundtrip
+)
+
+add_test(
+    NAME learning_options_validate
+    COMMAND pathfinder_tests_learning options_validateBasic
+)
+
+add_test(
+    NAME learning_actor_ref_validate
+    COMMAND pathfinder_tests_learning actor_ref_validateBasic
+)
+
+add_test(
+    NAME learning_feedback_validate
+    COMMAND pathfinder_tests_learning feedback_validateBasic
+)
+
+add_test(
+    NAME learning_input_validate
+    COMMAND pathfinder_tests_learning input_validateBasic
+)
+
+add_test(
+    NAME learning_trace_validate
+    COMMAND pathfinder_tests_learning trace_validateBasic
+)
+
+add_test(
+    NAME learning_result_validate
+    COMMAND pathfinder_tests_learning result_validateBasic
+)
+
+add_test(
+    NAME learning_report_validate
+    COMMAND pathfinder_tests_learning report_validateBasic
+)
+
+add_test(
+    NAME learning_unknown_testonly_rejected
+    COMMAND pathfinder_tests_learning unknown_testonly_rejected
+)
+
+add_test(
+    NAME learning_forbidden_key_rejected
+    COMMAND pathfinder_tests_learning forbidden_key_rejected
+)
+
+add_test(
+    NAME learning_ok_dto_must_validate
+    COMMAND pathfinder_tests_learning ok_dto_must_validate
+)
+
+add_test(
+    NAME learning_planner_skips_propagation_disabled
+    COMMAND pathfinder_tests_learning planner_skips_propagation_when_disabled
+)
+
+add_test(
+    NAME learning_planner_skips_propagation_no_recipient
+    COMMAND pathfinder_tests_learning planner_skips_propagation_without_recipient
+)
+
+add_test(
+    NAME learning_service_direct_discovery
+    COMMAND pathfinder_tests_learning service_runs_direct_discovery
+)
+
+add_test(
+    NAME learning_service_with_recipient
+    COMMAND pathfinder_tests_learning service_runs_with_recipient
+)
+
+add_test(
+    NAME learning_applier_actor_claims
+    COMMAND pathfinder_tests_learning applier_actor_claims
+)
+
+add_test(
+    NAME learning_report_builder
+    COMMAND pathfinder_tests_learning report_builder
+)
+
+# P21 integration tests: discovery story
+add_executable(pathfinder_tests_p21_discovery
+    integration/p21/learning_loop_discovery_story_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_p21_discovery PRIVATE
+    pathfinder_learning
+    pathfinder_knowledge
+    pathfinder_memory
+    pathfinder_cognition
+    pathfinder_foundation
+)
+
+add_test(
+    NAME p21_discovery_smoke
+    COMMAND pathfinder_tests_p21_discovery smoke
+)
+
+add_test(
+    NAME p21_discovery_and_teaching
+    COMMAND pathfinder_tests_p21_discovery discovery_and_teaching
+)
+
+add_test(
+    NAME p21_result_no_hidden_truth
+    COMMAND pathfinder_tests_p21_discovery result_no_hidden_truth
+)
+
+# P21 integration tests: revision story
+add_executable(pathfinder_tests_p21_revision
+    integration/p21/learning_loop_revision_story_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_p21_revision PRIVATE
+    pathfinder_learning
+    pathfinder_knowledge
+    pathfinder_memory
+    pathfinder_cognition
+    pathfinder_foundation
+)
+
+add_test(
+    NAME p21_revision_smoke
+    COMMAND pathfinder_tests_p21_revision smoke
+)
+
+add_test(
+    NAME p21_revision_and_propagation_route
+    COMMAND pathfinder_tests_p21_revision revision_and_propagation_route
+)
+
+add_test(
+    NAME p21_low_confidence_teaching_trace
+    COMMAND pathfinder_tests_p21_revision low_confidence_teaching_trace
+)
+
+# P21 integration tests: security
+add_executable(pathfinder_tests_p21_security
+    integration/p21/learning_loop_security_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_p21_security PRIVATE
+    pathfinder_learning
+    pathfinder_knowledge
+    pathfinder_memory
+    pathfinder_cognition
+    pathfinder_foundation
+)
+
+add_test(
+    NAME p21_security_smoke
+    COMMAND pathfinder_tests_p21_security smoke
+)
+
+add_test(
+    NAME p21_feedback_key_hidden_truth
+    COMMAND pathfinder_tests_p21_security feedback_key_hidden_truth_rejected
+)
+
+add_test(
+    NAME p21_effect_key_real_effect
+    COMMAND pathfinder_tests_p21_security effect_key_real_effect_rejected
+)
+
+add_test(
+    NAME p21_reason_key_raw_state
+    COMMAND pathfinder_tests_p21_security reason_key_raw_state_rejected
+)
+
+add_test(
+    NAME p21_input_gamestate_key
+    COMMAND pathfinder_tests_p21_security input_gamestate_key_rejected
+)
+
+add_test(
+    NAME p21_recipient_owner_mismatch
+    COMMAND pathfinder_tests_p21_security recipient_owner_mismatch_rejected
+)
+
+add_test(
+    NAME p21_propagation_no_teaching
+    COMMAND pathfinder_tests_p21_security propagation_without_teaching_evidence_rejected
+)

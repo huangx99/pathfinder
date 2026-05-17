@@ -508,6 +508,22 @@ target_link_libraries(pathfinder_knowledge PUBLIC
     pathfinder_memory
 )
 
+# Learning library (P21)
+add_library(pathfinder_learning STATIC
+    src/learning/learning_loop.cpp
+)
+
+target_include_directories(pathfinder_learning PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(pathfinder_learning PUBLIC
+    pathfinder_foundation
+    pathfinder_cognition
+    pathfinder_memory
+    pathfinder_knowledge
+)
+
 # Agent Debug CLI executable (P13)
 add_executable(pathfinder_agent_debug_cli_exe
     tools/agent_debug_cli_main.cpp
