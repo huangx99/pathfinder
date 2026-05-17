@@ -17,9 +17,30 @@ Result<void> KnowledgeQuery::validateBasic() const {
     if (mode == KnowledgeQueryMode::Unknown) {
         return Result<void>::fail(makeError(ErrorCode::validation_failed, "KnowledgeQuery mode is Unknown"));
     }
+    if (mode == KnowledgeQueryMode::TestOnly) {
+        return Result<void>::fail(makeError(ErrorCode::validation_failed, "KnowledgeQuery mode TestOnly not allowed"));
+    }
     if (subject.has_value()) {
         auto subject_result = subject->validateBasic();
         if (subject_result.is_error()) return subject_result;
+    }
+    if (relation_type.has_value()) {
+        if (relation_type.value() == KnowledgeRelationType::Unknown ||
+            relation_type.value() == KnowledgeRelationType::TestOnly) {
+            return Result<void>::fail(makeError(ErrorCode::validation_failed, "KnowledgeQuery relation_type is invalid"));
+        }
+    }
+    if (min_status.has_value()) {
+        auto s = min_status.value();
+        if (s == KnowledgeStatus::Unknown || s == KnowledgeStatus::TestOnly ||
+            s == KnowledgeStatus::Deprecated || s == KnowledgeStatus::Disproven) {
+            return Result<void>::fail(makeError(ErrorCode::validation_failed, "KnowledgeQuery min_status is invalid"));
+        }
+    }
+    if (min_confidence_band.has_value()) {
+        if (min_confidence_band.value() == KnowledgeConfidenceBand::Unknown) {
+            return Result<void>::fail(makeError(ErrorCode::validation_failed, "KnowledgeQuery min_confidence_band is Unknown"));
+        }
     }
     if (limit == 0) {
         return Result<void>::fail(makeError(ErrorCode::validation_failed, "KnowledgeQuery limit is 0"));

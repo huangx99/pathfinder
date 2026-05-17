@@ -122,6 +122,11 @@ void run_knowledge_claim_tests() {
         owner.kind = KnowledgeOwnerKind::Tribe;
         owner.entity_id = EntityId("agent_001");
         assert(owner.validateBasic().is_error());
+
+        owner = makeValidOwner();
+        owner.kind = KnowledgeOwnerKind::TestOnly;
+        owner.external_key = "test_key";
+        assert(owner.validateBasic().is_error());
     }
 
     // ============================================================
@@ -140,6 +145,18 @@ void run_knowledge_claim_tests() {
 
         subject = makeValidSubject();
         subject.safe_tags = {"hidden_truth"};
+        assert(subject.validateBasic().is_error());
+
+        subject = makeValidSubject();
+        subject.kind = KnowledgeSubjectKind::TestOnly;
+        assert(subject.validateBasic().is_error());
+
+        subject = makeValidSubject();
+        subject.related_subject_ids = {"edible_profile"};
+        assert(subject.validateBasic().is_error());
+
+        subject = makeValidSubject();
+        subject.relation_group_key = "hunger_delta";
         assert(subject.validateBasic().is_error());
     }
 
@@ -161,6 +178,18 @@ void run_knowledge_claim_tests() {
         pred.action_id = ActionId();
         pred.action_key = "";
         assert(pred.validateBasic().is_error());
+
+        pred = makeValidPredicate();
+        pred.action_key = "edible_profile";
+        assert(pred.validateBasic().is_error());
+
+        pred = makeValidPredicate();
+        pred.polarity_key = "health_delta";
+        assert(pred.validateBasic().is_error());
+
+        pred = makeValidPredicate();
+        pred.relation_type = KnowledgeRelationType::TestOnly;
+        assert(pred.validateBasic().is_error());
     }
 
     // ============================================================
@@ -177,6 +206,10 @@ void run_knowledge_claim_tests() {
 
         ev = makeValidEvidence();
         ev.evidence_kind = KnowledgeEvidenceKind::Unknown;
+        assert(ev.validateBasic().is_error());
+
+        ev = makeValidEvidence();
+        ev.evidence_kind = KnowledgeEvidenceKind::TestOnly;
         assert(ev.validateBasic().is_error());
 
         ev = makeValidEvidence();
@@ -293,6 +326,14 @@ void run_knowledge_claim_tests() {
 
         input.action_key = "edible_profile";
         assert(input.validateBasic().is_error());
+
+        input = KnowledgeFormationInput();
+        input.owner = makeValidOwner();
+        input.summary = makeValidSummary();
+        input.summary.key.owner.entity_id = EntityId("agent_999"); // mismatch
+        input.target_relation = KnowledgeRelationType::HasEffect;
+        input.action_key = "eat";
+        assert(input.validateBasic().is_error());
     }
 
     // ============================================================
@@ -318,6 +359,16 @@ void run_knowledge_claim_tests() {
 
         plan.evidence_refs.clear();
         assert(plan.validateBasic().is_error());
+
+        plan.evidence_refs = {makeValidEvidence()};
+        plan.projected_status = KnowledgeStatus::TestOnly;
+        assert(plan.validateBasic().is_error());
+
+        plan.projected_status = KnowledgeStatus::Deprecated;
+        assert(plan.validateBasic().is_error());
+
+        plan.projected_status = KnowledgeStatus::Disproven;
+        assert(plan.validateBasic().is_error());
     }
 
     // ============================================================
@@ -334,6 +385,34 @@ void run_knowledge_claim_tests() {
 
         result.claim = makeValidClaim();
         assert(result.validateBasic().is_ok());
+
+        // Skipped with empty event_drafts must pass validateBasic
+        result = KnowledgeFormationResult();
+        result.decision = KnowledgeFormationDecision::Skipped;
+        result.reason_keys.push_back("insufficient_evidence");
+        assert(result.validateBasic().is_ok());
+    }
+
+    // ============================================================
+    // KnowledgeEventDraft rejects TestOnly relation_type and status
+    // ============================================================
+    {
+        KnowledgeEventDraft draft;
+        draft.event_key = "knowledge.claim_created";
+        draft.knowledge_id = KnowledgeId("know_001");
+        draft.owner = makeValidOwner();
+        draft.subject = makeValidSubject();
+        draft.relation_type = KnowledgeRelationType::HasEffect;
+        draft.status = KnowledgeStatus::Active;
+        draft.decision = KnowledgeFormationDecision::CreatedClaim;
+        assert(draft.validateBasic().is_ok());
+
+        draft.relation_type = KnowledgeRelationType::TestOnly;
+        assert(draft.validateBasic().is_error());
+
+        draft.relation_type = KnowledgeRelationType::HasEffect;
+        draft.status = KnowledgeStatus::TestOnly;
+        assert(draft.validateBasic().is_error());
     }
 
     // ============================================================
@@ -361,7 +440,7 @@ void run_knowledge_claim_tests() {
     }
 
     // ============================================================
-    // KnowledgeQuery
+    // KnowledgeQuery rejects invalid enums
     // ============================================================
     {
         KnowledgeQuery q;
@@ -370,6 +449,28 @@ void run_knowledge_claim_tests() {
         assert(q.validateBasic().is_ok());
 
         q.limit = 0;
+        assert(q.validateBasic().is_error());
+
+        q.limit = 10;
+        q.mode = KnowledgeQueryMode::TestOnly;
+        assert(q.validateBasic().is_error());
+
+        q.mode = KnowledgeQueryMode::ByOwner;
+        q.relation_type = KnowledgeRelationType::TestOnly;
+        assert(q.validateBasic().is_error());
+
+        q.relation_type = std::nullopt;
+        q.min_status = KnowledgeStatus::TestOnly;
+        assert(q.validateBasic().is_error());
+
+        q.min_status = KnowledgeStatus::Deprecated;
+        assert(q.validateBasic().is_error());
+
+        q.min_status = KnowledgeStatus::Disproven;
+        assert(q.validateBasic().is_error());
+
+        q.min_status = std::nullopt;
+        q.min_confidence_band = KnowledgeConfidenceBand::Unknown;
         assert(q.validateBasic().is_error());
     }
 

@@ -75,9 +75,38 @@ Result<KnowledgeFormationPlan> KnowledgeFormationPlanner::planFromMemorySummary(
         return Result<KnowledgeFormationPlan>::fail(
             makeError(ErrorCode::validation_failed, "missing target_relation"));
     }
+    if (input.target_relation == KnowledgeRelationType::TestOnly) {
+        return Result<KnowledgeFormationPlan>::fail(
+            makeError(ErrorCode::validation_failed, "target_relation TestOnly not allowed"));
+    }
     if (input.action_key.empty()) {
         return Result<KnowledgeFormationPlan>::fail(
             makeError(ErrorCode::validation_failed, "missing action_key"));
+    }
+
+    // BLOCKER-6: HasEffect (and similar relations) must have effect_key
+    static const std::vector<KnowledgeRelationType> effect_required_relations = {
+        KnowledgeRelationType::HasEffect,
+        KnowledgeRelationType::HasRisk,
+        KnowledgeRelationType::IsEdibleUnder,
+        KnowledgeRelationType::IsDangerousUnder,
+        KnowledgeRelationType::IsUsableFor,
+        KnowledgeRelationType::ReactsWith,
+        KnowledgeRelationType::TransformsInto,
+        KnowledgeRelationType::Produces,
+        KnowledgeRelationType::Prevents,
+        KnowledgeRelationType::FailsUnder,
+    };
+    bool requires_effect = false;
+    for (const auto& rt : effect_required_relations) {
+        if (input.target_relation == rt) {
+            requires_effect = true;
+            break;
+        }
+    }
+    if (requires_effect && input.effect_key.empty()) {
+        return Result<KnowledgeFormationPlan>::fail(
+            makeError(ErrorCode::validation_failed, "target_relation requires effect_key"));
     }
 
     // Build subject from summary
@@ -213,7 +242,19 @@ Result<KnowledgeFormationResult> KnowledgeFormationService::formFromMemorySummar
     result.decision = KnowledgeFormationDecision::Unknown;
 
     if (plan_result.is_error()) {
-        // Convert insufficient evidence to Skipped
+        // BLOCKER-2: Only convert insufficient_confidence to Skipped.
+        // Validation/security errors must fail.
+        bool is_insufficient = false;
+        for (const auto& err : plan_result.errors()) {
+            if (err.code == ErrorCode::knowledge_insufficient_confidence) {
+                is_insufficient = true;
+            }
+        }
+        if (!is_insufficient) {
+            return Result<KnowledgeFormationResult>::fail(plan_result.errors());
+        }
+
+        // BLOCKER-1: Skipped result must not contain invalid event drafts.
         result.decision = KnowledgeFormationDecision::Skipped;
         result.reason_keys.push_back("insufficient_evidence");
         for (const auto& err : plan_result.errors()) {
@@ -221,19 +262,7 @@ Result<KnowledgeFormationResult> KnowledgeFormationService::formFromMemorySummar
                 result.reason_keys.push_back(err.debug_message.value());
             }
         }
-        result.event_drafts.push_back(KnowledgeEventDraft{
-            .event_key = "knowledge.formation_skipped",
-            .knowledge_id = pathfinder::foundation::KnowledgeId(),
-            .owner = input.owner,
-            .subject = input.summary.key.subject.subject_id.empty() ? KnowledgeSubject{} :
-                KnowledgeSubject{.kind = KnowledgeSubjectKind::ObjectDefinition,
-                                 .subject_id = input.summary.key.subject.subject_id,
-                                 .subject_type_key = input.summary.key.subject.subject_type_key},
-            .relation_type = input.target_relation,
-            .status = KnowledgeStatus::Unknown,
-            .decision = KnowledgeFormationDecision::Skipped,
-            .reason_keys = result.reason_keys
-        });
+        // No event_drafts or state_changes for Skipped.
         return Result<KnowledgeFormationResult>::ok(std::move(result));
     }
 
@@ -303,6 +332,7 @@ Result<KnowledgeFormationResult> KnowledgeFormationService::formFromMemorySummar
 
     // Build result
     result.decision = KnowledgeFormationDecision::CreatedClaim;
+    result.plan = plan;
     result.claim = claim;
     result.reason_keys.push_back("created_claim_from_summary");
 

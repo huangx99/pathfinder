@@ -113,13 +113,17 @@ void run_knowledge_formation_tests() {
         input.owner = makeValidOwner();
         input.summary = makeValidSummary();
         input.summary.source_memory_count = 1;
+        input.summary.source_memory_ids = {MemoryId("mem_001")};
+        input.summary.representative_memory_ids = {MemoryId("mem_001")};
         input.target_relation = KnowledgeRelationType::HasEffect;
         input.action_key = "eat";
+        input.effect_key = "restore_hunger";
 
         auto result = service.formFromMemorySummary(input);
         assert(result.is_ok());
         assert(result.value().decision == KnowledgeFormationDecision::Skipped);
         assert(result.value().ok());
+        assert(result.value().validateBasic().is_ok());
     }
 
     // ============================================================
@@ -141,6 +145,10 @@ void run_knowledge_formation_tests() {
         assert(res.decision == KnowledgeFormationDecision::CreatedClaim);
         assert(res.claim.has_value());
         assert(res.claim->validateBasic().is_ok());
+
+        // ISSUE-2: plan should be preserved in CreatedClaim result
+        assert(res.plan.has_value());
+        assert(res.plan->validateBasic().is_ok());
 
         // Check evidence chain
         assert(!res.claim->evidence_refs.empty());
@@ -179,10 +187,61 @@ void run_knowledge_formation_tests() {
         input.summary.contradiction_count = 1;
         input.target_relation = KnowledgeRelationType::HasEffect;
         input.action_key = "eat";
+        input.effect_key = "restore_hunger";
 
         auto result = service.formFromMemorySummary(input);
         assert(result.is_ok());
         assert(result.value().decision == KnowledgeFormationDecision::Skipped);
+        assert(result.value().validateBasic().is_ok());
+    }
+
+    // ============================================================
+    // BLOCKER-2: hidden truth input must not be swallowed as Skipped
+    // ============================================================
+    {
+        KnowledgeFormationService service;
+        KnowledgeFormationInput input;
+        input.owner = makeValidOwner();
+        input.summary = makeValidSummary();
+        input.target_relation = KnowledgeRelationType::HasEffect;
+        input.action_key = "edible_profile"; // hidden truth
+        input.effect_key = "restore_hunger";
+
+        auto result = service.formFromMemorySummary(input);
+        assert(result.is_error()); // must fail, not Skipped
+    }
+
+    // ============================================================
+    // BLOCKER-3: owner mismatch must fail
+    // ============================================================
+    {
+        KnowledgeFormationService service;
+        KnowledgeFormationInput input;
+        input.owner = makeValidOwner();
+        input.summary = makeValidSummary();
+        input.summary.key.owner.entity_id = EntityId("agent_999"); // mismatch
+        input.target_relation = KnowledgeRelationType::HasEffect;
+        input.action_key = "eat";
+        input.effect_key = "restore_hunger";
+
+        auto result = service.formFromMemorySummary(input);
+        assert(result.is_error());
+    }
+
+    // ============================================================
+    // BLOCKER-6: HasEffect without effect_key must fail
+    // ============================================================
+    {
+        KnowledgeFormationService service;
+        KnowledgeFormationInput input;
+        input.owner = makeValidOwner();
+        input.summary = makeValidSummary();
+        input.target_relation = KnowledgeRelationType::HasEffect;
+        input.action_key = "eat";
+        input.effect_key = ""; // missing effect_key
+
+        auto result = service.formFromMemorySummary(input);
+        assert(result.is_error());
     }
 
     // ============================================================
@@ -197,6 +256,7 @@ void run_knowledge_formation_tests() {
         input.summary.accident_count = 1;
         input.target_relation = KnowledgeRelationType::HasRisk;
         input.action_key = "approach";
+        input.effect_key = "poison";
 
         auto result = service.formFromMemorySummary(input);
         assert(result.is_ok());

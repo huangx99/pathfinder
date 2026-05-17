@@ -199,6 +199,29 @@ void run_knowledge_repository_tests() {
         assert(list.value().empty());
     }
 
+    // ============================================================
+    // query rejects TestOnly mode and filters
+    // ============================================================
+    {
+        KnowledgeRepository repo;
+        auto c1 = makeClaim("know_001", KnowledgeStatus::Active, 0.6);
+        assert(repo.put(c1).is_ok());
+
+        KnowledgeQuery q;
+        q.owner = makeValidOwner();
+        q.mode = KnowledgeQueryMode::TestOnly;
+        q.limit = 10;
+        assert(repo.query(q).is_error());
+
+        q.mode = KnowledgeQueryMode::ByOwner;
+        q.relation_type = KnowledgeRelationType::TestOnly;
+        assert(repo.query(q).is_error());
+
+        q.relation_type = std::nullopt;
+        q.min_status = KnowledgeStatus::TestOnly;
+        assert(repo.query(q).is_error());
+    }
+
     std::cout << "knowledge_repository tests passed" << std::endl;
 }
 

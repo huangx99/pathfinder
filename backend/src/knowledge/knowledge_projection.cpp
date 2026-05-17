@@ -21,8 +21,11 @@ Result<void> KnowledgeProjectionItem::validateBasic() const {
     if (predicate_result.is_error()) return predicate_result;
     auto confidence_result = confidence.validateBasic();
     if (confidence_result.is_error()) return confidence_result;
-    if (status == KnowledgeStatus::Unknown) {
-        return Result<void>::fail(makeError(ErrorCode::validation_failed, "KnowledgeProjectionItem status is Unknown"));
+    if (status == KnowledgeStatus::Unknown ||
+        status == KnowledgeStatus::TestOnly ||
+        status == KnowledgeStatus::Deprecated ||
+        status == KnowledgeStatus::Disproven) {
+        return Result<void>::fail(makeError(ErrorCode::validation_failed, "KnowledgeProjectionItem status is invalid"));
     }
     auto tp_result = teaching_profile.validateBasic();
     if (tp_result.is_error()) return tp_result;
@@ -73,6 +76,12 @@ Result<KnowledgeProjection> KnowledgeProjectionBuilder::buildProjection(
     // Filter and transform claims
     std::vector<KnowledgeProjectionItem> items;
     for (const auto& claim : claims) {
+        // Validate each claim before projection
+        auto claim_result = claim.validateBasic();
+        if (claim_result.is_error()) {
+            return Result<KnowledgeProjection>::fail(claim_result.errors());
+        }
+
         // Owner filter
         if (claim.owner != query.owner) continue;
 
@@ -159,6 +168,13 @@ Result<KnowledgeProjection> KnowledgeProjectionBuilder::buildProjection(
     }
 
     projection.items = std::move(items);
+
+    // Final guard: ensure output projection passes validation
+    auto projection_result = projection.validateBasic();
+    if (projection_result.is_error()) {
+        return Result<KnowledgeProjection>::fail(projection_result.errors());
+    }
+
     return Result<KnowledgeProjection>::ok(std::move(projection));
 }
 

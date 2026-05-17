@@ -39,6 +39,14 @@ static KnowledgeEvidence makeValidEvidence() {
     return ev;
 }
 
+static KnowledgeProjectionFlags makeValidProjectionFlags() {
+    KnowledgeProjectionFlags pf;
+    pf.visible_to_player = true;
+    pf.usable_by_ai = true;
+    pf.usable_for_action = true;
+    return pf;
+}
+
 static KnowledgeConfidence makeValidConfidence(double conf = 0.75) {
     KnowledgeConfidence c;
     c.confidence = conf;
@@ -198,6 +206,68 @@ void run_knowledge_projection_tests() {
 
         proj.reason_keys = {"edible_profile"};
         assert(proj.validateBasic().is_error());
+    }
+
+    // ============================================================
+    // KnowledgeProjectionItem rejects invalid statuses
+    // ============================================================
+    {
+        KnowledgeProjectionItem item;
+        item.knowledge_id = KnowledgeId("know_001");
+        item.subject = makeValidSubject();
+        item.predicate = makeValidPredicate();
+        item.confidence = makeValidConfidence();
+        item.status = KnowledgeStatus::Active;
+        item.teaching_profile.teachable = false;
+        item.projection_flags = makeValidProjectionFlags();
+        assert(item.validateBasic().is_ok());
+
+        item.status = KnowledgeStatus::TestOnly;
+        assert(item.validateBasic().is_error());
+
+        item.status = KnowledgeStatus::Deprecated;
+        assert(item.validateBasic().is_error());
+
+        item.status = KnowledgeStatus::Disproven;
+        assert(item.validateBasic().is_error());
+    }
+
+    // ============================================================
+    // BLOCKER-8: ProjectionBuilder rejects invalid claim input
+    // ============================================================
+    {
+        std::vector<KnowledgeClaim> claims;
+        auto bad_claim = makeClaim("know_bad", KnowledgeStatus::Active, 0.6);
+        bad_claim.status = KnowledgeStatus::Deprecated; // invalid claim
+        claims.push_back(bad_claim);
+
+        KnowledgeQuery query;
+        query.owner = makeValidOwner();
+        query.mode = KnowledgeQueryMode::ByOwner;
+        query.include_inactive = true;
+        query.limit = 10;
+
+        KnowledgeProjectionBuilder builder;
+        auto result = builder.buildProjection(claims, query);
+        assert(result.is_error());
+    }
+
+    // ============================================================
+    // BLOCKER-8: ProjectionBuilder never returns invalid projection
+    // ============================================================
+    {
+        std::vector<KnowledgeClaim> claims;
+        claims.push_back(makeClaim("know_001", KnowledgeStatus::Active, 0.6));
+
+        KnowledgeQuery query;
+        query.owner = makeValidOwner();
+        query.mode = KnowledgeQueryMode::ByOwner;
+        query.limit = 10;
+
+        KnowledgeProjectionBuilder builder;
+        auto result = builder.buildProjection(claims, query);
+        assert(result.is_ok());
+        assert(result.value().validateBasic().is_ok());
     }
 
     std::cout << "knowledge_projection tests passed" << std::endl;

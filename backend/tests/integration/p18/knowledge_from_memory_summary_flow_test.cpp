@@ -113,6 +113,7 @@ void run_knowledge_from_memory_summary_flow_tests() {
         input.summary = makeValidSummary();
         input.target_relation = KnowledgeRelationType::HasEffect;
         input.action_key = "eat";
+        input.effect_key = "restore_hunger";
         input.representative_records = {makeValidRecord("mem_001")};
 
         auto result = service.formFromMemorySummary(input);

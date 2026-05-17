@@ -18,6 +18,9 @@ Result<void> KnowledgeOwner::validateBasic() const {
     if (kind == KnowledgeOwnerKind::Unknown) {
         return Result<void>::fail(makeError(ErrorCode::validation_failed, "KnowledgeOwner kind is Unknown"));
     }
+    if (kind == KnowledgeOwnerKind::TestOnly) {
+        return Result<void>::fail(makeError(ErrorCode::validation_failed, "KnowledgeOwner TestOnly not allowed"));
+    }
     if (kind == KnowledgeOwnerKind::Agent || kind == KnowledgeOwnerKind::Actor) {
         if (entity_id.empty()) {
             return Result<void>::fail(makeError(ErrorCode::validation_failed, "KnowledgeOwner Agent/Actor requires entity_id"));
@@ -33,10 +36,13 @@ Result<void> KnowledgeOwner::validateBasic() const {
             return Result<void>::fail(makeError(ErrorCode::validation_failed, "KnowledgeOwner Region requires region_id"));
         }
     }
-    if (kind == KnowledgeOwnerKind::ExternalRecord || kind == KnowledgeOwnerKind::TestOnly) {
+    if (kind == KnowledgeOwnerKind::ExternalRecord) {
         if (external_key.empty()) {
-            return Result<void>::fail(makeError(ErrorCode::validation_failed, "KnowledgeOwner ExternalRecord/TestOnly requires external_key"));
+            return Result<void>::fail(makeError(ErrorCode::validation_failed, "KnowledgeOwner ExternalRecord requires external_key"));
         }
+    }
+    if (containsKnowledgeForbiddenKey(external_key)) {
+        return Result<void>::fail(makeError(ErrorCode::validation_failed, "KnowledgeOwner external_key contains forbidden key"));
     }
     return Result<void>::ok();
 }
@@ -49,6 +55,9 @@ Result<void> KnowledgeSubject::validateBasic() const {
     if (kind == KnowledgeSubjectKind::Unknown) {
         return Result<void>::fail(makeError(ErrorCode::validation_failed, "KnowledgeSubject kind is Unknown"));
     }
+    if (kind == KnowledgeSubjectKind::TestOnly) {
+        return Result<void>::fail(makeError(ErrorCode::validation_failed, "KnowledgeSubject TestOnly not allowed"));
+    }
     if (subject_id.empty()) {
         return Result<void>::fail(makeError(ErrorCode::validation_failed, "KnowledgeSubject subject_id is empty"));
     }
@@ -57,6 +66,12 @@ Result<void> KnowledgeSubject::validateBasic() const {
     }
     if (containsKnowledgeForbiddenKey(subject_type_key)) {
         return Result<void>::fail(makeError(ErrorCode::validation_failed, "KnowledgeSubject subject_type_key contains forbidden key"));
+    }
+    if (containsKnowledgeForbiddenKey(related_subject_ids)) {
+        return Result<void>::fail(makeError(ErrorCode::validation_failed, "KnowledgeSubject related_subject_ids contain forbidden key"));
+    }
+    if (containsKnowledgeForbiddenKey(relation_group_key)) {
+        return Result<void>::fail(makeError(ErrorCode::validation_failed, "KnowledgeSubject relation_group_key contains forbidden key"));
     }
     if (kind == KnowledgeSubjectKind::Combination) {
         if (related_subject_ids.empty() && relation_group_key.empty()) {
@@ -77,11 +92,20 @@ Result<void> KnowledgePredicate::validateBasic() const {
     if (relation_type == KnowledgeRelationType::Unknown) {
         return Result<void>::fail(makeError(ErrorCode::validation_failed, "KnowledgePredicate relation_type is Unknown"));
     }
+    if (relation_type == KnowledgeRelationType::TestOnly) {
+        return Result<void>::fail(makeError(ErrorCode::validation_failed, "KnowledgePredicate relation_type TestOnly not allowed"));
+    }
     if (action_id.empty() && action_key.empty()) {
         return Result<void>::fail(makeError(ErrorCode::validation_failed, "KnowledgePredicate requires action_id or action_key"));
     }
+    if (containsKnowledgeForbiddenKey(action_key)) {
+        return Result<void>::fail(makeError(ErrorCode::validation_failed, "KnowledgePredicate action_key contains forbidden key"));
+    }
     if (containsKnowledgeForbiddenKey(effect_key)) {
         return Result<void>::fail(makeError(ErrorCode::validation_failed, "KnowledgePredicate effect_key contains forbidden key"));
+    }
+    if (containsKnowledgeForbiddenKey(polarity_key)) {
+        return Result<void>::fail(makeError(ErrorCode::validation_failed, "KnowledgePredicate polarity_key contains forbidden key"));
     }
     if (containsKnowledgeForbiddenKey(value_summary_key)) {
         return Result<void>::fail(makeError(ErrorCode::validation_failed, "KnowledgePredicate value_summary_key contains forbidden key"));
@@ -132,8 +156,15 @@ Result<void> KnowledgeEvidence::validateBasic() const {
     if (evidence_kind == KnowledgeEvidenceKind::Unknown) {
         return Result<void>::fail(makeError(ErrorCode::validation_failed, "KnowledgeEvidence evidence_kind is Unknown"));
     }
+    if (evidence_kind == KnowledgeEvidenceKind::TestOnly) {
+        return Result<void>::fail(makeError(ErrorCode::validation_failed, "KnowledgeEvidence evidence_kind TestOnly not allowed"));
+    }
     if (source_summary_id.empty() && source_memory_ids.empty() && memory_evidence_refs.empty()) {
         return Result<void>::fail(makeError(ErrorCode::validation_failed, "KnowledgeEvidence requires at least one source trace"));
+    }
+    for (const auto& ref : memory_evidence_refs) {
+        auto ref_result = ref.validateBasic();
+        if (ref_result.is_error()) return ref_result;
     }
     if (confidence_delta < -1.0 || confidence_delta > 1.0) {
         return Result<void>::fail(makeError(ErrorCode::validation_value_out_of_range, "KnowledgeEvidence confidence_delta out of range"));
@@ -228,6 +259,9 @@ Result<void> KnowledgeClaim::validateBasic() const {
     if (status == KnowledgeStatus::Unknown) {
         return Result<void>::fail(makeError(ErrorCode::validation_failed, "KnowledgeClaim status is Unknown"));
     }
+    if (status == KnowledgeStatus::TestOnly) {
+        return Result<void>::fail(makeError(ErrorCode::validation_failed, "KnowledgeClaim status TestOnly not allowed"));
+    }
     if (status == KnowledgeStatus::Deprecated || status == KnowledgeStatus::Disproven) {
         return Result<void>::fail(makeError(ErrorCode::validation_failed, "KnowledgeClaim P18 cannot create Deprecated/Disproven"));
     }
@@ -299,6 +333,20 @@ Result<void> KnowledgeFormationInput::validateBasic() const {
     if (owner_result.is_error()) return owner_result;
     auto summary_result = summary.validateBasic();
     if (summary_result.is_error()) return summary_result;
+
+    // BLOCKER-3: owner must match summary.key.owner
+    bool owner_match = false;
+    if (owner.kind == KnowledgeOwnerKind::Agent && summary.key.owner.kind == pathfinder::memory::MemoryOwnerKind::Agent) {
+        owner_match = (owner.entity_id == pathfinder::foundation::EntityId(summary.key.owner.entity_id.value()));
+    } else if (owner.kind == KnowledgeOwnerKind::Actor && summary.key.owner.kind == pathfinder::memory::MemoryOwnerKind::Actor) {
+        owner_match = (owner.entity_id == pathfinder::foundation::EntityId(summary.key.owner.entity_id.value()));
+    } else if (owner.kind == KnowledgeOwnerKind::Tribe && summary.key.owner.kind == pathfinder::memory::MemoryOwnerKind::Tribe) {
+        owner_match = (owner.tribe_id == pathfinder::foundation::TribeId(summary.key.owner.tribe_id.value()));
+    }
+    if (!owner_match) {
+        return Result<void>::fail(makeError(ErrorCode::validation_failed, "KnowledgeFormationInput owner does not match summary.key.owner"));
+    }
+
     if (containsKnowledgeForbiddenKey(action_key)) {
         return Result<void>::fail(makeError(ErrorCode::validation_failed, "KnowledgeFormationInput action_key contains forbidden key"));
     }
@@ -323,6 +371,9 @@ Result<void> KnowledgeFormationPlan::validateBasic() const {
     if (plan_key.empty()) {
         return Result<void>::fail(makeError(ErrorCode::validation_failed, "KnowledgeFormationPlan plan_key is empty"));
     }
+    if (containsKnowledgeForbiddenKey(plan_key)) {
+        return Result<void>::fail(makeError(ErrorCode::validation_failed, "KnowledgeFormationPlan plan_key contains forbidden key"));
+    }
     auto input_result = input.validateBasic();
     if (input_result.is_error()) return input_result;
     auto subject_result = subject.validateBasic();
@@ -338,8 +389,11 @@ Result<void> KnowledgeFormationPlan::validateBasic() const {
     }
     auto conf_result = projected_confidence.validateBasic();
     if (conf_result.is_error()) return conf_result;
-    if (projected_status == KnowledgeStatus::Unknown) {
-        return Result<void>::fail(makeError(ErrorCode::validation_failed, "KnowledgeFormationPlan projected_status is Unknown"));
+    if (projected_status == KnowledgeStatus::Unknown ||
+        projected_status == KnowledgeStatus::TestOnly ||
+        projected_status == KnowledgeStatus::Deprecated ||
+        projected_status == KnowledgeStatus::Disproven) {
+        return Result<void>::fail(makeError(ErrorCode::validation_failed, "KnowledgeFormationPlan projected_status is invalid"));
     }
     if (containsKnowledgeForbiddenKey(reason_keys)) {
         return Result<void>::fail(makeError(ErrorCode::validation_failed, "KnowledgeFormationPlan reason_keys contain forbidden key"));
@@ -358,8 +412,21 @@ Result<void> KnowledgeEventDraft::validateBasic() const {
     if (event_key.empty()) {
         return Result<void>::fail(makeError(ErrorCode::validation_failed, "KnowledgeEventDraft event_key is empty"));
     }
+    if (containsKnowledgeForbiddenKey(event_key)) {
+        return Result<void>::fail(makeError(ErrorCode::validation_failed, "KnowledgeEventDraft event_key contains forbidden key"));
+    }
     if (knowledge_id.empty()) {
         return Result<void>::fail(makeError(ErrorCode::validation_failed, "KnowledgeEventDraft knowledge_id is empty"));
+    }
+    if (relation_type == KnowledgeRelationType::Unknown ||
+        relation_type == KnowledgeRelationType::TestOnly) {
+        return Result<void>::fail(makeError(ErrorCode::validation_failed, "KnowledgeEventDraft relation_type is invalid"));
+    }
+    if (status == KnowledgeStatus::Unknown || status == KnowledgeStatus::TestOnly) {
+        return Result<void>::fail(makeError(ErrorCode::validation_failed, "KnowledgeEventDraft status is invalid"));
+    }
+    if (decision == KnowledgeFormationDecision::Unknown) {
+        return Result<void>::fail(makeError(ErrorCode::validation_failed, "KnowledgeEventDraft decision is Unknown"));
     }
     auto owner_result = owner.validateBasic();
     if (owner_result.is_error()) return owner_result;
@@ -378,6 +445,9 @@ Result<void> KnowledgeEventDraft::validateBasic() const {
 Result<void> KnowledgeStateChangeDraft::validateBasic() const {
     if (change_key.empty()) {
         return Result<void>::fail(makeError(ErrorCode::validation_failed, "KnowledgeStateChangeDraft change_key is empty"));
+    }
+    if (containsKnowledgeForbiddenKey(change_key)) {
+        return Result<void>::fail(makeError(ErrorCode::validation_failed, "KnowledgeStateChangeDraft change_key contains forbidden key"));
     }
     if (knowledge_id.empty()) {
         return Result<void>::fail(makeError(ErrorCode::validation_failed, "KnowledgeStateChangeDraft knowledge_id is empty"));
