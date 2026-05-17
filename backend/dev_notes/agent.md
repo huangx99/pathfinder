@@ -505,3 +505,79 @@ ctest --test-dir build/backend --output-on-failure
 - P11 定向测试: 56/56 通过 (35 debug_report + 17 debug_export + 4 integration)
 - 边界扫描全部通过
 - P8/P9/P10 回归测试全部通过
+
+---
+
+## P12: Agent 本地文件导出与校验
+
+### 目标
+
+P12 在 P11 基础上将内存级导出草稿写入本地文件并校验:
+
+1. **AgentExportPathPolicy**: 路径安全策略 (root_dir/文件名/大小限制)
+2. **AgentExportWritePlanner**: 从 AgentExportDraft 生成确定性写入计划
+3. **AgentLocalExportService**: 执行本地文件写入 (std::filesystem + std::ofstream)
+4. **AgentExportVerifier**: 校验文件数量/大小/路径/内容边界
+
+### 新增文件
+
+```
+backend/include/pathfinder/agent/local_export.h
+backend/src/agent/local_export.cpp
+backend/tests/unit/agent/agent_local_export_test.cpp
+backend/tests/integration/p12/agent_local_export_flow_test.cpp
+backend/tests/integration/p12/agent_local_export_security_test.cpp
+context_packs/agent_p12.md
+```
+
+### 核心类型
+
+**ID 类型:**
+- `AgentExportFileId`: 导出文件 ID
+- `AgentExportWriteId`: 写入任务 ID
+- `AgentExportVerifyId`: 校验任务 ID
+
+**枚举:**
+- `AgentExportFileKind`: Unknown/Manifest/Chunk/Diagnostics
+- `AgentExportFileExtension`: Unknown/Txt/Md
+- `AgentExportWriteStatus`: Unknown/Planned/Written/Failed/Skipped
+- `AgentExportVerificationStatus`: Unknown/Passed/Failed/Warning
+
+**数据契约:**
+- `AgentExportPathPolicy`: 路径策略 (root_dir/allow_create/allow_overwrite/大小限制)
+- `AgentExportFilePlan`: 单文件写入计划
+- `AgentExportWritePlan`: 完整写入计划
+- `AgentExportFileWriteResult`: 单文件写入结果
+- `AgentExportWriteResult`: 完整写入结果
+- `AgentExportVerificationReport`: 校验报告
+
+**服务:**
+- `AgentExportWritePlanner`: AgentExportDraft → AgentExportWritePlan
+- `AgentLocalExportService`: 执行写入
+- `AgentExportVerifier`: 校验写入结果
+
+### 设计约束
+
+- 使用 std::filesystem 创建目录
+- 使用 std::ofstream 写文件
+- 不调用 AgentRuntime/Policy/RulePipeline/ReplayRunner
+- 不读取 GameState/ObjectDefinition/hidden truth
+- 不做 CLI/JSON/HTTP/WebSocket/H5/SaveManager
+- 路径穿越被拒绝 (relative_path 不允许 ..)
+- 禁止词扫描: GameState/ObjectDefinition/edible_profile/hunger_delta/health_delta/effect_kind/reward_value/is_done/done =
+
+### 测试入口
+
+```bash
+cmake -S backend -B build/backend
+cmake --build build/backend
+ctest --test-dir build/backend -R "agent_local_export|p12" --output-on-failure
+ctest --test-dir build/backend --output-on-failure
+```
+
+### P12 测试结果 (2026-05-17)
+
+- 393/393 全量测试通过 (P11 332 + P12 61)
+- P12 定向测试: 61/61 通过 (57 unit + 2 integration flow + 2 integration security)
+- 边界扫描全部通过
+- P8/P9/P10/P11 回归测试全部通过

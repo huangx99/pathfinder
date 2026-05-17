@@ -2375,3 +2375,395 @@ add_test(
     NAME p11_agent_no_decision_debug_report
     COMMAND pathfinder_tests_p11_no_decision_debug p11_agent_no_decision_debug_report
 )
+
+# Agent Local Export tests (P12)
+add_executable(pathfinder_tests_agent_local_export
+    unit/agent/agent_local_export_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_agent_local_export PRIVATE
+    pathfinder_agent_local_export
+    pathfinder_agent_debug_export
+    pathfinder_agent_debug_report
+    pathfinder_agent_projection
+    pathfinder_agent_history_query
+    pathfinder_agent_replay_lock
+    pathfinder_agent_training_sample
+    pathfinder_agent_record
+    pathfinder_agent_runtime
+    pathfinder_agent_builders
+    pathfinder_agent
+    pathfinder_protocol
+    pathfinder_replay
+    pathfinder_pipeline
+    pathfinder_rules
+    pathfinder_state
+    pathfinder_event
+    pathfinder_object
+    pathfinder_cognition
+    pathfinder_command
+    pathfinder_foundation
+)
+
+add_test(
+    NAME agent_local_export_smoke
+    COMMAND pathfinder_tests_agent_local_export smoke
+)
+
+add_test(
+    NAME agent_local_export_file_kind_roundtrip
+    COMMAND pathfinder_tests_agent_local_export file_kind_roundtrip
+)
+
+add_test(
+    NAME agent_local_export_file_extension_roundtrip
+    COMMAND pathfinder_tests_agent_local_export file_extension_roundtrip
+)
+
+add_test(
+    NAME agent_local_export_write_status_roundtrip
+    COMMAND pathfinder_tests_agent_local_export write_status_roundtrip
+)
+
+add_test(
+    NAME agent_local_export_verification_status_roundtrip
+    COMMAND pathfinder_tests_agent_local_export verification_status_roundtrip
+)
+
+add_test(
+    NAME agent_local_export_file_id_helper
+    COMMAND pathfinder_tests_agent_local_export file_id_helper
+)
+
+add_test(
+    NAME agent_local_export_write_id_helper
+    COMMAND pathfinder_tests_agent_local_export write_id_helper
+)
+
+add_test(
+    NAME agent_local_export_verify_id_helper
+    COMMAND pathfinder_tests_agent_local_export verify_id_helper
+)
+
+add_test(
+    NAME agent_local_export_path_policy_empty_root
+    COMMAND pathfinder_tests_agent_local_export path_policy_empty_root_dir_fails
+)
+
+add_test(
+    NAME agent_local_export_path_policy_traversal
+    COMMAND pathfinder_tests_agent_local_export path_policy_root_dir_traversal_fails
+)
+
+add_test(
+    NAME agent_local_export_path_policy_max_file_count
+    COMMAND pathfinder_tests_agent_local_export path_policy_max_file_count_fails
+)
+
+add_test(
+    NAME agent_local_export_path_policy_max_file_bytes
+    COMMAND pathfinder_tests_agent_local_export path_policy_max_file_bytes_zero_fails
+)
+
+add_test(
+    NAME agent_local_export_path_policy_total_bytes
+    COMMAND pathfinder_tests_agent_local_export path_policy_total_bytes_less_than_max_fails
+)
+
+add_test(
+    NAME agent_local_export_file_plan_empty_id
+    COMMAND pathfinder_tests_agent_local_export file_plan_empty_file_id_fails
+)
+
+add_test(
+    NAME agent_local_export_file_plan_unknown_kind
+    COMMAND pathfinder_tests_agent_local_export file_plan_unknown_kind_fails
+)
+
+add_test(
+    NAME agent_local_export_file_plan_unknown_ext
+    COMMAND pathfinder_tests_agent_local_export file_plan_unknown_extension_fails
+)
+
+add_test(
+    NAME agent_local_export_file_plan_empty_path
+    COMMAND pathfinder_tests_agent_local_export file_plan_empty_relative_path_fails
+)
+
+add_test(
+    NAME agent_local_export_file_plan_traversal
+    COMMAND pathfinder_tests_agent_local_export file_plan_relative_path_traversal_fails
+)
+
+add_test(
+    NAME agent_local_export_file_plan_backslash
+    COMMAND pathfinder_tests_agent_local_export file_plan_relative_path_backslash_fails
+)
+
+add_test(
+    NAME agent_local_export_file_plan_absolute
+    COMMAND pathfinder_tests_agent_local_export file_plan_absolute_relative_path_fails
+)
+
+add_test(
+    NAME agent_local_export_file_plan_manifest_empty
+    COMMAND pathfinder_tests_agent_local_export file_plan_manifest_empty_content_fails
+)
+
+add_test(
+    NAME agent_local_export_file_plan_size_mismatch
+    COMMAND pathfinder_tests_agent_local_export file_plan_byte_size_mismatch_fails
+)
+
+add_test(
+    NAME agent_local_export_write_plan_empty_id
+    COMMAND pathfinder_tests_agent_local_export write_plan_empty_write_id_fails
+)
+
+add_test(
+    NAME agent_local_export_write_plan_empty_export
+    COMMAND pathfinder_tests_agent_local_export write_plan_empty_export_id_fails
+)
+
+add_test(
+    NAME agent_local_export_write_plan_empty_files
+    COMMAND pathfinder_tests_agent_local_export write_plan_empty_files_fails
+)
+
+add_test(
+    NAME agent_local_export_write_plan_exceed_count
+    COMMAND pathfinder_tests_agent_local_export write_plan_exceeds_max_file_count_fails
+)
+
+add_test(
+    NAME agent_local_export_write_plan_dup_path
+    COMMAND pathfinder_tests_agent_local_export write_plan_duplicate_relative_path_fails
+)
+
+add_test(
+    NAME agent_local_export_write_plan_no_manifest
+    COMMAND pathfinder_tests_agent_local_export write_plan_missing_manifest_fails
+)
+
+add_test(
+    NAME agent_local_export_write_plan_total_mismatch
+    COMMAND pathfinder_tests_agent_local_export write_plan_total_bytes_mismatch_fails
+)
+
+add_test(
+    NAME agent_local_export_write_plan_exceed_total
+    COMMAND pathfinder_tests_agent_local_export write_plan_exceeds_max_total_bytes_fails
+)
+
+add_test(
+    NAME agent_local_export_file_write_result_written_errors
+    COMMAND pathfinder_tests_agent_local_export file_write_result_written_with_errors_fails
+)
+
+add_test(
+    NAME agent_local_export_file_write_result_failed_no_errors
+    COMMAND pathfinder_tests_agent_local_export file_write_result_failed_without_errors_fails
+)
+
+add_test(
+    NAME agent_local_export_write_result_written_errors
+    COMMAND pathfinder_tests_agent_local_export write_result_written_with_errors_fails
+)
+
+add_test(
+    NAME agent_local_export_write_result_failed_no_errors
+    COMMAND pathfinder_tests_agent_local_export write_result_failed_without_errors_fails
+)
+
+add_test(
+    NAME agent_local_export_write_result_count_mismatch
+    COMMAND pathfinder_tests_agent_local_export write_result_written_count_mismatch_fails
+)
+
+add_test(
+    NAME agent_local_export_verify_passed_count
+    COMMAND pathfinder_tests_agent_local_export verify_report_passed_file_count_mismatch_fails
+)
+
+add_test(
+    NAME agent_local_export_verify_passed_bytes
+    COMMAND pathfinder_tests_agent_local_export verify_report_passed_total_bytes_mismatch_fails
+)
+
+add_test(
+    NAME agent_local_export_verify_dup_paths
+    COMMAND pathfinder_tests_agent_local_export verify_report_duplicate_checked_paths_fails
+)
+
+add_test(
+    NAME agent_local_export_planner_plaintext
+    COMMAND pathfinder_tests_agent_local_export planner_plaintext_txt
+)
+
+add_test(
+    NAME agent_local_export_planner_markdown
+    COMMAND pathfinder_tests_agent_local_export planner_markdown_md
+)
+
+add_test(
+    NAME agent_local_export_planner_protocol_text
+    COMMAND pathfinder_tests_agent_local_export planner_protocol_text_txt
+)
+
+add_test(
+    NAME agent_local_export_planner_manifest_name
+    COMMAND pathfinder_tests_agent_local_export planner_manifest_name_stable
+)
+
+add_test(
+    NAME agent_local_export_planner_chunk_name
+    COMMAND pathfinder_tests_agent_local_export planner_chunk_name_by_index
+)
+
+add_test(
+    NAME agent_local_export_planner_bad_base_name_traversal
+    COMMAND pathfinder_tests_agent_local_export planner_base_name_traversal_fails
+)
+
+add_test(
+    NAME agent_local_export_planner_bad_base_name_space
+    COMMAND pathfinder_tests_agent_local_export planner_base_name_space_fails
+)
+
+add_test(
+    NAME agent_local_export_planner_bad_base_name_colon
+    COMMAND pathfinder_tests_agent_local_export planner_base_name_colon_fails
+)
+
+add_test(
+    NAME agent_local_export_write_create_dir
+    COMMAND pathfinder_tests_agent_local_export write_creates_directory
+)
+
+add_test(
+    NAME agent_local_export_write_no_create_dir
+    COMMAND pathfinder_tests_agent_local_export write_no_create_dir_fails
+)
+
+add_test(
+    NAME agent_local_export_write_no_overwrite
+    COMMAND pathfinder_tests_agent_local_export write_no_overwrite_fails
+)
+
+add_test(
+    NAME agent_local_export_write_overwrite
+    COMMAND pathfinder_tests_agent_local_export write_overwrite_succeeds
+)
+
+add_test(
+    NAME agent_local_export_write_result_count
+    COMMAND pathfinder_tests_agent_local_export write_written_count_correct
+)
+
+add_test(
+    NAME agent_local_export_write_result_errors
+    COMMAND pathfinder_tests_agent_local_export write_failed_has_error_keys
+)
+
+add_test(
+    NAME agent_local_export_verify_passed
+    COMMAND pathfinder_tests_agent_local_export verify_passed_after_write
+)
+
+add_test(
+    NAME agent_local_export_verify_missing_file
+    COMMAND pathfinder_tests_agent_local_export verify_missing_file_fails
+)
+
+add_test(
+    NAME agent_local_export_verify_size_mismatch
+    COMMAND pathfinder_tests_agent_local_export verify_size_mismatch_fails
+)
+
+add_test(
+    NAME agent_local_export_verify_forbidden_content
+    COMMAND pathfinder_tests_agent_local_export verify_forbidden_content_fails
+)
+
+add_test(
+    NAME agent_local_export_verify_no_scan
+    COMMAND pathfinder_tests_agent_local_export verify_no_content_scan
+)
+
+# P12 integration test: MarkdownLike export flow
+add_executable(pathfinder_tests_p12_export_flow
+    integration/p12/agent_local_export_flow_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_p12_export_flow PRIVATE
+    pathfinder_agent_local_export
+    pathfinder_agent_debug_export
+    pathfinder_agent_debug_report
+    pathfinder_agent_projection
+    pathfinder_agent_history_query
+    pathfinder_agent_replay_lock
+    pathfinder_agent_training_sample
+    pathfinder_agent_record
+    pathfinder_agent_runtime
+    pathfinder_agent_builders
+    pathfinder_agent
+    pathfinder_protocol
+    pathfinder_replay
+    pathfinder_pipeline
+    pathfinder_rules
+    pathfinder_state
+    pathfinder_event
+    pathfinder_object
+    pathfinder_cognition
+    pathfinder_command
+    pathfinder_foundation
+)
+
+add_test(
+    NAME p12_smoke
+    COMMAND pathfinder_tests_p12_export_flow smoke
+)
+
+add_test(
+    NAME p12_agent_local_export_flow
+    COMMAND pathfinder_tests_p12_export_flow p12_agent_local_export_flow
+)
+
+# P12 integration test: path security
+add_executable(pathfinder_tests_p12_security
+    integration/p12/agent_local_export_security_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_p12_security PRIVATE
+    pathfinder_agent_local_export
+    pathfinder_agent_debug_export
+    pathfinder_agent_debug_report
+    pathfinder_agent_projection
+    pathfinder_agent_history_query
+    pathfinder_agent_replay_lock
+    pathfinder_agent_training_sample
+    pathfinder_agent_record
+    pathfinder_agent_runtime
+    pathfinder_agent_builders
+    pathfinder_agent
+    pathfinder_protocol
+    pathfinder_replay
+    pathfinder_pipeline
+    pathfinder_rules
+    pathfinder_state
+    pathfinder_event
+    pathfinder_object
+    pathfinder_cognition
+    pathfinder_command
+    pathfinder_foundation
+)
+
+add_test(
+    NAME p12_security_smoke
+    COMMAND pathfinder_tests_p12_security smoke
+)
+
+add_test(
+    NAME p12_path_security
+    COMMAND pathfinder_tests_p12_security p12_path_security
+)

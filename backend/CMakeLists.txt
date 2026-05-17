@@ -391,5 +391,27 @@ target_link_libraries(pathfinder_agent_debug_export PUBLIC
     pathfinder_foundation
 )
 
+# Agent Local Export library (P12)
+add_library(pathfinder_agent_local_export STATIC
+    src/agent/local_export.cpp
+)
+
+target_include_directories(pathfinder_agent_local_export PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(pathfinder_agent_local_export PUBLIC
+    pathfinder_agent_debug_export
+    pathfinder_agent_debug_report
+    pathfinder_agent_projection
+    pathfinder_agent_history_query
+    pathfinder_agent_replay_lock
+    pathfinder_agent_training_sample
+    pathfinder_agent_record
+    pathfinder_agent
+    pathfinder_protocol
+    pathfinder_foundation
+)
+
 # Tests
 add_subdirectory(tests)
