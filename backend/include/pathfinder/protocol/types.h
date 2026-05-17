@@ -46,7 +46,10 @@ enum class ProtocolPayloadType {
     EventList,
     ReplayReport,
     ErrorList,
-    Text
+    Text,
+    AgentHistoryProjection,
+    AgentReplayLockProjection,
+    AgentTrainingSampleProjection
 };
 
 std::string toString(ProtocolPayloadType type);

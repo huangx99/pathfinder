@@ -316,5 +316,39 @@ target_link_libraries(pathfinder_agent_training_sample PUBLIC
     pathfinder_foundation
 )
 
+# Agent History Query library (P10)
+add_library(pathfinder_agent_history_query STATIC
+    src/agent/history_query.cpp
+)
+
+target_include_directories(pathfinder_agent_history_query PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(pathfinder_agent_history_query PUBLIC
+    pathfinder_agent_record
+    pathfinder_agent
+    pathfinder_foundation
+)
+
+# Agent Projection library (P10)
+add_library(pathfinder_agent_projection STATIC
+    src/protocol/agent_projection.cpp
+)
+
+target_include_directories(pathfinder_agent_projection PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(pathfinder_agent_projection PUBLIC
+    pathfinder_agent_history_query
+    pathfinder_agent_replay_lock
+    pathfinder_agent_training_sample
+    pathfinder_agent_record
+    pathfinder_agent
+    pathfinder_protocol
+    pathfinder_foundation
+)
+
 # Tests
 add_subdirectory(tests)

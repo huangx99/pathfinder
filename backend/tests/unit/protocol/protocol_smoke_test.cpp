@@ -80,6 +80,9 @@ int main(int argc, char* argv[]) {
         assert(toString(ProtocolPayloadType::ReplayReport) == "replay_report");
         assert(toString(ProtocolPayloadType::ErrorList) == "error_list");
         assert(toString(ProtocolPayloadType::Text) == "text");
+        assert(toString(ProtocolPayloadType::AgentHistoryProjection) == "agent_history_projection");
+        assert(toString(ProtocolPayloadType::AgentReplayLockProjection) == "agent_replay_lock_projection");
+        assert(toString(ProtocolPayloadType::AgentTrainingSampleProjection) == "agent_training_sample_projection");
         assert(toString(ProtocolPayloadType::Unknown) == "unknown");
         std::cout << "PASS: payload type toString" << std::endl;
         return 0;
@@ -94,6 +97,12 @@ int main(int argc, char* argv[]) {
         assert(r3.is_error());
         auto r4 = protocolPayloadTypeFromString("unknown");
         assert(r4.is_error());
+        auto r5 = protocolPayloadTypeFromString("agent_history_projection");
+        assert(r5.is_ok() && r5.value() == ProtocolPayloadType::AgentHistoryProjection);
+        auto r6 = protocolPayloadTypeFromString("agent_replay_lock_projection");
+        assert(r6.is_ok() && r6.value() == ProtocolPayloadType::AgentReplayLockProjection);
+        auto r7 = protocolPayloadTypeFromString("agent_training_sample_projection");
+        assert(r7.is_ok() && r7.value() == ProtocolPayloadType::AgentTrainingSampleProjection);
         std::cout << "PASS: payload type fromString" << std::endl;
         return 0;
     }

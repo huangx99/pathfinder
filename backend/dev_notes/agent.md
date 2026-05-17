@@ -353,3 +353,78 @@ ctest --test-dir build/backend --output-on-failure
 - 边界扫描全部通过
 - P8 回归测试全部通过
 - 审核修复: 移除集成测试中 GameState 直接使用，修正 trace 字段映射，补充 source_hash/replay_locked 校验
+
+---
+
+## P10: Agent 历史查询与协议投影前置
+
+### 目标
+
+P10 在 P8/P9 基础上增加只读查询和安全投影层:
+
+1. **AgentHistoryQueryService**: 按 agent_id / tick range 查询 AgentTickLog
+2. **AgentHistoryProjector**: 把查询结果投影成安全 DTO
+3. **AgentProtocolProjectionAdapter**: 把投影包装成 ProtocolEnvelope
+
+### 新增文件
+
+```
+backend/include/pathfinder/agent/history_query.h
+backend/src/agent/history_query.cpp
+backend/include/pathfinder/protocol/agent_projection.h
+backend/src/protocol/agent_projection.cpp
+backend/tests/unit/agent/agent_history_query_test.cpp
+backend/tests/unit/protocol/agent_projection_test.cpp
+backend/tests/integration/p10/agent_history_projection_flow_test.cpp
+backend/tests/integration/p10/agent_no_decision_projection_flow_test.cpp
+context_packs/agent_p10.md
+```
+
+### 核心类型
+
+**History Query 类型:**
+- `AgentHistoryQueryId`: 查询 ID (StrongId)
+- `AgentHistorySortOrder`: Unknown/TickAscending/TickDescending
+- `AgentHistoryProjectionMode`: Unknown/Public/Debug/Training
+- `AgentHistoryQueryOptions`: 查询选项 (agent_id/tick range/sort/limit/mode)
+- `AgentHistoryQueryResult`: 查询结果 (records/total_matched/truncated)
+- `AgentHistoryQueryService`: 只读查询服务
+
+**Projection DTO:**
+- `AgentHistoryItemProjection`: 单条历史投影
+- `AgentHistoryProjection`: 历史投影集合
+- `AgentReplayLockItemProjection`: 单条锁定投影
+- `AgentReplayLockProjection`: 锁定投影集合
+- `AgentTrainingSampleProjection`: 训练样本投影
+- `AgentHistoryProjector`: 投影器 (按 mode 过滤)
+- `AgentProtocolProjectionAdapter`: 协议适配器
+
+**ProtocolPayloadType 扩展:**
+- `AgentHistoryProjection`
+- `AgentReplayLockProjection`
+- `AgentTrainingSampleProjection`
+
+### 设计约束
+
+- QueryService/Projector/Adapter 不调用 AgentRuntime/Policy/RulePipeline/ReplayRunner
+- 不读取 GameState/ObjectDefinition/hidden truth
+- 不包含 reward_value/done bool
+- Public 模式清空 phase_keys/reason_keys/warning_keys
+- Debug 模式允许输出 trace keys
+- 不做 H5/HTTP/WebSocket/JSON 序列化
+
+### 测试入口
+
+```bash
+cmake -S backend -B build/backend
+cmake --build build/backend
+ctest --test-dir build/backend -R "agent_history_query|agent_projection|p10|protocol" --output-on-failure
+ctest --test-dir build/backend --output-on-failure
+```
+
+### P10 测试结果 (2026-05-17)
+
+- 276/276 全量测试通过 (P9 229 + P10 47)
+- P10 定向测试: 66/66 通过 (19 history_query + 24 projection + 4 integration + 19 protocol)
+- 边界扫描全部通过
+- P8/P9 回归测试全部通过

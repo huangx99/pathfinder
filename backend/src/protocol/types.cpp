@@ -80,6 +80,9 @@ std::string toString(ProtocolPayloadType type) {
         case ProtocolPayloadType::ReplayReport: return "replay_report";
         case ProtocolPayloadType::ErrorList: return "error_list";
         case ProtocolPayloadType::Text: return "text";
+        case ProtocolPayloadType::AgentHistoryProjection: return "agent_history_projection";
+        case ProtocolPayloadType::AgentReplayLockProjection: return "agent_replay_lock_projection";
+        case ProtocolPayloadType::AgentTrainingSampleProjection: return "agent_training_sample_projection";
     }
     return "unknown";
 }
@@ -90,6 +93,9 @@ pathfinder::foundation::Result<ProtocolPayloadType> protocolPayloadTypeFromStrin
     if (str == "replay_report") return pathfinder::foundation::Result<ProtocolPayloadType>::ok(ProtocolPayloadType::ReplayReport);
     if (str == "error_list") return pathfinder::foundation::Result<ProtocolPayloadType>::ok(ProtocolPayloadType::ErrorList);
     if (str == "text") return pathfinder::foundation::Result<ProtocolPayloadType>::ok(ProtocolPayloadType::Text);
+    if (str == "agent_history_projection") return pathfinder::foundation::Result<ProtocolPayloadType>::ok(ProtocolPayloadType::AgentHistoryProjection);
+    if (str == "agent_replay_lock_projection") return pathfinder::foundation::Result<ProtocolPayloadType>::ok(ProtocolPayloadType::AgentReplayLockProjection);
+    if (str == "agent_training_sample_projection") return pathfinder::foundation::Result<ProtocolPayloadType>::ok(ProtocolPayloadType::AgentTrainingSampleProjection);
     return pathfinder::foundation::Result<ProtocolPayloadType>::fail(
         pathfinder::foundation::makeError(
             pathfinder::foundation::ErrorCode::validation_enum_unknown,

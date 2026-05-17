@@ -1649,3 +1649,338 @@ add_test(
     NAME p9_no_decision_training_draft
     COMMAND pathfinder_tests_p9_no_decision p9_no_decision_training_draft
 )
+
+# Agent History Query tests (P10)
+add_executable(pathfinder_tests_agent_history_query
+    unit/agent/agent_history_query_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_agent_history_query PRIVATE
+    pathfinder_agent_history_query
+    pathfinder_agent_record
+    pathfinder_agent_runtime
+    pathfinder_agent_builders
+    pathfinder_agent
+    pathfinder_replay
+    pathfinder_pipeline
+    pathfinder_rules
+    pathfinder_state
+    pathfinder_event
+    pathfinder_object
+    pathfinder_cognition
+    pathfinder_command
+    pathfinder_foundation
+)
+
+add_test(
+    NAME agent_history_query_smoke
+    COMMAND pathfinder_tests_agent_history_query smoke
+)
+
+add_test(
+    NAME agent_history_query_sort_order_roundtrip
+    COMMAND pathfinder_tests_agent_history_query sort_order_roundtrip
+)
+
+add_test(
+    NAME agent_history_query_projection_mode_roundtrip
+    COMMAND pathfinder_tests_agent_history_query projection_mode_roundtrip
+)
+
+add_test(
+    NAME agent_history_query_id_helper
+    COMMAND pathfinder_tests_agent_history_query query_id_helper
+)
+
+add_test(
+    NAME agent_history_query_valid_options
+    COMMAND pathfinder_tests_agent_history_query valid_options_passes
+)
+
+add_test(
+    NAME agent_history_query_empty_id
+    COMMAND pathfinder_tests_agent_history_query empty_query_id_fails
+)
+
+add_test(
+    NAME agent_history_query_unknown_sort
+    COMMAND pathfinder_tests_agent_history_query unknown_sort_order_fails
+)
+
+add_test(
+    NAME agent_history_query_unknown_mode
+    COMMAND pathfinder_tests_agent_history_query unknown_projection_mode_fails
+)
+
+add_test(
+    NAME agent_history_query_limit_zero
+    COMMAND pathfinder_tests_agent_history_query limit_zero_fails
+)
+
+add_test(
+    NAME agent_history_query_limit_over
+    COMMAND pathfinder_tests_agent_history_query limit_over_1000_fails
+)
+
+add_test(
+    NAME agent_history_query_bad_tick_range
+    COMMAND pathfinder_tests_agent_history_query tick_from_greater_than_to_fails
+)
+
+add_test(
+    NAME agent_history_query_public_debug
+    COMMAND pathfinder_tests_agent_history_query public_debug_trace_fails
+)
+
+add_test(
+    NAME agent_history_query_filter_agent
+    COMMAND pathfinder_tests_agent_history_query filter_by_agent_id
+)
+
+add_test(
+    NAME agent_history_query_filter_tick
+    COMMAND pathfinder_tests_agent_history_query filter_by_tick_range
+)
+
+add_test(
+    NAME agent_history_query_sort_asc
+    COMMAND pathfinder_tests_agent_history_query sort_ascending
+)
+
+add_test(
+    NAME agent_history_query_sort_desc
+    COMMAND pathfinder_tests_agent_history_query sort_descending
+)
+
+add_test(
+    NAME agent_history_query_limit
+    COMMAND pathfinder_tests_agent_history_query limit_truncates
+)
+
+add_test(
+    NAME agent_history_query_no_match
+    COMMAND pathfinder_tests_agent_history_query no_match_empty_result
+)
+
+add_test(
+    NAME agent_history_query_read_only
+    COMMAND pathfinder_tests_agent_history_query query_does_not_modify_log
+)
+
+# Agent Projection tests (P10)
+add_executable(pathfinder_tests_agent_projection
+    unit/protocol/agent_projection_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_agent_projection PRIVATE
+    pathfinder_agent_projection
+    pathfinder_agent_history_query
+    pathfinder_agent_replay_lock
+    pathfinder_agent_training_sample
+    pathfinder_agent_record
+    pathfinder_agent_runtime
+    pathfinder_agent_builders
+    pathfinder_agent
+    pathfinder_protocol
+    pathfinder_replay
+    pathfinder_pipeline
+    pathfinder_rules
+    pathfinder_state
+    pathfinder_event
+    pathfinder_object
+    pathfinder_cognition
+    pathfinder_command
+    pathfinder_foundation
+)
+
+add_test(
+    NAME agent_projection_smoke
+    COMMAND pathfinder_tests_agent_projection smoke
+)
+
+add_test(
+    NAME agent_projection_valid_item
+    COMMAND pathfinder_tests_agent_projection valid_history_item_passes
+)
+
+add_test(
+    NAME agent_projection_missing_record_id
+    COMMAND pathfinder_tests_agent_projection missing_record_id_fails
+)
+
+add_test(
+    NAME agent_projection_missing_agent_id
+    COMMAND pathfinder_tests_agent_projection missing_agent_id_fails
+)
+
+add_test(
+    NAME agent_projection_missing_runtime
+    COMMAND pathfinder_tests_agent_projection missing_runtime_status_fails
+)
+
+add_test(
+    NAME agent_projection_valid_history
+    COMMAND pathfinder_tests_agent_projection valid_history_projection_passes
+)
+
+add_test(
+    NAME agent_projection_unknown_mode
+    COMMAND pathfinder_tests_agent_projection unknown_mode_fails
+)
+
+add_test(
+    NAME agent_projection_valid_lock_item
+    COMMAND pathfinder_tests_agent_projection valid_lock_item_passes
+)
+
+add_test(
+    NAME agent_projection_lock_item_status
+    COMMAND pathfinder_tests_agent_projection lock_item_missing_status_fails
+)
+
+add_test(
+    NAME agent_projection_valid_lock
+    COMMAND pathfinder_tests_agent_projection valid_lock_projection_passes
+)
+
+add_test(
+    NAME agent_projection_lock_id
+    COMMAND pathfinder_tests_agent_projection lock_projection_missing_id_fails
+)
+
+add_test(
+    NAME agent_projection_valid_training
+    COMMAND pathfinder_tests_agent_projection valid_training_sample_passes
+)
+
+add_test(
+    NAME agent_projection_training_reward
+    COMMAND pathfinder_tests_agent_projection training_missing_reward_status_fails
+)
+
+add_test(
+    NAME agent_projection_no_reward_done
+    COMMAND pathfinder_tests_agent_projection training_no_reward_value_or_done_bool
+)
+
+add_test(
+    NAME agent_projection_proj_cmd_id
+    COMMAND pathfinder_tests_agent_projection projector_pipeline_succeeded_has_command_id
+)
+
+add_test(
+    NAME agent_projection_proj_no_cmd
+    COMMAND pathfinder_tests_agent_projection projector_no_decision_no_command_id
+)
+
+add_test(
+    NAME agent_projection_proj_lock
+    COMMAND pathfinder_tests_agent_projection projector_replay_lock_status_locked
+)
+
+add_test(
+    NAME agent_projection_proj_training
+    COMMAND pathfinder_tests_agent_projection projector_training_sample_status
+)
+
+add_test(
+    NAME agent_projection_proj_public
+    COMMAND pathfinder_tests_agent_projection projector_public_no_trace_keys
+)
+
+add_test(
+    NAME agent_projection_proj_debug
+    COMMAND pathfinder_tests_agent_projection projector_debug_has_trace_keys
+)
+
+add_test(
+    NAME agent_projection_envelope_history
+    COMMAND pathfinder_tests_agent_projection history_envelope_valid
+)
+
+add_test(
+    NAME agent_projection_envelope_lock
+    COMMAND pathfinder_tests_agent_projection replay_lock_envelope_valid
+)
+
+add_test(
+    NAME agent_projection_envelope_training
+    COMMAND pathfinder_tests_agent_projection training_sample_envelope_valid
+)
+
+add_test(
+    NAME agent_projection_envelope_options
+    COMMAND pathfinder_tests_agent_projection envelope_passthrough_options
+)
+
+# P10 integration test: unknown fruit history projection flow
+add_executable(pathfinder_tests_p10_history_projection
+    integration/p10/agent_history_projection_flow_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_p10_history_projection PRIVATE
+    pathfinder_agent_projection
+    pathfinder_agent_history_query
+    pathfinder_agent_replay_lock
+    pathfinder_agent_training_sample
+    pathfinder_agent_record
+    pathfinder_agent_runtime
+    pathfinder_agent_builders
+    pathfinder_agent
+    pathfinder_protocol
+    pathfinder_replay
+    pathfinder_pipeline
+    pathfinder_rules
+    pathfinder_state
+    pathfinder_event
+    pathfinder_object
+    pathfinder_cognition
+    pathfinder_command
+    pathfinder_foundation
+)
+
+add_test(
+    NAME p10_smoke
+    COMMAND pathfinder_tests_p10_history_projection smoke
+)
+
+add_test(
+    NAME p10_agent_history_projection_flow
+    COMMAND pathfinder_tests_p10_history_projection p10_agent_history_projection_flow
+)
+
+# P10 integration test: no-decision history projection flow
+add_executable(pathfinder_tests_p10_no_decision_projection
+    integration/p10/agent_no_decision_projection_flow_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_p10_no_decision_projection PRIVATE
+    pathfinder_agent_projection
+    pathfinder_agent_history_query
+    pathfinder_agent_replay_lock
+    pathfinder_agent_training_sample
+    pathfinder_agent_record
+    pathfinder_agent_runtime
+    pathfinder_agent_builders
+    pathfinder_agent
+    pathfinder_protocol
+    pathfinder_replay
+    pathfinder_pipeline
+    pathfinder_rules
+    pathfinder_state
+    pathfinder_event
+    pathfinder_object
+    pathfinder_cognition
+    pathfinder_command
+    pathfinder_foundation
+)
+
+add_test(
+    NAME p10_no_decision_smoke
+    COMMAND pathfinder_tests_p10_no_decision_projection smoke
+)
+
+add_test(
+    NAME p10_agent_no_decision_projection_flow
+    COMMAND pathfinder_tests_p10_no_decision_projection p10_agent_no_decision_projection_flow
+)
