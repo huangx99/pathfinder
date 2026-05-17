@@ -1506,6 +1506,193 @@ add_test(
     COMMAND pathfinder_tests_p19_knowledge_revision_security
 )
 
+# P20 unit tests
+add_executable(pathfinder_tests_knowledge_propagation
+    unit/knowledge/knowledge_propagation_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_knowledge_propagation PRIVATE
+    pathfinder_knowledge
+    pathfinder_memory
+    pathfinder_foundation
+)
+
+add_test(
+    NAME knowledge_propagation_enum_roundtrip
+    COMMAND pathfinder_tests_knowledge_propagation enum_roundtrip
+)
+
+add_test(
+    NAME knowledge_propagation_options_validate
+    COMMAND pathfinder_tests_knowledge_propagation options_validate
+)
+
+add_test(
+    NAME knowledge_propagation_propagator_validate
+    COMMAND pathfinder_tests_knowledge_propagation propagator_validate
+)
+
+add_test(
+    NAME knowledge_propagation_target_validate
+    COMMAND pathfinder_tests_knowledge_propagation target_validate
+)
+
+add_test(
+    NAME knowledge_propagation_context_validate
+    COMMAND pathfinder_tests_knowledge_propagation context_validate
+)
+
+add_test(
+    NAME knowledge_propagation_attempt_validate
+    COMMAND pathfinder_tests_knowledge_propagation attempt_validate
+)
+
+add_test(
+    NAME knowledge_propagation_transfer_assessment_validate
+    COMMAND pathfinder_tests_knowledge_propagation transfer_assessment_validate
+)
+
+add_test(
+    NAME knowledge_propagation_recipient_draft_validate
+    COMMAND pathfinder_tests_knowledge_propagation recipient_claim_draft_validate
+)
+
+add_test(
+    NAME knowledge_propagation_plan_validate
+    COMMAND pathfinder_tests_knowledge_propagation plan_validate
+)
+
+add_test(
+    NAME knowledge_propagation_result_validate
+    COMMAND pathfinder_tests_knowledge_propagation result_validate
+)
+
+add_test(
+    NAME knowledge_propagation_hidden_truth
+    COMMAND pathfinder_tests_knowledge_propagation hidden_truth_rejected
+)
+
+add_test(
+    NAME knowledge_propagation_test_only_gate
+    COMMAND pathfinder_tests_knowledge_propagation test_only_rejected
+)
+
+add_test(
+    NAME knowledge_propagation_planner_success
+    COMMAND pathfinder_tests_knowledge_propagation planner_success
+)
+
+add_test(
+    NAME knowledge_propagation_planner_low_trust
+    COMMAND pathfinder_tests_knowledge_propagation planner_low_trust_fails
+)
+
+add_test(
+    NAME knowledge_propagation_planner_deprecated
+    COMMAND pathfinder_tests_knowledge_propagation planner_deprecated_blocked
+)
+
+add_test(
+    NAME knowledge_propagation_planner_disproven
+    COMMAND pathfinder_tests_knowledge_propagation planner_disproven_blocked
+)
+
+add_test(
+    NAME knowledge_propagation_planner_same_owner
+    COMMAND pathfinder_tests_knowledge_propagation planner_same_owner_blocked
+)
+
+add_test(
+    NAME knowledge_propagation_planner_candidate
+    COMMAND pathfinder_tests_knowledge_propagation planner_candidate_hypothesis_penalty
+)
+
+add_test(
+    NAME knowledge_propagation_planner_reinforcement
+    COMMAND pathfinder_tests_knowledge_propagation planner_reinforcement
+)
+
+add_test(
+    NAME knowledge_propagation_service_propagate
+    COMMAND pathfinder_tests_knowledge_propagation service_propagate
+)
+
+add_test(
+    NAME knowledge_propagation_service_skipped
+    COMMAND pathfinder_tests_knowledge_propagation service_skipped
+)
+
+add_test(
+    NAME knowledge_propagation_applier
+    COMMAND pathfinder_tests_knowledge_propagation applier_adds_claim
+)
+
+add_test(
+    NAME knowledge_propagation_reinforced_same_id
+    COMMAND pathfinder_tests_knowledge_propagation reinforced_existing_claim_updates_same_knowledge_id
+)
+
+add_test(
+    NAME knowledge_propagation_different_effect_revision
+    COMMAND pathfinder_tests_knowledge_propagation propagation_different_effect_routes_to_revision
+)
+
+add_test(
+    NAME knowledge_propagation_different_effect_no_create
+    COMMAND pathfinder_tests_knowledge_propagation propagation_different_effect_does_not_create_plain_claim
+)
+
+add_test(
+    NAME knowledge_propagation_allow_create_false
+    COMMAND pathfinder_tests_knowledge_propagation allow_create_false_does_not_create_claim
+)
+
+add_test(
+    NAME knowledge_propagation_allow_update_false
+    COMMAND pathfinder_tests_knowledge_propagation allow_update_false_does_not_update_existing_claim
+)
+
+add_test(
+    NAME knowledge_propagation_failed_ok
+    COMMAND pathfinder_tests_knowledge_propagation failed_result_is_business_ok_and_validate_ok
+)
+
+add_test(
+    NAME knowledge_propagation_reinforced_no_duplicate
+    COMMAND pathfinder_tests_knowledge_propagation reinforced_existing_claim_applier_does_not_duplicate
+)
+
+# P20 integration tests
+add_executable(pathfinder_tests_p20_knowledge_propagation_flow
+    integration/p20/knowledge_propagation_flow_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_p20_knowledge_propagation_flow PRIVATE
+    pathfinder_knowledge
+    pathfinder_memory
+    pathfinder_foundation
+)
+
+add_test(
+    NAME p20_knowledge_propagation_flow
+    COMMAND pathfinder_tests_p20_knowledge_propagation_flow
+)
+
+add_executable(pathfinder_tests_p20_knowledge_propagation_security
+    integration/p20/knowledge_propagation_security_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_p20_knowledge_propagation_security PRIVATE
+    pathfinder_knowledge
+    pathfinder_memory
+    pathfinder_foundation
+)
+
+add_test(
+    NAME p20_knowledge_propagation_security
+    COMMAND pathfinder_tests_p20_knowledge_propagation_security
+)
+
 # Agent Record type tests (P8)
 add_executable(pathfinder_tests_agent_record_types
     unit/agent/agent_record_types_test.cpp

@@ -194,6 +194,73 @@ std::string toString(KnowledgeResolutionStrategy strategy);
 pathfinder::foundation::Result<KnowledgeResolutionStrategy> knowledgeResolutionStrategyFromString(const std::string& str);
 
 // ============================================================
+// P20 Enums
+// ============================================================
+
+enum class KnowledgePropagationChannel {
+    Unknown,
+    DirectTeaching,
+    Demonstration,
+    WarningSignal,
+    SharedObservation,
+    TribeInstruction,
+    Correction,
+    ExternalRecord,
+    TestOnly
+};
+
+std::string toString(KnowledgePropagationChannel channel);
+pathfinder::foundation::Result<KnowledgePropagationChannel> knowledgePropagationChannelFromString(const std::string& str);
+
+enum class KnowledgePropagationDecision {
+    Unknown,
+    Skipped,
+    Rejected,
+    Failed,
+    CreatedRecipientClaim,
+    UpdatedRecipientClaim,
+    ReinforcedRecipientClaim,
+    WeakenedRecipientClaim,
+    CorrectionDelivered,
+    TestOnly
+};
+
+std::string toString(KnowledgePropagationDecision decision);
+pathfinder::foundation::Result<KnowledgePropagationDecision> knowledgePropagationDecisionFromString(const std::string& str);
+
+enum class KnowledgePropagationTrustBand {
+    Unknown,
+    Distrusted,
+    Low,
+    Medium,
+    High,
+    Authority,
+    TestOnly
+};
+
+std::string toString(KnowledgePropagationTrustBand band);
+pathfinder::foundation::Result<KnowledgePropagationTrustBand> knowledgePropagationTrustBandFromString(const std::string& str);
+
+enum class KnowledgePropagationFailureReason {
+    Unknown,
+    NoTransferableClaim,
+    SourceInvalid,
+    TargetInvalid,
+    SameOwner,
+    ClaimNotTeachable,
+    ClaimDeprecated,
+    ClaimDisproven,
+    TrustTooLow,
+    ChannelTooWeak,
+    ConflictWithRecipient,
+    SecurityRejected,
+    TestOnly
+};
+
+std::string toString(KnowledgePropagationFailureReason reason);
+pathfinder::foundation::Result<KnowledgePropagationFailureReason> knowledgePropagationFailureReasonFromString(const std::string& str);
+
+// ============================================================
 // Hidden Truth Guard
 // ============================================================
 

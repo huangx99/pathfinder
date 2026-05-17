@@ -379,6 +379,144 @@ Result<KnowledgeResolutionStrategy> knowledgeResolutionStrategyFromString(const 
 }
 
 // ============================================================
+// KnowledgePropagationChannel
+// ============================================================
+
+std::string toString(KnowledgePropagationChannel channel) {
+    switch (channel) {
+        case KnowledgePropagationChannel::Unknown: return "unknown";
+        case KnowledgePropagationChannel::DirectTeaching: return "direct_teaching";
+        case KnowledgePropagationChannel::Demonstration: return "demonstration";
+        case KnowledgePropagationChannel::WarningSignal: return "warning_signal";
+        case KnowledgePropagationChannel::SharedObservation: return "shared_observation";
+        case KnowledgePropagationChannel::TribeInstruction: return "tribe_instruction";
+        case KnowledgePropagationChannel::Correction: return "correction";
+        case KnowledgePropagationChannel::ExternalRecord: return "external_record";
+        case KnowledgePropagationChannel::TestOnly: return "test_only";
+    }
+    return "unknown";
+}
+
+Result<KnowledgePropagationChannel> knowledgePropagationChannelFromString(const std::string& str) {
+    if (str == "unknown") return Result<KnowledgePropagationChannel>::ok(KnowledgePropagationChannel::Unknown);
+    if (str == "direct_teaching") return Result<KnowledgePropagationChannel>::ok(KnowledgePropagationChannel::DirectTeaching);
+    if (str == "demonstration") return Result<KnowledgePropagationChannel>::ok(KnowledgePropagationChannel::Demonstration);
+    if (str == "warning_signal") return Result<KnowledgePropagationChannel>::ok(KnowledgePropagationChannel::WarningSignal);
+    if (str == "shared_observation") return Result<KnowledgePropagationChannel>::ok(KnowledgePropagationChannel::SharedObservation);
+    if (str == "tribe_instruction") return Result<KnowledgePropagationChannel>::ok(KnowledgePropagationChannel::TribeInstruction);
+    if (str == "correction") return Result<KnowledgePropagationChannel>::ok(KnowledgePropagationChannel::Correction);
+    if (str == "external_record") return Result<KnowledgePropagationChannel>::ok(KnowledgePropagationChannel::ExternalRecord);
+    if (str == "test_only") return Result<KnowledgePropagationChannel>::ok(KnowledgePropagationChannel::TestOnly);
+    return Result<KnowledgePropagationChannel>::fail(
+        makeError(ErrorCode::validation_enum_unknown, "invalid KnowledgePropagationChannel: " + str));
+}
+
+// ============================================================
+// KnowledgePropagationDecision
+// ============================================================
+
+std::string toString(KnowledgePropagationDecision decision) {
+    switch (decision) {
+        case KnowledgePropagationDecision::Unknown: return "unknown";
+        case KnowledgePropagationDecision::Skipped: return "skipped";
+        case KnowledgePropagationDecision::Rejected: return "rejected";
+        case KnowledgePropagationDecision::Failed: return "failed";
+        case KnowledgePropagationDecision::CreatedRecipientClaim: return "created_recipient_claim";
+        case KnowledgePropagationDecision::UpdatedRecipientClaim: return "updated_recipient_claim";
+        case KnowledgePropagationDecision::ReinforcedRecipientClaim: return "reinforced_recipient_claim";
+        case KnowledgePropagationDecision::WeakenedRecipientClaim: return "weakened_recipient_claim";
+        case KnowledgePropagationDecision::CorrectionDelivered: return "correction_delivered";
+        case KnowledgePropagationDecision::TestOnly: return "test_only";
+    }
+    return "unknown";
+}
+
+Result<KnowledgePropagationDecision> knowledgePropagationDecisionFromString(const std::string& str) {
+    if (str == "unknown") return Result<KnowledgePropagationDecision>::ok(KnowledgePropagationDecision::Unknown);
+    if (str == "skipped") return Result<KnowledgePropagationDecision>::ok(KnowledgePropagationDecision::Skipped);
+    if (str == "rejected") return Result<KnowledgePropagationDecision>::ok(KnowledgePropagationDecision::Rejected);
+    if (str == "failed") return Result<KnowledgePropagationDecision>::ok(KnowledgePropagationDecision::Failed);
+    if (str == "created_recipient_claim") return Result<KnowledgePropagationDecision>::ok(KnowledgePropagationDecision::CreatedRecipientClaim);
+    if (str == "updated_recipient_claim") return Result<KnowledgePropagationDecision>::ok(KnowledgePropagationDecision::UpdatedRecipientClaim);
+    if (str == "reinforced_recipient_claim") return Result<KnowledgePropagationDecision>::ok(KnowledgePropagationDecision::ReinforcedRecipientClaim);
+    if (str == "weakened_recipient_claim") return Result<KnowledgePropagationDecision>::ok(KnowledgePropagationDecision::WeakenedRecipientClaim);
+    if (str == "correction_delivered") return Result<KnowledgePropagationDecision>::ok(KnowledgePropagationDecision::CorrectionDelivered);
+    if (str == "test_only") return Result<KnowledgePropagationDecision>::ok(KnowledgePropagationDecision::TestOnly);
+    return Result<KnowledgePropagationDecision>::fail(
+        makeError(ErrorCode::validation_enum_unknown, "invalid KnowledgePropagationDecision: " + str));
+}
+
+// ============================================================
+// KnowledgePropagationTrustBand
+// ============================================================
+
+std::string toString(KnowledgePropagationTrustBand band) {
+    switch (band) {
+        case KnowledgePropagationTrustBand::Unknown: return "unknown";
+        case KnowledgePropagationTrustBand::Distrusted: return "distrusted";
+        case KnowledgePropagationTrustBand::Low: return "low";
+        case KnowledgePropagationTrustBand::Medium: return "medium";
+        case KnowledgePropagationTrustBand::High: return "high";
+        case KnowledgePropagationTrustBand::Authority: return "authority";
+        case KnowledgePropagationTrustBand::TestOnly: return "test_only";
+    }
+    return "unknown";
+}
+
+Result<KnowledgePropagationTrustBand> knowledgePropagationTrustBandFromString(const std::string& str) {
+    if (str == "unknown") return Result<KnowledgePropagationTrustBand>::ok(KnowledgePropagationTrustBand::Unknown);
+    if (str == "distrusted") return Result<KnowledgePropagationTrustBand>::ok(KnowledgePropagationTrustBand::Distrusted);
+    if (str == "low") return Result<KnowledgePropagationTrustBand>::ok(KnowledgePropagationTrustBand::Low);
+    if (str == "medium") return Result<KnowledgePropagationTrustBand>::ok(KnowledgePropagationTrustBand::Medium);
+    if (str == "high") return Result<KnowledgePropagationTrustBand>::ok(KnowledgePropagationTrustBand::High);
+    if (str == "authority") return Result<KnowledgePropagationTrustBand>::ok(KnowledgePropagationTrustBand::Authority);
+    if (str == "test_only") return Result<KnowledgePropagationTrustBand>::ok(KnowledgePropagationTrustBand::TestOnly);
+    return Result<KnowledgePropagationTrustBand>::fail(
+        makeError(ErrorCode::validation_enum_unknown, "invalid KnowledgePropagationTrustBand: " + str));
+}
+
+// ============================================================
+// KnowledgePropagationFailureReason
+// ============================================================
+
+std::string toString(KnowledgePropagationFailureReason reason) {
+    switch (reason) {
+        case KnowledgePropagationFailureReason::Unknown: return "unknown";
+        case KnowledgePropagationFailureReason::NoTransferableClaim: return "no_transferable_claim";
+        case KnowledgePropagationFailureReason::SourceInvalid: return "source_invalid";
+        case KnowledgePropagationFailureReason::TargetInvalid: return "target_invalid";
+        case KnowledgePropagationFailureReason::SameOwner: return "same_owner";
+        case KnowledgePropagationFailureReason::ClaimNotTeachable: return "claim_not_teachable";
+        case KnowledgePropagationFailureReason::ClaimDeprecated: return "claim_deprecated";
+        case KnowledgePropagationFailureReason::ClaimDisproven: return "claim_disproven";
+        case KnowledgePropagationFailureReason::TrustTooLow: return "trust_too_low";
+        case KnowledgePropagationFailureReason::ChannelTooWeak: return "channel_too_weak";
+        case KnowledgePropagationFailureReason::ConflictWithRecipient: return "conflict_with_recipient";
+        case KnowledgePropagationFailureReason::SecurityRejected: return "security_rejected";
+        case KnowledgePropagationFailureReason::TestOnly: return "test_only";
+    }
+    return "unknown";
+}
+
+Result<KnowledgePropagationFailureReason> knowledgePropagationFailureReasonFromString(const std::string& str) {
+    if (str == "unknown") return Result<KnowledgePropagationFailureReason>::ok(KnowledgePropagationFailureReason::Unknown);
+    if (str == "no_transferable_claim") return Result<KnowledgePropagationFailureReason>::ok(KnowledgePropagationFailureReason::NoTransferableClaim);
+    if (str == "source_invalid") return Result<KnowledgePropagationFailureReason>::ok(KnowledgePropagationFailureReason::SourceInvalid);
+    if (str == "target_invalid") return Result<KnowledgePropagationFailureReason>::ok(KnowledgePropagationFailureReason::TargetInvalid);
+    if (str == "same_owner") return Result<KnowledgePropagationFailureReason>::ok(KnowledgePropagationFailureReason::SameOwner);
+    if (str == "claim_not_teachable") return Result<KnowledgePropagationFailureReason>::ok(KnowledgePropagationFailureReason::ClaimNotTeachable);
+    if (str == "claim_deprecated") return Result<KnowledgePropagationFailureReason>::ok(KnowledgePropagationFailureReason::ClaimDeprecated);
+    if (str == "claim_disproven") return Result<KnowledgePropagationFailureReason>::ok(KnowledgePropagationFailureReason::ClaimDisproven);
+    if (str == "trust_too_low") return Result<KnowledgePropagationFailureReason>::ok(KnowledgePropagationFailureReason::TrustTooLow);
+    if (str == "channel_too_weak") return Result<KnowledgePropagationFailureReason>::ok(KnowledgePropagationFailureReason::ChannelTooWeak);
+    if (str == "conflict_with_recipient") return Result<KnowledgePropagationFailureReason>::ok(KnowledgePropagationFailureReason::ConflictWithRecipient);
+    if (str == "security_rejected") return Result<KnowledgePropagationFailureReason>::ok(KnowledgePropagationFailureReason::SecurityRejected);
+    if (str == "test_only") return Result<KnowledgePropagationFailureReason>::ok(KnowledgePropagationFailureReason::TestOnly);
+    return Result<KnowledgePropagationFailureReason>::fail(
+        makeError(ErrorCode::validation_enum_unknown, "invalid KnowledgePropagationFailureReason: " + str));
+}
+
+// ============================================================
 // Hidden Truth Guard
 // ============================================================
 
