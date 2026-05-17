@@ -3097,3 +3097,276 @@ add_test(
     NAME p13_no_files_outside_root
     COMMAND pathfinder_tests_p13_security p13_no_files_outside_root
 )
+
+# Agent Debug Input unit tests (P14)
+add_executable(pathfinder_tests_agent_debug_input
+    unit/agent/agent_debug_input_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_agent_debug_input PRIVATE
+    pathfinder_agent_debug_input
+    pathfinder_agent_debug_cli_lib
+    pathfinder_agent_local_export
+    pathfinder_agent_debug_export
+    pathfinder_agent_debug_report
+    pathfinder_agent_projection
+    pathfinder_agent_history_query
+    pathfinder_agent_replay_lock
+    pathfinder_agent_training_sample
+    pathfinder_agent_record
+    pathfinder_agent
+    pathfinder_protocol
+    pathfinder_foundation
+)
+
+add_test(
+    NAME agent_debug_input_smoke
+    COMMAND pathfinder_tests_agent_debug_input smoke
+)
+
+add_test(
+    NAME agent_debug_input_kind_roundtrip
+    COMMAND pathfinder_tests_agent_debug_input kind_roundtrip
+)
+
+add_test(
+    NAME agent_debug_input_trust_level_roundtrip
+    COMMAND pathfinder_tests_agent_debug_input trust_level_roundtrip
+)
+
+add_test(
+    NAME agent_debug_input_validation_status_roundtrip
+    COMMAND pathfinder_tests_agent_debug_input validation_status_roundtrip
+)
+
+add_test(
+    NAME agent_debug_input_capability_roundtrip
+    COMMAND pathfinder_tests_agent_debug_input capability_roundtrip
+)
+
+add_test(
+    NAME agent_debug_input_reject_reason_roundtrip
+    COMMAND pathfinder_tests_agent_debug_input reject_reason_roundtrip
+)
+
+add_test(
+    NAME agent_debug_input_factory_from_fixture
+    COMMAND pathfinder_tests_agent_debug_input factory_from_fixture
+)
+
+add_test(
+    NAME agent_debug_input_factory_from_report
+    COMMAND pathfinder_tests_agent_debug_input factory_from_report
+)
+
+add_test(
+    NAME agent_debug_input_factory_from_projection
+    COMMAND pathfinder_tests_agent_debug_input factory_from_projection
+)
+
+add_test(
+    NAME agent_debug_input_validator_valid_fixture
+    COMMAND pathfinder_tests_agent_debug_input validator_valid_fixture
+)
+
+add_test(
+    NAME agent_debug_input_validator_valid_report
+    COMMAND pathfinder_tests_agent_debug_input validator_valid_report
+)
+
+add_test(
+    NAME agent_debug_input_validator_valid_projection
+    COMMAND pathfinder_tests_agent_debug_input validator_valid_projection
+)
+
+add_test(
+    NAME agent_debug_input_validator_rejects_unknown_kind
+    COMMAND pathfinder_tests_agent_debug_input validator_rejects_unknown_kind
+)
+
+add_test(
+    NAME agent_debug_input_validator_rejects_unknown_trust_level
+    COMMAND pathfinder_tests_agent_debug_input validator_rejects_unknown_trust_level
+)
+
+add_test(
+    NAME agent_debug_input_validator_rejects_external_untrusted
+    COMMAND pathfinder_tests_agent_debug_input validator_rejects_external_untrusted
+)
+
+add_test(
+    NAME agent_debug_input_validator_rejects_missing_payload
+    COMMAND pathfinder_tests_agent_debug_input validator_rejects_missing_payload
+)
+
+add_test(
+    NAME agent_debug_input_validator_rejects_conflicting_payloads
+    COMMAND pathfinder_tests_agent_debug_input validator_rejects_conflicting_payloads
+)
+
+add_test(
+    NAME agent_debug_input_validator_rejects_hidden_truth
+    COMMAND pathfinder_tests_agent_debug_input validator_rejects_hidden_truth
+)
+
+add_test(
+    NAME agent_debug_input_validator_rejects_raw_state
+    COMMAND pathfinder_tests_agent_debug_input validator_rejects_raw_state
+)
+
+add_test(
+    NAME agent_debug_input_adapter_fixture_to_report
+    COMMAND pathfinder_tests_agent_debug_input adapter_fixture_to_report
+)
+
+add_test(
+    NAME agent_debug_input_adapter_report_passthrough
+    COMMAND pathfinder_tests_agent_debug_input adapter_report_passthrough
+)
+
+add_test(
+    NAME agent_debug_input_adapter_report_adds_diagnostics
+    COMMAND pathfinder_tests_agent_debug_input adapter_report_adds_diagnostics
+)
+
+add_test(
+    NAME agent_debug_input_adapter_projection_to_report
+    COMMAND pathfinder_tests_agent_debug_input adapter_projection_to_report
+)
+
+add_test(
+    NAME agent_debug_input_adapter_rejects_export_draft_only_by_default
+    COMMAND pathfinder_tests_agent_debug_input adapter_rejects_export_draft_only_by_default
+)
+
+add_test(
+    NAME agent_debug_input_adapter_accepts_export_draft_only_when_allowed
+    COMMAND pathfinder_tests_agent_debug_input adapter_accepts_export_draft_only_when_allowed
+)
+
+add_test(
+    NAME agent_debug_input_bundle_validation_report_rules
+    COMMAND pathfinder_tests_agent_debug_input bundle_validation_report_rules
+)
+
+# P14 integration test: flow tests
+add_executable(pathfinder_tests_p14_flow
+    integration/p14/agent_debug_input_flow_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_p14_flow PRIVATE
+    pathfinder_agent_debug_input
+    pathfinder_agent_debug_cli_lib
+    pathfinder_agent_local_export
+    pathfinder_agent_debug_export
+    pathfinder_agent_debug_report
+    pathfinder_agent_projection
+    pathfinder_agent_history_query
+    pathfinder_agent_replay_lock
+    pathfinder_agent_training_sample
+    pathfinder_agent_record
+    pathfinder_agent
+    pathfinder_protocol
+    pathfinder_foundation
+)
+
+add_test(
+    NAME p14_smoke
+    COMMAND pathfinder_tests_p14_flow smoke
+)
+
+add_test(
+    NAME p14_p13_fixture_via_p14_adapter
+    COMMAND pathfinder_tests_p14_flow p13_fixture_via_p14_adapter
+)
+
+add_test(
+    NAME p14_p13_no_decision_dry_run
+    COMMAND pathfinder_tests_p14_flow p13_no_decision_dry_run
+)
+
+add_test(
+    NAME p14_p11_report_via_p14_to_p12
+    COMMAND pathfinder_tests_p14_flow p11_report_via_p14_to_p12
+)
+
+add_test(
+    NAME p14_p10_projection_via_p14_to_report
+    COMMAND pathfinder_tests_p14_flow p10_projection_via_p14_to_report
+)
+
+add_test(
+    NAME p14_export_draft_no_reverse_report
+    COMMAND pathfinder_tests_p14_flow export_draft_no_reverse_report
+)
+
+# P14 integration test: security tests
+add_executable(pathfinder_tests_p14_security
+    integration/p14/agent_debug_input_security_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_p14_security PRIVATE
+    pathfinder_agent_debug_input
+    pathfinder_agent_debug_cli_lib
+    pathfinder_agent_local_export
+    pathfinder_agent_debug_export
+    pathfinder_agent_debug_report
+    pathfinder_agent_projection
+    pathfinder_agent_history_query
+    pathfinder_agent_replay_lock
+    pathfinder_agent_training_sample
+    pathfinder_agent_record
+    pathfinder_agent
+    pathfinder_protocol
+    pathfinder_foundation
+)
+
+add_test(
+    NAME p14_security_smoke
+    COMMAND pathfinder_tests_p14_security smoke
+)
+
+add_test(
+    NAME p14_source_label_gamestate
+    COMMAND pathfinder_tests_p14_security source_label_gamestate
+)
+
+add_test(
+    NAME p14_summary_keys_edible_profile
+    COMMAND pathfinder_tests_p14_security summary_keys_edible_profile
+)
+
+add_test(
+    NAME p14_reason_keys_hunger_delta
+    COMMAND pathfinder_tests_p14_security reason_keys_hunger_delta
+)
+
+add_test(
+    NAME p14_phase_keys_health_delta
+    COMMAND pathfinder_tests_p14_security phase_keys_health_delta
+)
+
+add_test(
+    NAME p14_warning_keys_effect_kind
+    COMMAND pathfinder_tests_p14_security warning_keys_effect_kind
+)
+
+add_test(
+    NAME p14_export_payload_object_definition
+    COMMAND pathfinder_tests_p14_security export_payload_object_definition
+)
+
+add_test(
+    NAME p14_external_untrusted
+    COMMAND pathfinder_tests_p14_security external_untrusted
+)
+
+add_test(
+    NAME p14_test_only_not_allowed
+    COMMAND pathfinder_tests_p14_security test_only_not_allowed
+)
+
+add_test(
+    NAME p14_test_only_allowed
+    COMMAND pathfinder_tests_p14_security test_only_allowed
+)

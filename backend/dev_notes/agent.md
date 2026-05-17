@@ -656,3 +656,77 @@ ctest --test-dir build/backend --output-on-failure
 - P13 修复: `--scan-content` / `--no-scan-content` 已作为非法参数拒绝，CLI 不再允许关闭内容安全扫描
 - P13 修复: 正常执行路径不再额外打印 `Parse OK`
 - 历史修复: 2 个 SEGFAULT 由测试中 argc 与 argv 数组大小不匹配导致 (argc=9 但 argv 仅 8 个元素)
+
+---
+
+## P14: Agent 调试输入适配前置
+
+### 目标
+
+P14 在 P13 基础上定义安全输入适配层，让 CLI/调试工具可以接入经过验证的安全 DTO，而不直接读取 GameState、存档内部结构、隐藏真相或原始运行记录:
+
+1. **AgentDebugInputValidator**: 校验输入包的合法性、信任等级、能力匹配、隐藏真相扫描
+2. **AgentDebugInputAdapter**: 把已校验输入转换成标准 AgentDebugInputBundle
+3. **AgentDebugInputFactory**: 提供稳定构造函数，避免手写 manifest 和 ID
+
+### 新增文件
+
+```
+backend/include/pathfinder/agent/debug_input.h
+backend/src/agent/debug_input.cpp
+backend/tests/unit/agent/agent_debug_input_test.cpp
+backend/tests/integration/p14/agent_debug_input_flow_test.cpp
+backend/tests/integration/p14/agent_debug_input_security_test.cpp
+```
+
+### 核心类型
+
+**枚举:**
+- `AgentDebugInputKind`: Unknown/BuiltinFixtureBundle/HistoryProjectionBundle/DebugReportBundle/ExportDraftBundle/InMemoryTestBundle
+- `AgentDebugInputTrustLevel`: Unknown/Builtin/GeneratedSafeDto/TestOnly/ExternalUntrusted
+- `AgentDebugInputValidationStatus`: Unknown/Valid/ValidWithWarnings/Invalid
+- `AgentDebugInputCapability`: Unknown/CanBuildDebugReport/HasDiagnosticsSummary/HasExportDraft/CanWriteThroughP12/TestOnly
+- `AgentDebugInputRejectReason`: 16 种拒绝原因
+
+**ID 类型:**
+- `AgentDebugInputId`: 输入包 ID (StrongId)
+
+**数据契约:**
+- `AgentDebugInputManifest`: 输入清单 (kind/trust_level/capabilities/schema_version)
+- `AgentDebugInputSource`: 输入来源 (互斥 payload)
+- `AgentDebugInputValidationIssue`: 校验问题
+- `AgentDebugInputValidationReport`: 校验报告
+- `AgentDebugInputAdapterOptions`: 适配选项 (allow_test_only/allow_export_draft_only/max_items)
+- `AgentDebugInputBundle`: 标准调试输入包
+
+**服务:**
+- `AgentDebugInputValidator`: 只做校验，不做转换
+- `AgentDebugInputAdapter`: validate → adapt → bundle
+- `AgentDebugInputFactory`: fromFixture/fromProjection/fromReport/fromExportDraft/fromTestReport
+
+### 设计约束
+
+- 输入先校验，再适配 (validator → adapter)
+- 调试输入只认安全 DTO，不读取 GameState/ObjectDefinition/AgentTickRecord
+- 隐藏真相扫描: edible_profile/hunger_delta/health_delta/effect_kind/reward_value/done =/is_done/GameState/ObjectDefinition/AgentTickRecord/SaveGame/SaveManager
+- ExternalUntrusted 默认拒绝
+- ExportDraftBundle 不能反推 report
+- 不调用 AgentRuntime/Policy/RulePipeline/ReplayRunner
+- 不做 JSON/HTTP/WebSocket/H5/SaveManager
+
+### 测试入口
+
+```bash
+cmake -S backend -B build/backend
+cmake --build build/backend
+ctest --test-dir build/backend -R "agent_debug_input|p14" --output-on-failure
+ctest --test-dir build/backend --output-on-failure
+```
+
+### P14 测试结果 (2026-05-17)
+
+- 489/489 全量测试通过 (P13 447 + P14 42)
+- P14 定向测试: 42/42 通过 (27 unit + 5 integration flow + 9 integration security + 1 bundle)
+- 边界扫描全部通过
+- P3-P13/agent/replay/protocol 相关回归: 443/443 通过
+- 隐藏真相扫描: 黑名单声明与安全测试允许出现，业务 DTO 中不允许

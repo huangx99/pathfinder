@@ -436,6 +436,30 @@ target_link_libraries(pathfinder_agent_debug_cli_lib PUBLIC
     pathfinder_foundation
 )
 
+# Agent Debug Input library (P14)
+add_library(pathfinder_agent_debug_input STATIC
+    src/agent/debug_input.cpp
+)
+
+target_include_directories(pathfinder_agent_debug_input PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(pathfinder_agent_debug_input PUBLIC
+    pathfinder_agent_debug_cli_lib
+    pathfinder_agent_local_export
+    pathfinder_agent_debug_export
+    pathfinder_agent_debug_report
+    pathfinder_agent_projection
+    pathfinder_agent_history_query
+    pathfinder_agent_replay_lock
+    pathfinder_agent_training_sample
+    pathfinder_agent_record
+    pathfinder_agent
+    pathfinder_protocol
+    pathfinder_foundation
+)
+
 # Agent Debug CLI executable (P13)
 add_executable(pathfinder_agent_debug_cli_exe
     tools/agent_debug_cli_main.cpp
