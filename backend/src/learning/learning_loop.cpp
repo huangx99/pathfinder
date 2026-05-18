@@ -1,4 +1,5 @@
 #include "pathfinder/learning/learning_loop.h"
+#include "pathfinder/condition/condition_normalizer.h"
 #include <algorithm>
 #include <cmath>
 #include <sstream>
@@ -152,10 +153,14 @@ static bool sameConditionKeys(const std::vector<KnowledgeCondition>& a,
     left.reserve(a.size());
     right.reserve(b.size());
     for (const auto& condition : a) {
-        left.push_back(condition.condition_key);
+        auto canonical = pathfinder::knowledge::canonicalKnowledgeConditionKey(condition);
+        if (canonical.is_error()) return false;
+        left.push_back(canonical.value());
     }
     for (const auto& condition : b) {
-        right.push_back(condition.condition_key);
+        auto canonical = pathfinder::knowledge::canonicalKnowledgeConditionKey(condition);
+        if (canonical.is_error()) return false;
+        right.push_back(canonical.value());
     }
     std::sort(left.begin(), left.end());
     std::sort(right.begin(), right.end());
@@ -458,6 +463,11 @@ Result<void> LearningSafeFeedbackInput::validateBasic() const {
     }
     if (containsLearningForbiddenKey(condition_keys)) {
         return Result<void>::fail(makeError(ErrorCode::validation_failed, "LearningSafeFeedbackInput condition_keys contain forbidden key"));
+    }
+    if (!condition_keys.empty()) {
+        pathfinder::condition::ConditionNormalizer normalizer;
+        auto normalized = normalizer.normalizeKeys(condition_keys);
+        if (normalized.is_error()) return Result<void>::fail(normalized.errors());
     }
     if (utility_delta < -1.0 || utility_delta > 1.0) {
         return Result<void>::fail(makeError(ErrorCode::validation_failed, "LearningSafeFeedbackInput utility_delta out of range [-1,1]"));

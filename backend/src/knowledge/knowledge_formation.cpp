@@ -201,8 +201,12 @@ Result<KnowledgeFormationPlan> KnowledgeFormationPlanner::planFromMemorySummary(
         projected_status = KnowledgeStatus::Teachable;
     }
 
-    // Build conditions from input
-    std::vector<KnowledgeCondition> conditions = input.candidate_conditions;
+    // Build conditions from input through the P27 condition normalizer.
+    auto conditions_result = normalizeKnowledgeConditions(input.candidate_conditions);
+    if (conditions_result.is_error()) {
+        return Result<KnowledgeFormationPlan>::fail(conditions_result.errors());
+    }
+    std::vector<KnowledgeCondition> conditions = conditions_result.value();
 
     // Build confidence DTO
     KnowledgeConfidence projected_confidence;
@@ -217,6 +221,7 @@ Result<KnowledgeFormationPlan> KnowledgeFormationPlanner::planFromMemorySummary(
     KnowledgeFormationPlan plan;
     plan.plan_key = "plan_from_summary_" + summary.summary_id.value();
     plan.input = input;
+    plan.input.candidate_conditions = conditions;
     plan.subject = subject;
     plan.predicate = predicate;
     plan.evidence_refs = evidence_refs;

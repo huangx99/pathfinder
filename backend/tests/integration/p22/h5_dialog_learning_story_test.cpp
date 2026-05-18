@@ -119,16 +119,16 @@ static void test_decayed_red_berry_revision_flow() {
     auto decayed = send(svc, session, "吃腐烂红果");
     assertDecision(decayed, DialogTurnDecision::LearningLoopRan);
     assert(containsText(decayed.actor_knowledge_lines, "poison"));
-    assert(containsText(decayed.actor_knowledge_lines, "red_berry{decayed}"));
+    assert(containsText(decayed.actor_knowledge_lines, "red_berry{腐烂状态}"));
     assert(containsText(decayed.debug_keys, "knowledge_revised"));
     assert(!containsText(decayed.debug_keys, "knowledge_propagated"));
 
     auto red_again = send(svc, session, "吃红果");
     assertDecision(red_again, DialogTurnDecision::LearningLoopRan);
     assert(containsText(red_again.actor_knowledge_lines, "red_berry + eat -> restore_hunger"));
-    assert(containsText(red_again.actor_knowledge_lines, "red_berry{decayed} + eat -> poison"));
+    assert(containsText(red_again.actor_knowledge_lines, "red_berry{腐烂状态} + eat -> poison"));
     assert(containsText(red_again.actor_knowledge_lines, "腐烂红果"));
-    assert(totalCountText(red_again.actor_knowledge_lines, "red_berry{decayed} + eat -> poison") == 1);
+    assert(totalCountText(red_again.actor_knowledge_lines, "red_berry{腐烂状态} + eat -> poison") == 1);
 
     auto teach = send(svc, session, "教同伴");
     assertDecision(teach, DialogTurnDecision::TeachingRan);
@@ -159,7 +159,7 @@ static void test_teached_companion_survives_actor_revision_flow() {
     assertDecision(decayed, DialogTurnDecision::LearningLoopRan);
     assert(containsText(decayed.actor_knowledge_lines, "red_berry"));
     assert(containsText(decayed.actor_knowledge_lines, "poison"));
-    assert(containsText(decayed.actor_knowledge_lines, "red_berry{decayed}"));
+    assert(containsText(decayed.actor_knowledge_lines, "red_berry{腐烂状态}"));
     assert(containsText(decayed.actor_knowledge_lines, "腐烂红果"));
     assert(containsText(decayed.recipient_knowledge_lines, "red_berry"));
     assert(containsText(decayed.recipient_knowledge_lines, "restore_hunger"));
@@ -206,7 +206,7 @@ static void test_teach_after_revision_transfers_all_current_claims_flow() {
     assert(containsText(teach.recipient_knowledge_lines, "restore_hunger"));
     assert(containsText(teach.recipient_knowledge_lines, "poison"));
     assert(totalCountText(teach.recipient_knowledge_lines, "red_berry + eat -> restore_hunger") == 1);
-    assert(totalCountText(teach.recipient_knowledge_lines, "red_berry{decayed} + eat -> poison") == 1);
+    assert(totalCountText(teach.recipient_knowledge_lines, "red_berry{腐烂状态} + eat -> poison") == 1);
     assert(containsText(teach.recipient_knowledge_lines, "腐烂红果"));
 
     std::cout << "teach_after_revision_transfers_all_current_claims_flow passed" << std::endl;
@@ -241,13 +241,13 @@ static void test_action_mismatch_and_duplicate_guard_flow() {
         auto decayed = send(svc, session, "吃腐烂红果");
         assertDecision(decayed, DialogTurnDecision::LearningLoopRan);
         assert(containsText(decayed.actor_knowledge_lines, "poison"));
-        assert(totalCountText(decayed.actor_knowledge_lines, "red_berry{decayed} + eat -> poison") == 1);
+        assert(totalCountText(decayed.actor_knowledge_lines, "red_berry{腐烂状态} + eat -> poison") == 1);
         assert(containsText(decayed.actor_knowledge_lines, "腐烂红果"));
     }
 
     auto inspect = send(svc, session, "查看知识");
     assertDecision(inspect, DialogTurnDecision::RepliedOnly);
-    assert(totalCountText(inspect.actor_knowledge_lines, "red_berry{decayed} + eat -> poison") == 1);
+    assert(totalCountText(inspect.actor_knowledge_lines, "red_berry{腐烂状态} + eat -> poison") == 1);
     assert(totalCountText(inspect.actor_knowledge_lines, "stone_flake + use -> use_hint") == 1);
     assert(totalCountText(inspect.actor_knowledge_lines, "bitter_leaf + eat -> no_visible_effect") == 1);
 

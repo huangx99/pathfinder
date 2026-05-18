@@ -488,6 +488,25 @@ target_link_libraries(pathfinder_memory PUBLIC
     pathfinder_cognition
 )
 
+# Condition expression library (P27)
+add_library(pathfinder_condition STATIC
+    src/condition/condition_expression_types.cpp
+    src/condition/condition_expression_context.cpp
+    src/condition/condition_expression_registry.cpp
+    src/condition/condition_expression_evaluator.cpp
+    src/condition/condition_normalizer.cpp
+    src/condition/condition_summary.cpp
+    src/condition/legacy_condition_adapter.cpp
+)
+
+target_include_directories(pathfinder_condition PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(pathfinder_condition PUBLIC
+    pathfinder_foundation
+)
+
 # Knowledge library (P18 + P19 + P20)
 add_library(pathfinder_knowledge STATIC
     src/knowledge/knowledge_types.cpp
@@ -505,6 +524,7 @@ target_include_directories(pathfinder_knowledge PUBLIC
 
 target_link_libraries(pathfinder_knowledge PUBLIC
     pathfinder_foundation
+    pathfinder_condition
     pathfinder_memory
 )
 
@@ -537,6 +557,7 @@ target_include_directories(pathfinder_civilization PUBLIC
 
 target_link_libraries(pathfinder_civilization PUBLIC
     pathfinder_foundation
+    pathfinder_condition
     pathfinder_knowledge
     pathfinder_tribe
 )
@@ -552,6 +573,7 @@ target_include_directories(pathfinder_learning PUBLIC
 
 target_link_libraries(pathfinder_learning PUBLIC
     pathfinder_foundation
+    pathfinder_condition
     pathfinder_cognition
     pathfinder_memory
     pathfinder_knowledge
@@ -589,6 +611,7 @@ target_include_directories(pathfinder_h5_dialog PUBLIC
 
 target_link_libraries(pathfinder_h5_dialog PUBLIC
     pathfinder_foundation
+    pathfinder_condition
     pathfinder_cognition
     pathfinder_memory
     pathfinder_knowledge

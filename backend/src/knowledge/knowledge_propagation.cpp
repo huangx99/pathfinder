@@ -1,4 +1,5 @@
 #include "pathfinder/knowledge/knowledge_propagation.h"
+#include "pathfinder/condition/condition_normalizer.h"
 #include <algorithm>
 #include <sstream>
 
@@ -181,6 +182,11 @@ Result<void> KnowledgePropagationContext::validateBasic() const {
     if (containsKnowledgeForbiddenKey(condition_keys)) {
         return Result<void>::fail(makeError(ErrorCode::validation_failed,
             "KnowledgePropagationContext condition_keys contain forbidden key"));
+    }
+    if (!condition_keys.empty()) {
+        pathfinder::condition::ConditionNormalizer normalizer;
+        auto normalized = normalizer.normalizeKeys(condition_keys);
+        if (normalized.is_error()) return Result<void>::fail(normalized.errors());
     }
     if (containsKnowledgeForbiddenKey(reason_keys)) {
         return Result<void>::fail(makeError(ErrorCode::validation_failed,

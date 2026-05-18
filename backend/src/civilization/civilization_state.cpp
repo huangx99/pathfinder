@@ -1,10 +1,14 @@
 #include "pathfinder/civilization/civilization_state.h"
+#include "pathfinder/condition/condition_expression_evaluator.h"
+#include "pathfinder/condition/condition_normalizer.h"
 #include <algorithm>
 #include <cmath>
 #include <set>
 #include <sstream>
 
 namespace pathfinder::civilization {
+
+namespace cond = pathfinder::condition;
 
 using pathfinder::foundation::ErrorCode;
 using pathfinder::foundation::Result;
@@ -83,79 +87,37 @@ static const CivilizationCapability* findDefinition(
 
 static double evaluateConditionScore(const std::string& condition_type, double required,
                                       const CivilizationResolveInput& input) {
-    const auto& ks = input.knowledge_summary;
-    const auto& ps = input.propagation_summary;
-    const auto& cs = input.coordination_summary;
-    const auto& cfs = input.conflict_summary;
+    cond::ConditionNormalizer normalizer;
+    auto normalized = normalizer.normalizeCapabilityCondition(condition_type, required);
+    if (normalized.is_error()) return 0.0;
 
-    // Higher-is-better conditions
-    if (condition_type == "known_edible_count") {
-        return clampRatio(static_cast<double>(ks.known_edible_count) / std::max(1.0, required));
-    }
-    if (condition_type == "known_danger_count") {
-        return clampRatio(static_cast<double>(ks.known_danger_count) / std::max(1.0, required));
-    }
-    if (condition_type == "stable_tribe_knowledge_count") {
-        return clampRatio(static_cast<double>(ks.stable_tribe_knowledge_count) / std::max(1.0, required));
-    }
-    if (condition_type == "teachable_knowledge_count") {
-        return clampRatio(static_cast<double>(ks.teachable_knowledge_count) / std::max(1.0, required));
-    }
-    if (condition_type == "coverage") {
-        return clampRatio(ps.coverage / std::max(0.01, required));
-    }
-    if (condition_type == "success_rate") {
-        return clampRatio(ps.success_rate / std::max(0.01, required));
-    }
-    if (condition_type == "truce_success_count") {
-        return clampRatio(static_cast<double>(cfs.truce_success_count) / std::max(1.0, required));
-    }
-    if (condition_type == "forced_retreat_low_loss_count") {
-        return clampRatio(static_cast<double>(cfs.forced_retreat_low_loss_count) / std::max(1.0, required));
-    }
-    if (condition_type == "standoff_controlled_count") {
-        return clampRatio(static_cast<double>(cfs.standoff_controlled_count) / std::max(1.0, required));
-    }
-    if (condition_type == "coordination_score") {
-        return clampRatio(cs.coordination_score / std::max(0.01, required));
-    }
-    if (condition_type == "intimidation_success_count") {
-        return clampRatio(static_cast<double>(cfs.intimidation_success_count) / std::max(1.0, required));
-    }
-    if (condition_type == "retreat_success_count") {
-        return clampRatio(static_cast<double>(cs.retreat_success_count) / std::max(1.0, required));
-    }
-    if (condition_type == "resource_defense_success_count") {
-        return clampRatio(static_cast<double>(cs.resource_defense_success_count) / std::max(1.0, required));
-    }
-    if (condition_type == "stable_coordination_count") {
-        return clampRatio(static_cast<double>(cs.stable_coordination_count) / std::max(1.0, required));
-    }
+    cond::ConditionEvaluationContext context;
+    context.context_type = "civilization";
+    context.civilization = cond::CivilizationConditionView{};
+    auto& fields = context.civilization->numeric_fields;
+    fields["known_edible_count"] = static_cast<double>(input.knowledge_summary.known_edible_count);
+    fields["known_danger_count"] = static_cast<double>(input.knowledge_summary.known_danger_count);
+    fields["stable_tribe_knowledge_count"] = static_cast<double>(input.knowledge_summary.stable_tribe_knowledge_count);
+    fields["teachable_knowledge_count"] = static_cast<double>(input.knowledge_summary.teachable_knowledge_count);
+    fields["conflicted_knowledge_count"] = static_cast<double>(input.knowledge_summary.conflicted_knowledge_count);
+    fields["coverage"] = input.propagation_summary.coverage;
+    fields["success_rate"] = input.propagation_summary.success_rate;
+    fields["misunderstanding_rate"] = input.propagation_summary.misunderstanding_rate;
+    fields["coordination_score"] = input.coordination_summary.coordination_score;
+    fields["retreat_success_count"] = static_cast<double>(input.coordination_summary.retreat_success_count);
+    fields["resource_defense_success_count"] = static_cast<double>(input.coordination_summary.resource_defense_success_count);
+    fields["stable_coordination_count"] = static_cast<double>(input.coordination_summary.stable_coordination_count);
+    fields["truce_success_count"] = static_cast<double>(input.conflict_summary.truce_success_count);
+    fields["forced_retreat_low_loss_count"] = static_cast<double>(input.conflict_summary.forced_retreat_low_loss_count);
+    fields["standoff_controlled_count"] = static_cast<double>(input.conflict_summary.standoff_controlled_count);
+    fields["intimidation_success_count"] = static_cast<double>(input.conflict_summary.intimidation_success_count);
+    fields["open_conflict_pressure"] = input.conflict_summary.open_conflict_pressure;
+    fields["loss_pressure"] = input.conflict_summary.loss_pressure;
 
-    // Lower-is-better conditions (invert)
-    if (condition_type == "misunderstanding_rate") {
-        double inv = 1.0 - ps.misunderstanding_rate;
-        double inv_required = 1.0 - std::min(required, 0.99);
-        return clampRatio(inv / std::max(0.01, inv_required));
-    }
-    if (condition_type == "conflicted_knowledge_count") {
-        // 0 conflicted is ideal, lower is better
-        if (required <= 0.0) return ks.conflicted_knowledge_count == 0 ? 1.0 : 0.0;
-        return clampRatio(1.0 - (static_cast<double>(ks.conflicted_knowledge_count) / std::max(1.0, required * 10.0)));
-    }
-    if (condition_type == "open_conflict_pressure") {
-        double inv = 1.0 - cfs.open_conflict_pressure;
-        double inv_required = 1.0 - std::min(required, 0.99);
-        return clampRatio(inv / std::max(0.01, inv_required));
-    }
-    if (condition_type == "loss_pressure") {
-        double inv = 1.0 - cfs.loss_pressure;
-        double inv_required = 1.0 - std::min(required, 0.99);
-        return clampRatio(inv / std::max(0.01, inv_required));
-    }
-
-    // Unknown condition type
-    return 0.0;
+    cond::ConditionExpressionEvaluator evaluator;
+    auto evaluation = evaluator.evaluate(normalized.value().expression_ref, context);
+    if (evaluation.is_error()) return 0.0;
+    return evaluation.value().score;
 }
 
 static bool isCountCondition(const std::string& condition_type) {

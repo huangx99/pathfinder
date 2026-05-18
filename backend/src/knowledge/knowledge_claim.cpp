@@ -1,4 +1,6 @@
 #include "pathfinder/knowledge/knowledge_claim.h"
+#include "pathfinder/condition/condition_normalizer.h"
+#include "pathfinder/condition/condition_summary.h"
 #include "pathfinder/foundation/id.h"
 #include <algorithm>
 #include <sstream>
@@ -121,11 +123,15 @@ Result<void> KnowledgePredicate::validateBasic() const {
 // ============================================================
 
 Result<void> KnowledgeCondition::validateBasic() const {
-    if (condition_key.empty()) {
-        return Result<void>::fail(makeError(ErrorCode::validation_failed, "KnowledgeCondition condition_key is empty"));
+    if (condition_key.empty() && canonical_condition_key.empty() && condition_ref.empty() &&
+        expression_ids.empty() && object_state_keys.empty() && actor_requirement_keys.empty()) {
+        return Result<void>::fail(makeError(ErrorCode::validation_failed, "KnowledgeCondition condition identity is empty"));
     }
     if (containsKnowledgeForbiddenKey(condition_key)) {
         return Result<void>::fail(makeError(ErrorCode::validation_failed, "KnowledgeCondition condition_key contains forbidden key"));
+    }
+    if (containsKnowledgeForbiddenKey(canonical_condition_key)) {
+        return Result<void>::fail(makeError(ErrorCode::validation_failed, "KnowledgeCondition canonical_condition_key contains forbidden key"));
     }
     if (containsKnowledgeForbiddenKey(condition_summary_key)) {
         return Result<void>::fail(makeError(ErrorCode::validation_failed, "KnowledgeCondition condition_summary_key contains forbidden key"));
@@ -139,7 +145,102 @@ Result<void> KnowledgeCondition::validateBasic() const {
     if (containsKnowledgeForbiddenKey(actor_requirement_keys)) {
         return Result<void>::fail(makeError(ErrorCode::validation_failed, "KnowledgeCondition actor_requirement_keys contain forbidden key"));
     }
+    if (!condition_ref.empty()) {
+        auto ref_valid = condition_ref.validateBasic();
+        if (ref_valid.is_error()) return ref_valid;
+    }
     return Result<void>::ok();
+}
+
+Result<KnowledgeCondition> normalizeKnowledgeCondition(const KnowledgeCondition& condition) {
+    auto valid = condition.validateBasic();
+    if (valid.is_error()) return Result<KnowledgeCondition>::fail(valid.errors());
+
+    KnowledgeCondition normalized = condition;
+    pathfinder::condition::ConditionSummaryBuilder summary_builder;
+
+    if (!normalized.canonical_condition_key.empty()) {
+        if (normalized.condition_ref.empty()) {
+            normalized.condition_ref.inline_canonical_key = normalized.canonical_condition_key;
+            normalized.condition_ref.inline_legacy_condition = !normalized.condition_key.empty() && normalized.condition_key != normalized.canonical_condition_key;
+        }
+        if (normalized.condition_key.empty()) normalized.condition_key = normalized.canonical_condition_key;
+        if (normalized.condition_summary_key.empty()) {
+            auto summary = summary_builder.summarizeCanonicalKey(normalized.canonical_condition_key);
+            if (summary.is_error()) return Result<KnowledgeCondition>::fail(summary.errors());
+            normalized.condition_summary_key = summary.value().summary_key;
+        }
+        auto normalized_valid = normalized.validateBasic();
+        if (normalized_valid.is_error()) return Result<KnowledgeCondition>::fail(normalized_valid.errors());
+        return Result<KnowledgeCondition>::ok(std::move(normalized));
+    }
+
+    if (!normalized.condition_ref.inline_canonical_key.empty()) {
+        normalized.canonical_condition_key = normalized.condition_ref.inline_canonical_key;
+        if (normalized.condition_key.empty()) normalized.condition_key = normalized.canonical_condition_key;
+        if (normalized.condition_summary_key.empty()) {
+            auto summary = summary_builder.summarizeCanonicalKey(normalized.canonical_condition_key);
+            if (summary.is_error()) return Result<KnowledgeCondition>::fail(summary.errors());
+            normalized.condition_summary_key = summary.value().summary_key;
+        }
+        auto normalized_valid = normalized.validateBasic();
+        if (normalized_valid.is_error()) return Result<KnowledgeCondition>::fail(normalized_valid.errors());
+        return Result<KnowledgeCondition>::ok(std::move(normalized));
+    }
+
+    if (!normalized.condition_ref.expression_id.empty()) {
+        normalized.canonical_condition_key = "condition:expression_ref:eq:" + normalized.condition_ref.expression_id.value();
+        if (normalized.condition_key.empty()) normalized.condition_key = normalized.canonical_condition_key;
+        if (normalized.condition_summary_key.empty()) normalized.condition_summary_key = "condition.summary.expression_ref";
+        auto normalized_valid = normalized.validateBasic();
+        if (normalized_valid.is_error()) return Result<KnowledgeCondition>::fail(normalized_valid.errors());
+        return Result<KnowledgeCondition>::ok(std::move(normalized));
+    }
+
+    if (!normalized.expression_ids.empty() && normalized.condition_key.empty() && normalized.object_state_keys.empty() && normalized.actor_requirement_keys.empty()) {
+        normalized.condition_ref.expression_id = normalized.expression_ids.front();
+        normalized.canonical_condition_key = "condition:expression_ref:eq:" + normalized.expression_ids.front().value();
+        normalized.condition_key = normalized.canonical_condition_key;
+        normalized.condition_summary_key = "condition.summary.expression_ref";
+        auto normalized_valid = normalized.validateBasic();
+        if (normalized_valid.is_error()) return Result<KnowledgeCondition>::fail(normalized_valid.errors());
+        return Result<KnowledgeCondition>::ok(std::move(normalized));
+    }
+
+    pathfinder::condition::LegacyConditionInput input;
+    input.condition_key = normalized.condition_key;
+    input.object_state_keys = normalized.object_state_keys;
+    input.actor_requirement_keys = normalized.actor_requirement_keys;
+
+    pathfinder::condition::ConditionNormalizer normalizer;
+    auto result = normalizer.normalizeLegacyInput(input);
+    if (result.is_error()) return Result<KnowledgeCondition>::fail(result.errors());
+
+    normalized.condition_ref = result.value().expression_ref;
+    normalized.canonical_condition_key = result.value().canonical_condition_key;
+    if (normalized.condition_key.empty()) normalized.condition_key = normalized.canonical_condition_key;
+    if (normalized.condition_summary_key.empty()) normalized.condition_summary_key = result.value().summary_key;
+
+    auto normalized_valid = normalized.validateBasic();
+    if (normalized_valid.is_error()) return Result<KnowledgeCondition>::fail(normalized_valid.errors());
+    return Result<KnowledgeCondition>::ok(std::move(normalized));
+}
+
+Result<std::vector<KnowledgeCondition>> normalizeKnowledgeConditions(const std::vector<KnowledgeCondition>& conditions) {
+    std::vector<KnowledgeCondition> normalized;
+    normalized.reserve(conditions.size());
+    for (const auto& condition : conditions) {
+        auto result = normalizeKnowledgeCondition(condition);
+        if (result.is_error()) return Result<std::vector<KnowledgeCondition>>::fail(result.errors());
+        normalized.push_back(std::move(result.value()));
+    }
+    return Result<std::vector<KnowledgeCondition>>::ok(std::move(normalized));
+}
+
+Result<std::string> canonicalKnowledgeConditionKey(const KnowledgeCondition& condition) {
+    auto normalized = normalizeKnowledgeCondition(condition);
+    if (normalized.is_error()) return Result<std::string>::fail(normalized.errors());
+    return Result<std::string>::ok(normalized.value().canonical_condition_key);
 }
 
 // ============================================================

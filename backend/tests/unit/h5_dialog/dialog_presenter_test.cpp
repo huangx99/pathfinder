@@ -100,7 +100,7 @@ static void test_decayed_condition_has_player_friendly_name() {
     assert(insp_r.is_ok());
     auto insp = insp_r.value();
     assert(!insp.actor_knowledge_lines.empty());
-    assert(insp.actor_knowledge_lines.front().find("red_berry{decayed} + eat -> poison [active]") != std::string::npos);
+    assert(insp.actor_knowledge_lines.front().find("red_berry{腐烂状态} + eat -> poison [active]") != std::string::npos);
     assert(insp.actor_knowledge_lines.front().find("腐烂红果") != std::string::npos);
     assert(insp.actor_knowledge_lines.front().find("中毒") != std::string::npos);
     assert(insp.reply_text.find("腐烂红果") != std::string::npos);

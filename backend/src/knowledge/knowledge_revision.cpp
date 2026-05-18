@@ -54,10 +54,23 @@ static bool isCompatibleEffect(const std::string& existing_effect, const std::st
 
 static bool hasSameConditions(const std::vector<KnowledgeCondition>& a, const std::vector<KnowledgeCondition>& b) {
     if (a.size() != b.size()) return false;
-    for (size_t i = 0; i < a.size(); ++i) {
-        if (a[i].condition_key != b[i].condition_key) return false;
+    std::vector<std::string> left;
+    std::vector<std::string> right;
+    left.reserve(a.size());
+    right.reserve(b.size());
+    for (const auto& condition : a) {
+        auto canonical = canonicalKnowledgeConditionKey(condition);
+        if (canonical.is_error()) return false;
+        left.push_back(canonical.value());
     }
-    return true;
+    for (const auto& condition : b) {
+        auto canonical = canonicalKnowledgeConditionKey(condition);
+        if (canonical.is_error()) return false;
+        right.push_back(canonical.value());
+    }
+    std::sort(left.begin(), left.end());
+    std::sort(right.begin(), right.end());
+    return left == right;
 }
 
 static bool hasNegativeEvidence(const std::vector<KnowledgeEvidence>& evidence_refs) {

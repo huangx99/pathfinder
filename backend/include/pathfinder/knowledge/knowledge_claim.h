@@ -1,6 +1,7 @@
 #pragma once
 
 #include "pathfinder/knowledge/knowledge_types.h"
+#include "pathfinder/condition/condition_expression_types.h"
 #include "pathfinder/memory/memory_record.h"
 #include "pathfinder/memory/memory_summary.h"
 #include "pathfinder/foundation/id.h"
@@ -53,6 +54,8 @@ struct KnowledgePredicate {
 
 struct KnowledgeCondition {
     std::string condition_key;
+    pathfinder::condition::ConditionExpressionRef condition_ref;
+    std::string canonical_condition_key;
     std::string condition_summary_key;
     std::vector<pathfinder::foundation::ExpressionId> expression_ids;
     pathfinder::foundation::RegionId region_id;
@@ -63,6 +66,10 @@ struct KnowledgeCondition {
     bool operator==(const KnowledgeCondition& other) const = default;
     pathfinder::foundation::Result<void> validateBasic() const;
 };
+
+pathfinder::foundation::Result<KnowledgeCondition> normalizeKnowledgeCondition(const KnowledgeCondition& condition);
+pathfinder::foundation::Result<std::vector<KnowledgeCondition>> normalizeKnowledgeConditions(const std::vector<KnowledgeCondition>& conditions);
+pathfinder::foundation::Result<std::string> canonicalKnowledgeConditionKey(const KnowledgeCondition& condition);
 
 struct KnowledgeEvidence {
     KnowledgeEvidenceId evidence_id;

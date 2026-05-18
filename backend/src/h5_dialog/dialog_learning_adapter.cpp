@@ -89,7 +89,8 @@ int statusPriority(pathfinder::knowledge::KnowledgeStatus status) {
 }
 
 std::string conditionKey(const pathfinder::knowledge::KnowledgeCondition& condition) {
-    std::string key = condition.condition_key;
+    auto canonical = pathfinder::knowledge::canonicalKnowledgeConditionKey(condition);
+    std::string key = canonical.is_ok() ? canonical.value() : condition.condition_key;
     key += ":" + condition.condition_summary_key;
     key += ":" + condition.region_id.value();
     key += ":" + condition.time_scope_key;

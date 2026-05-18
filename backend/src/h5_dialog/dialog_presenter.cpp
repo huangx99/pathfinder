@@ -1,4 +1,5 @@
 #include "pathfinder/h5_dialog/dialog_presenter.h"
+#include "pathfinder/condition/condition_summary.h"
 #include "pathfinder/h5_dialog/dialog_scenario.h"
 #include <sstream>
 
@@ -55,30 +56,38 @@ std::vector<DialogQuickActionDto> defaultQuickActions() {
     return actions;
 }
 
-bool hasCondition(const pathfinder::knowledge::KnowledgeClaim& claim, const std::string& condition_key) {
+bool hasCanonicalCondition(const pathfinder::knowledge::KnowledgeClaim& claim, const std::string& canonical_condition_key) {
     for (const auto& condition : claim.conditions) {
-        if (condition.condition_key == condition_key) {
+        auto canonical = pathfinder::knowledge::canonicalKnowledgeConditionKey(condition);
+        if (canonical.is_ok() && canonical.value() == canonical_condition_key) {
             return true;
         }
     }
     return false;
 }
 
-std::string conditionDebugSuffix(const pathfinder::knowledge::KnowledgeClaim& claim) {
+std::string conditionDisplaySuffix(const pathfinder::knowledge::KnowledgeClaim& claim) {
     if (claim.conditions.empty()) {
         return "";
     }
+    pathfinder::condition::ConditionSummaryBuilder summary_builder;
     std::string suffix = "{";
     for (size_t i = 0; i < claim.conditions.size(); ++i) {
         if (i > 0) suffix += ",";
-        suffix += claim.conditions[i].condition_key;
+        auto canonical = pathfinder::knowledge::canonicalKnowledgeConditionKey(claim.conditions[i]);
+        if (canonical.is_ok()) {
+            auto summary = summary_builder.summarizeCanonicalKey(canonical.value());
+            suffix += summary.is_ok() ? summary.value().safe_summary_text : canonical.value();
+        } else {
+            suffix += "条件";
+        }
     }
     suffix += "}";
     return suffix;
 }
 
 std::string objectChineseName(const pathfinder::knowledge::KnowledgeClaim& claim) {
-    if (claim.subject.subject_id == "red_berry" && hasCondition(claim, "decayed")) return "腐烂红果";
+    if (claim.subject.subject_id == "red_berry" && hasCanonicalCondition(claim, "condition:object_state:eq:decayed")) return "腐烂红果";
     if (claim.subject.subject_id == "red_berry") return "红果";
     if (claim.subject.subject_id == "decayed_red_berry") return "腐烂红果";
     if (claim.subject.subject_id == "bitter_leaf") return "苦叶";
@@ -127,7 +136,7 @@ std::string knowledgeChineseNote(const pathfinder::knowledge::KnowledgeClaim& cl
 }
 
 std::string knowledgeSummaryLine(const pathfinder::knowledge::KnowledgeClaim& claim) {
-    std::string line = claim.subject.subject_id + conditionDebugSuffix(claim);
+    std::string line = claim.subject.subject_id + conditionDisplaySuffix(claim);
     line += " + " + claim.predicate.action_key;
     line += " -> " + claim.predicate.effect_key;
     line += " [" + toString(claim.status) + "]";

@@ -5221,3 +5221,70 @@ add_test(NAME p26_security_rejects_direct_state_mutation COMMAND pathfinder_test
 add_test(NAME p26_security_rejects_duplicate_capability COMMAND pathfinder_tests_p26_security duplicate_capability)
 add_test(NAME p26_security_rejects_test_only_enum COMMAND pathfinder_tests_p26_security test_only_enum)
 add_test(NAME p26_security_rejects_single_success_as_stable COMMAND pathfinder_tests_p26_security single_success)
+
+# P27 Condition expression unit tests: types
+add_executable(pathfinder_tests_condition_types
+    unit/condition/condition_expression_types_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_condition_types PRIVATE
+    pathfinder_condition
+    pathfinder_foundation
+)
+
+add_test(NAME condition_ref_validation COMMAND pathfinder_tests_condition_types ref_validation)
+add_test(NAME condition_value_debug_string COMMAND pathfinder_tests_condition_types value_debug_string)
+add_test(NAME condition_definition_validation COMMAND pathfinder_tests_condition_types definition_validation)
+
+# P27 Condition expression unit tests: evaluator
+add_executable(pathfinder_tests_condition_evaluator
+    unit/condition/condition_expression_evaluator_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_condition_evaluator PRIVATE
+    pathfinder_condition
+    pathfinder_foundation
+)
+
+add_test(NAME condition_evaluator_object_state COMMAND pathfinder_tests_condition_evaluator object_state_canonical)
+add_test(NAME condition_evaluator_civilization_numeric COMMAND pathfinder_tests_condition_evaluator civilization_numeric)
+add_test(NAME condition_evaluator_combined_and COMMAND pathfinder_tests_condition_evaluator combined_and_condition)
+
+# P27 Condition expression unit tests: normalizer
+add_executable(pathfinder_tests_condition_normalizer
+    unit/condition/condition_normalizer_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_condition_normalizer PRIVATE
+    pathfinder_condition
+    pathfinder_foundation
+)
+
+add_test(NAME condition_normalizer_legacy_mappings COMMAND pathfinder_tests_condition_normalizer legacy_mappings)
+add_test(NAME condition_normalizer_unknown_legacy_fails COMMAND pathfinder_tests_condition_normalizer unknown_legacy_fails)
+add_test(NAME condition_normalizer_capability_condition COMMAND pathfinder_tests_condition_normalizer capability_condition)
+
+# P27 Condition expression integration tests
+add_executable(pathfinder_tests_p27_migration_flow
+    integration/p27/condition_migration_flow_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_p27_migration_flow PRIVATE
+    pathfinder_knowledge
+    pathfinder_condition
+    pathfinder_memory
+    pathfinder_foundation
+)
+
+add_test(NAME p27_knowledge_condition_normalizes COMMAND pathfinder_tests_p27_migration_flow knowledge_condition)
+add_test(NAME p27_legacy_fields_combine COMMAND pathfinder_tests_p27_migration_flow combined_fields)
+
+add_executable(pathfinder_tests_p27_gate_scan
+    integration/p27/condition_gate_scan_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_p27_gate_scan PRIVATE
+    pathfinder_foundation
+)
+
+add_test(NAME p27_condition_authority_gate COMMAND pathfinder_tests_p27_gate_scan)
