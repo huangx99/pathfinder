@@ -221,6 +221,39 @@ static void test_conflict_state_draft_unique_member_events() {
     std::cout << "conflict_state_draft_unique_member_events passed" << std::endl;
 }
 
+static void test_conflict_intent_rejects_invalid_stance_combo() {
+    ConflictIntent intent;
+    intent.tribe_id = TribeId("tribe_a");
+    intent.intent_kind = ConflictIntentKind::Avoid;
+    intent.stance_kind = ConflictStanceKind::Aggressive;
+    intent.confidence = 0.5;
+    intent.pressure_score = 0.3;
+    assert(intent.validateBasic().is_error());
+
+    intent.intent_kind = ConflictIntentKind::Retreat;
+    intent.stance_kind = ConflictStanceKind::Aggressive;
+    assert(intent.validateBasic().is_error());
+
+    intent.intent_kind = ConflictIntentKind::NegotiateTruce;
+    intent.stance_kind = ConflictStanceKind::Aggressive;
+    assert(intent.validateBasic().is_error());
+
+    // Valid combos should pass
+    intent.intent_kind = ConflictIntentKind::Avoid;
+    intent.stance_kind = ConflictStanceKind::Passive;
+    assert(intent.validateBasic().is_ok());
+
+    intent.intent_kind = ConflictIntentKind::Retreat;
+    intent.stance_kind = ConflictStanceKind::Desperate;
+    assert(intent.validateBasic().is_ok());
+
+    intent.intent_kind = ConflictIntentKind::Intimidate;
+    intent.stance_kind = ConflictStanceKind::Aggressive;
+    assert(intent.validateBasic().is_ok());
+
+    std::cout << "conflict_intent_rejects_invalid_stance_combo passed" << std::endl;
+}
+
 int main(int argc, char* argv[]) {
     const std::string arg = argc > 1 ? argv[1] : "all";
     if (arg == "hostility_enum_roundtrip") test_hostility_enum_roundtrip();
@@ -234,6 +267,7 @@ int main(int argc, char* argv[]) {
     else if (arg == "conflict_projection_safe_summary") test_conflict_projection_safe_summary();
     else if (arg == "conflict_trace_safe_summary") test_conflict_trace_safe_summary();
     else if (arg == "conflict_state_draft_unique_member") test_conflict_state_draft_unique_member_events();
+    else if (arg == "conflict_intent_invalid_stance") test_conflict_intent_rejects_invalid_stance_combo();
     else {
         test_hostility_enum_roundtrip();
         test_conflict_intent_enum_roundtrip();
@@ -246,6 +280,7 @@ int main(int argc, char* argv[]) {
         test_conflict_projection_safe_summary();
         test_conflict_trace_safe_summary();
         test_conflict_state_draft_unique_member_events();
+        test_conflict_intent_rejects_invalid_stance_combo();
     }
     return 0;
 }

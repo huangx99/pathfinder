@@ -251,9 +251,9 @@ bool containsConflictForbiddenKey(const std::string& key) {
         "agentruntime", "agent_runtime", "policy",
         "random_hit", "random_damage", "damage_roll", "critical_hit",
         "true_hp", "actual_hp", "actual_damage", "kill_result", "loot_drop",
-        "war_result", "damage", "death", "kill", "loot", "hp",
-        "corpse", "hidden_weapon_stat",
-        "member_dead", "enemy_dead", "kill_count", "hp_delta",
+        "war_result", "damage", "death", "kill", "loot",
+        "hp_delta", "hp_remaining", "corpse", "hidden_weapon_stat",
+        "member_dead", "enemy_dead", "kill_count",
         "body_count", "loot_count",
         "random_split", "probability_split"
     };
@@ -272,6 +272,7 @@ bool containsConflictForbiddenKey(const std::vector<std::string>& keys) {
 static bool isValidStanceForIntent(ConflictIntentKind intent, ConflictStanceKind stance) {
     if (intent == ConflictIntentKind::Avoid) return stance == ConflictStanceKind::Passive;
     if (intent == ConflictIntentKind::Retreat) return stance == ConflictStanceKind::Passive || stance == ConflictStanceKind::Desperate;
+    if (intent == ConflictIntentKind::NegotiateTruce) return stance == ConflictStanceKind::Passive;
     return stance != ConflictStanceKind::Unknown;
 }
 
@@ -319,8 +320,16 @@ static ConflictIntentKind deriveConflictIntent(
     }
 
     // High loss pressure + low resource -> NegotiateTruce
-    if (participant.loss_pressure_summary >= 0.6 &&
-        pressure.resource_pressure < 0.4 &&
+    // Both sides worn down or resource pressure dropping makes truce viable
+    if (participant.loss_pressure_summary >= 0.5 &&
+        pressure.resource_pressure < 0.5 &&
+        hostility <= HostilityState::Hostile) {
+        return ConflictIntentKind::NegotiateTruce;
+    }
+
+    // Neither side can continue: combined safety + loss pressure high
+    if (participant.safety_pressure_summary >= 0.5 &&
+        participant.loss_pressure_summary >= 0.4 &&
         hostility <= HostilityState::Hostile) {
         return ConflictIntentKind::NegotiateTruce;
     }
@@ -385,7 +394,10 @@ static ConflictOutcomeKind resolveOutcome(
     double source_strength,
     double target_strength,
     const ConflictResolutionOptions& options,
-    HostilityState hostility) {
+    HostilityState hostility,
+    double source_loss_pressure,
+    double target_loss_pressure,
+    double resource_pressure) {
 
     double gap = source_strength - target_strength;
 
@@ -416,14 +428,20 @@ static ConflictOutcomeKind resolveOutcome(
         return ConflictOutcomeKind::Intimidated;
     }
 
-    // NegotiateTruce + other side has low strength -> TruceOffered
-    if (source_intent == ConflictIntentKind::NegotiateTruce &&
-        target_strength < options.truce_pressure_threshold) {
-        return ConflictOutcomeKind::TruceOffered;
-    }
-    if (target_intent == ConflictIntentKind::NegotiateTruce &&
-        source_strength < options.truce_pressure_threshold) {
-        return ConflictOutcomeKind::TruceOffered;
+    // NegotiateTruce: requires loss pressure context, not just low opponent strength
+    if (source_intent == ConflictIntentKind::NegotiateTruce ||
+        target_intent == ConflictIntentKind::NegotiateTruce) {
+        bool high_loss = (source_loss_pressure >= 0.4 || target_loss_pressure >= 0.4);
+        bool low_resource = resource_pressure < options.truce_pressure_threshold;
+        bool opponent_not_push = (source_intent == ConflictIntentKind::NegotiateTruce)
+            ? (target_intent != ConflictIntentKind::Raid && target_intent != ConflictIntentKind::Pursue)
+            : (source_intent != ConflictIntentKind::Raid && source_intent != ConflictIntentKind::Pursue);
+        bool opponent_not_strong = (source_intent == ConflictIntentKind::NegotiateTruce)
+            ? (target_strength < 0.6)
+            : (source_strength < 0.6);
+        if (high_loss && low_resource && opponent_not_push && opponent_not_strong) {
+            return ConflictOutcomeKind::TruceOffered;
+        }
     }
 
     // Close strength + high hostility -> Standoff
@@ -580,6 +598,9 @@ Result<void> ConflictIntent::validateBasic() const {
     if (!isValidConflictStance(stance_kind)) {
         return Result<void>::fail(makeError(ErrorCode::validation_enum_unknown, "ConflictIntent stance_kind invalid"));
     }
+    if (!isValidStanceForIntent(intent_kind, stance_kind)) {
+        return Result<void>::fail(makeError(ErrorCode::validation_failed, "ConflictIntent stance incompatible with intent"));
+    }
     auto c_result = validateRatio(confidence, "ConflictIntent confidence");
     if (c_result.is_error()) return c_result;
     auto p_result = validateRatio(pressure_score, "ConflictIntent pressure_score");
@@ -700,6 +721,10 @@ Result<void> ConflictResolutionInput::validateBasic() const {
     if (target_relation_to_source.has_value()) {
         auto tr_result = target_relation_to_source.value().validateBasic();
         if (tr_result.is_error()) return tr_result;
+        if (target_relation_to_source.value().source_tribe_id != target.tribe_id ||
+            target_relation_to_source.value().target_tribe_id != source.tribe_id) {
+            return Result<void>::fail(makeError(ErrorCode::id_type_mismatch, "target_relation_to_source direction mismatch"));
+        }
     }
     auto ps_result = pressure_summary.validateBasic();
     if (ps_result.is_error()) return ps_result;
@@ -762,12 +787,19 @@ Result<ConflictProjection> ConflictProjectionBuilder::build(
     proj.relation_changed = (result.source_relation_draft.old_hostility_state !=
                               result.source_relation_draft.new_hostility_state);
     proj.state_pressure_changed = (std::abs(result.source_state_draft.loss_pressure_delta) > kEpsilon ||
-                                    std::abs(result.source_state_draft.safety_pressure_delta) > kEpsilon);
+                                    std::abs(result.source_state_draft.safety_pressure_delta) > kEpsilon ||
+                                    std::abs(result.source_state_draft.retreat_pressure_delta) > kEpsilon ||
+                                    std::abs(result.target_state_draft.loss_pressure_delta) > kEpsilon ||
+                                    std::abs(result.target_state_draft.safety_pressure_delta) > kEpsilon ||
+                                    std::abs(result.target_state_draft.retreat_pressure_delta) > kEpsilon);
 
-    // Visible pressure level
+    // Visible pressure level — combines both source and target state pressure
     double max_pressure = std::max({result.source_state_draft.loss_pressure_delta,
                                      result.source_state_draft.safety_pressure_delta,
-                                     result.source_state_draft.retreat_pressure_delta});
+                                     result.source_state_draft.retreat_pressure_delta,
+                                     result.target_state_draft.loss_pressure_delta,
+                                     result.target_state_draft.safety_pressure_delta,
+                                     result.target_state_draft.retreat_pressure_delta});
     if (max_pressure >= 0.5) proj.visible_pressure_level = "high";
     else if (max_pressure >= 0.2) proj.visible_pressure_level = "moderate";
     else if (max_pressure > kEpsilon) proj.visible_pressure_level = "low";
@@ -792,64 +824,61 @@ Result<ConflictStateDraft> ConflictStateDraftBuilder::buildForTribe(
     ConflictStateDraft draft;
     draft.tribe_id = participant.tribe_id;
 
-    // Merge P24 coordination state draft effects with P25 conflict outcome
     const auto& csd = participant.coordination_state_draft;
 
+    // P24 baselines — all coordination state draft effects carry through first
+    draft.morale_delta = csd.morale_delta;
+    draft.trust_delta = csd.trust_delta;
+    draft.safety_pressure_delta = csd.safety_pressure;
+    draft.loss_pressure_delta = csd.casualty_pressure;
+    draft.split_risk_delta = csd.knowledge_conflict_pressure;
+
+    // P25 outcome modifiers applied on top of P24 baselines
     switch (outcome) {
         case ConflictOutcomeKind::Intimidated:
             if (own_intent.intent_kind == ConflictIntentKind::Intimidate) {
-                draft.morale_delta = clampDelta(csd.morale_delta + 0.03);
-                draft.safety_pressure_delta = clampDelta(-0.05);
-                draft.trust_delta = clampDelta(csd.trust_delta + 0.02);
+                draft.morale_delta = clampDelta(draft.morale_delta + 0.03);
+                draft.safety_pressure_delta = clampDelta(draft.safety_pressure_delta - 0.05);
+                draft.trust_delta = clampDelta(draft.trust_delta + 0.02);
             }
             break;
         case ConflictOutcomeKind::ForcedRetreat:
             if (own_intent.intent_kind == ConflictIntentKind::Retreat) {
-                draft.morale_delta = clampDelta(csd.morale_delta - 0.05);
-                draft.retreat_pressure_delta = clampDelta(0.15);
-                draft.safety_pressure_delta = clampDelta(0.10);
-                draft.trust_delta = clampDelta(csd.trust_delta - 0.03);
+                draft.morale_delta = clampDelta(draft.morale_delta - 0.05);
+                draft.retreat_pressure_delta = clampDelta(draft.retreat_pressure_delta + 0.15);
+                draft.safety_pressure_delta = clampDelta(draft.safety_pressure_delta + 0.10);
+                draft.trust_delta = clampDelta(draft.trust_delta - 0.03);
             }
             break;
         case ConflictOutcomeKind::Standoff:
-            draft.safety_pressure_delta = clampDelta(0.10);
-            draft.morale_delta = clampDelta(csd.morale_delta - 0.02);
-            draft.split_risk_delta = clampDelta(0.05);
-            draft.trust_delta = clampDelta(csd.trust_delta - 0.02);
+            draft.safety_pressure_delta = clampDelta(draft.safety_pressure_delta + 0.10);
+            draft.morale_delta = clampDelta(draft.morale_delta - 0.02);
+            draft.split_risk_delta = clampDelta(draft.split_risk_delta + 0.05);
+            draft.trust_delta = clampDelta(draft.trust_delta - 0.02);
             break;
         case ConflictOutcomeKind::MinorLossPressure:
-            draft.loss_pressure_delta = clampDelta(0.15);
-            draft.safety_pressure_delta = clampDelta(0.10);
-            draft.morale_delta = clampDelta(csd.morale_delta - 0.05);
-            draft.trust_delta = clampDelta(csd.trust_delta - 0.05);
+            draft.loss_pressure_delta = clampDelta(draft.loss_pressure_delta + 0.15);
+            draft.safety_pressure_delta = clampDelta(draft.safety_pressure_delta + 0.10);
+            draft.morale_delta = clampDelta(draft.morale_delta - 0.05);
+            draft.trust_delta = clampDelta(draft.trust_delta - 0.05);
             break;
         case ConflictOutcomeKind::MajorLossPressure:
-            draft.loss_pressure_delta = clampDelta(0.30);
-            draft.safety_pressure_delta = clampDelta(0.20);
-            draft.morale_delta = clampDelta(csd.morale_delta - 0.10);
-            draft.split_risk_delta = clampDelta(0.10);
-            draft.trust_delta = clampDelta(csd.trust_delta - 0.08);
+            draft.loss_pressure_delta = clampDelta(draft.loss_pressure_delta + 0.30);
+            draft.safety_pressure_delta = clampDelta(draft.safety_pressure_delta + 0.20);
+            draft.morale_delta = clampDelta(draft.morale_delta - 0.10);
+            draft.split_risk_delta = clampDelta(draft.split_risk_delta + 0.10);
+            draft.trust_delta = clampDelta(draft.trust_delta - 0.08);
             break;
         case ConflictOutcomeKind::TruceOffered:
-            draft.morale_delta = clampDelta(csd.morale_delta + 0.02);
-            draft.safety_pressure_delta = clampDelta(-0.05);
-            draft.trust_delta = clampDelta(csd.trust_delta + 0.01);
+            draft.morale_delta = clampDelta(draft.morale_delta + 0.02);
+            draft.safety_pressure_delta = clampDelta(draft.safety_pressure_delta - 0.05);
+            draft.trust_delta = clampDelta(draft.trust_delta + 0.01);
             break;
-        case ConflictOutcomeKind::Avoided:
-        case ConflictOutcomeKind::NoContact:
-            draft.trust_delta = clampDelta(csd.trust_delta);
-            draft.morale_delta = clampDelta(csd.morale_delta);
-            break;
+        // Avoided / NoContact / default: keep P24 baselines unchanged
         default:
             break;
     }
 
-    // Propagate P24 trust/morale deltas as baseline when not already set by outcome
-    if (std::abs(draft.trust_delta) < kEpsilon) draft.trust_delta = clampDelta(csd.trust_delta);
-    if (std::abs(draft.morale_delta) < kEpsilon) draft.morale_delta = clampDelta(csd.morale_delta);
-
-    // P24 trust/morale deltas always feed through
-    draft.trust_delta = clampDelta(csd.trust_delta);
     draft.reason_keys = {"p25_conflict_state_draft"};
 
     auto val_result = draft.validateBasic();
@@ -1023,7 +1052,10 @@ Result<ConflictResolutionResult> GroupCombatResolver::resolve(
     result.outcome_kind = resolveOutcome(
         source_intent_kind, target_intent_kind,
         source_strength, target_strength,
-        input.options, hostility);
+        input.options, hostility,
+        input.source.loss_pressure_summary,
+        input.target.loss_pressure_summary,
+        input.pressure_summary.resource_pressure);
 
     // Build score breakdown
     result.trace.score_breakdown.push_back(
@@ -1073,7 +1105,8 @@ Result<ConflictResolutionResult> GroupCombatResolver::resolve(
         result.target_state_draft = tsd_result.value();
     }
 
-    // Build events
+    // Build events — first version outputs a single primary event per resolution.
+    // Future: split into multiple events (HostilityChanged, ConflictPressureChanged, etc.)
     ConflictEvent ev;
     ev.event_id = EventId("event_p25_" + input.source.tribe_id.value() + "_" +
                           input.target.tribe_id.value());

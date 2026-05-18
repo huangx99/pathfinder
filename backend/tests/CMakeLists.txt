@@ -4727,6 +4727,10 @@ add_test(
     NAME tribe_conflict_state_draft_unique_member
     COMMAND pathfinder_tests_tribe_conflict conflict_state_draft_unique_member
 )
+add_test(
+    NAME tribe_conflict_intent_rejects_invalid_stance_combo
+    COMMAND pathfinder_tests_tribe_conflict conflict_intent_invalid_stance
+)
 
 # --- P25 integration tests: conflict flow ---
 
@@ -4778,6 +4782,22 @@ add_test(
     NAME p25_deterministic_resolution_flow
     COMMAND pathfinder_tests_p25_flow deterministic
 )
+add_test(
+    NAME p25_merges_p24_state_draft_pressure_flow
+    COMMAND pathfinder_tests_p25_flow merges_p24
+)
+add_test(
+    NAME p25_conflict_outcome_trust_delta_not_overwritten_flow
+    COMMAND pathfinder_tests_p25_flow trust_delta_not_overwritten
+)
+add_test(
+    NAME p25_truce_offered_with_medium_strength_high_loss_flow
+    COMMAND pathfinder_tests_p25_flow truce_medium_strength
+)
+add_test(
+    NAME p25_projection_includes_target_pressure_flow
+    COMMAND pathfinder_tests_p25_flow projection_target
+)
 
 # --- P25 integration tests: conflict security ---
 
@@ -4824,6 +4844,14 @@ add_test(
 add_test(
     NAME p25_security_rejects_test_only_enum
     COMMAND pathfinder_tests_p25_security test_only_enum
+)
+add_test(
+    NAME p25_security_rejects_target_relation_direction_mismatch
+    COMMAND pathfinder_tests_p25_security relation_direction
+)
+add_test(
+    NAME p25_security_safe_key_not_rejected_by_short_hp_token
+    COMMAND pathfinder_tests_p25_security safe_hp_key
 )
 
 # P22 unit tests: h5_dialog_types

@@ -10,6 +10,7 @@ static CombatCoordinationResult makeCoord(const TribeId& t_id, double score) {
     CombatCoordinationResult r;
     r.decision = "coordinated";
     r.intent.kind = GroupIntentKind::DefendGroup;
+    r.intent.target_threat_id = EntityId("threat_test");
     r.intent.priority = score;
     r.intent.summary_key = "test";
     r.intent.participant_ids = {EntityId("m1")};
@@ -210,6 +211,55 @@ static void test_rejects_test_only_enum_in_production() {
     std::cout << "p25_security_rejects_test_only_enum_in_production passed" << std::endl;
 }
 
+static void test_rejects_target_relation_direction_mismatch() {
+    ConflictResolutionInput input;
+    input.source = makeParticipant(TribeId("tribe_a"), "source");
+    input.target = makeParticipant(TribeId("tribe_b"), "target");
+    input.source_relation_to_target = makeRelation(TribeId("tribe_a"), TribeId("tribe_b"), HostilityState::Neutral);
+    input.pressure_summary = makePressure("test");
+
+    // target_relation_to_source with WRONG direction (should be tribe_b -> tribe_a)
+    TribeRelation wrong;
+    wrong.source_tribe_id = TribeId("tribe_a");  // wrong: should be tribe_b
+    wrong.target_tribe_id = TribeId("tribe_b");  // wrong: should be tribe_a
+    wrong.hostility_state = HostilityState::Neutral;
+    input.target_relation_to_source = wrong;
+    assert(input.validateBasic().is_error());
+
+    // Correct direction should pass
+    TribeRelation correct;
+    correct.source_tribe_id = TribeId("tribe_b");
+    correct.target_tribe_id = TribeId("tribe_a");
+    correct.hostility_state = HostilityState::Neutral;
+    input.target_relation_to_source = correct;
+    // Re-make participants since they were moved
+    input.source = makeParticipant(TribeId("tribe_a"), "source");
+    input.target = makeParticipant(TribeId("tribe_b"), "target");
+    assert(input.validateBasic().is_ok());
+
+    std::cout << "p25_security_rejects_target_relation_direction_mismatch passed" << std::endl;
+}
+
+static void test_safe_key_not_rejected_by_short_hp_token() {
+    // Keys containing "hp" as part of normal words should NOT be rejected
+    assert(!containsConflictForbiddenKey("membership"));
+    assert(!containsConflictForbiddenKey("leadership"));
+    assert(!containsConflictForbiddenKey("relationship"));
+    assert(!containsConflictForbiddenKey("friendship"));
+    assert(!containsConflictForbiddenKey("ownership"));
+    assert(!containsConflictForbiddenKey("ship_status"));
+    assert(!containsConflictForbiddenKey("champion"));
+    assert(!containsConflictForbiddenKey("whisper"));
+
+    // But specific HP-related keys should still be rejected
+    assert(containsConflictForbiddenKey("true_hp"));
+    assert(containsConflictForbiddenKey("actual_hp"));
+    assert(containsConflictForbiddenKey("hp_delta"));
+    assert(containsConflictForbiddenKey("hp_remaining"));
+
+    std::cout << "p25_security_safe_key_not_rejected_by_short_hp_token passed" << std::endl;
+}
+
 int main(int argc, char* argv[]) {
     const std::string arg = argc > 1 ? argv[1] : "all";
     if (arg == "missing_coordination") test_rejects_missing_coordination_result();
@@ -221,6 +271,8 @@ int main(int argc, char* argv[]) {
     else if (arg == "duplicate_member") test_rejects_duplicate_member_effects();
     else if (arg == "same_tribe") test_rejects_same_source_target_tribe();
     else if (arg == "test_only_enum") test_rejects_test_only_enum_in_production();
+    else if (arg == "relation_direction") test_rejects_target_relation_direction_mismatch();
+    else if (arg == "safe_hp_key") test_safe_key_not_rejected_by_short_hp_token();
     else {
         test_rejects_missing_coordination_result();
         test_rejects_raw_game_state_keys();
@@ -231,6 +283,8 @@ int main(int argc, char* argv[]) {
         test_rejects_duplicate_member_effects();
         test_rejects_same_source_target_tribe();
         test_rejects_test_only_enum_in_production();
+        test_rejects_target_relation_direction_mismatch();
+        test_safe_key_not_rejected_by_short_hp_token();
     }
     return 0;
 }
