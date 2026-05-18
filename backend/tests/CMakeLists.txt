@@ -4525,6 +4525,129 @@ add_test(
     COMMAND pathfinder_tests_p23_security draft_validation_rejected
 )
 
+# P24 unit tests: tribe coordination
+add_executable(pathfinder_tests_tribe_coordination
+    unit/tribe/tribe_coordination_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_tribe_coordination PRIVATE
+    pathfinder_tribe
+    pathfinder_knowledge
+    pathfinder_foundation
+)
+
+add_test(
+    NAME tribe_coordination_intent_enum_roundtrip
+    COMMAND pathfinder_tests_tribe_coordination intent_enum_roundtrip
+)
+
+add_test(
+    NAME tribe_coordination_action_enum_roundtrip
+    COMMAND pathfinder_tests_tribe_coordination action_enum_roundtrip
+)
+
+add_test(
+    NAME tribe_coordination_quality_threshold
+    COMMAND pathfinder_tests_tribe_coordination quality_threshold
+)
+
+add_test(
+    NAME tribe_coordination_input_validate
+    COMMAND pathfinder_tests_tribe_coordination input_validate
+)
+
+add_test(
+    NAME tribe_coordination_result_validate
+    COMMAND pathfinder_tests_tribe_coordination result_validate
+)
+
+add_test(
+    NAME tribe_coordination_projection_safe_summary
+    COMMAND pathfinder_tests_tribe_coordination projection_safe_summary
+)
+
+add_test(
+    NAME tribe_coordination_member_summary_unique
+    COMMAND pathfinder_tests_tribe_coordination member_summary_unique
+)
+
+# P24 integration tests: coordination flows
+add_executable(pathfinder_tests_p24_flow
+    integration/p24/tribe_coordination_flow_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_p24_flow PRIVATE
+    pathfinder_tribe
+    pathfinder_knowledge
+    pathfinder_foundation
+)
+
+add_test(
+    NAME p24_guardian_defends_learner_flow
+    COMMAND pathfinder_tests_p24_flow guardian_defends_learner
+)
+
+add_test(
+    NAME p24_low_morale_avoid_engagement_flow
+    COMMAND pathfinder_tests_p24_flow low_morale_avoid_engagement
+)
+
+add_test(
+    NAME p24_high_trust_focus_threat_flow
+    COMMAND pathfinder_tests_p24_flow high_trust_focus_threat
+)
+
+add_test(
+    NAME p24_split_risk_weakens_coordination_flow
+    COMMAND pathfinder_tests_p24_flow split_risk_weakens_coordination
+)
+
+add_test(
+    NAME p24_deterministic_coordination_flow
+    COMMAND pathfinder_tests_p24_flow deterministic_coordination
+)
+
+add_test(
+    NAME p24_state_draft_unique_member_effects_flow
+    COMMAND pathfinder_tests_p24_flow state_draft_unique_member_effects
+)
+
+# P24 integration tests: coordination security
+add_executable(pathfinder_tests_p24_security
+    integration/p24/tribe_coordination_security_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_p24_security PRIVATE
+    pathfinder_tribe
+    pathfinder_knowledge
+    pathfinder_foundation
+)
+
+add_test(
+    NAME p24_security_forbidden_keys
+    COMMAND pathfinder_tests_p24_security forbidden_keys
+)
+
+add_test(
+    NAME p24_security_rejects_damage_or_death
+    COMMAND pathfinder_tests_p24_security rejects_damage_or_death
+)
+
+add_test(
+    NAME p24_security_rejects_duplicate_member_effects
+    COMMAND pathfinder_tests_p24_security rejects_duplicate_member_effects
+)
+
+add_test(
+    NAME p24_security_rejects_test_only_enums
+    COMMAND pathfinder_tests_p24_security rejects_test_only_enums
+)
+
+add_test(
+    NAME p24_security_empty_ids_rejected
+    COMMAND pathfinder_tests_p24_security empty_ids_rejected
+)
+
 # P22 unit tests: h5_dialog_types
 add_executable(pathfinder_tests_h5_dialog_types
     unit/h5_dialog/dialog_types_test.cpp

@@ -508,10 +508,11 @@ target_link_libraries(pathfinder_knowledge PUBLIC
     pathfinder_memory
 )
 
-# Tribe library (P23)
+# Tribe library (P23/P24)
 add_library(pathfinder_tribe STATIC
     src/tribe/tribe_types.cpp
     src/tribe/tribe_state.cpp
+    src/tribe/tribe_coordination.cpp
 )
 
 target_include_directories(pathfinder_tribe PUBLIC
