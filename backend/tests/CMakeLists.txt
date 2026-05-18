@@ -4612,6 +4612,11 @@ add_test(
     COMMAND pathfinder_tests_p24_flow state_draft_unique_member_effects
 )
 
+add_test(
+    NAME p24_explorer_warns_group_flow
+    COMMAND pathfinder_tests_p24_flow explorer_warns_group
+)
+
 # P24 integration tests: coordination security
 add_executable(pathfinder_tests_p24_security
     integration/p24/tribe_coordination_security_test.cpp
@@ -4646,6 +4651,26 @@ add_test(
 add_test(
     NAME p24_security_empty_ids_rejected
     COMMAND pathfinder_tests_p24_security empty_ids_rejected
+)
+
+add_test(
+    NAME p24_security_protected_key_forbidden
+    COMMAND pathfinder_tests_p24_security protected_key_forbidden
+)
+
+add_test(
+    NAME p24_security_generic_damage_death_kill_loot
+    COMMAND pathfinder_tests_p24_security generic_damage_death_kill_loot
+)
+
+add_test(
+    NAME p24_security_empty_tribe_state
+    COMMAND pathfinder_tests_p24_security empty_tribe_state
+)
+
+add_test(
+    NAME p24_security_invalid_knowledge_id
+    COMMAND pathfinder_tests_p24_security invalid_knowledge_id
 )
 
 # P22 unit tests: h5_dialog_types

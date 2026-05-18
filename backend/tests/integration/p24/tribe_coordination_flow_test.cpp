@@ -228,6 +228,38 @@ static void test_state_draft_no_duplicate_member_effects() {
     std::cout << "p24_state_draft_unique_member_effects_flow passed" << std::endl;
 }
 
+static void test_explorer_warns_group() {
+    auto state = makeTribeState(TribeId("tribe_p24"), {
+        {"pioneer", TribeMemberRole::Pioneer},
+        {"explorer", TribeMemberRole::Explorer},
+        {"learner", TribeMemberRole::Learner},
+    });
+    // Threat 0.55 triggers EscortVulnerable (has_learner + threat>=0.5)
+    auto input = makeInput(state, {{"wolf_like_threat", 0.55}});
+
+    CombatCoordinationResolver resolver;
+    auto result = resolver.resolve(input);
+    assert(result.is_ok());
+    auto dto = result.value();
+    assert(dto.validateBasic().is_ok());
+
+    // Explorer should have Warn assist action
+    bool explorer_warns = std::any_of(dto.assist_actions.begin(), dto.assist_actions.end(),
+        [](const auto& aa) {
+            return aa.kind == AssistActionKind::Warn &&
+                   aa.actor_member_id == EntityId("explorer");
+        });
+    assert(explorer_warns);
+
+    // Trace should record assist:warn
+    bool trace_has_warn = std::any_of(dto.trace.steps.begin(), dto.trace.steps.end(),
+        [](const auto& step) {
+            return step.find("assist:warn") != std::string::npos;
+        });
+    assert(trace_has_warn);
+    std::cout << "p24_explorer_warns_group_flow passed" << std::endl;
+}
+
 int main(int argc, char* argv[]) {
     const std::string arg = argc > 1 ? argv[1] : "all";
     if (arg == "guardian_defends_learner") test_guardian_defends_learner();
@@ -236,6 +268,7 @@ int main(int argc, char* argv[]) {
     else if (arg == "split_risk_weakens_coordination") test_split_risk_weakens_coordination();
     else if (arg == "deterministic_coordination") test_deterministic_coordination();
     else if (arg == "state_draft_unique_member_effects") test_state_draft_no_duplicate_member_effects();
+    else if (arg == "explorer_warns_group") test_explorer_warns_group();
     else {
         test_guardian_defends_learner();
         test_low_morale_avoid_engagement();
@@ -243,6 +276,7 @@ int main(int argc, char* argv[]) {
         test_split_risk_weakens_coordination();
         test_deterministic_coordination();
         test_state_draft_no_duplicate_member_effects();
+        test_explorer_warns_group();
     }
     return 0;
 }

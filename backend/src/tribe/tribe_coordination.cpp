@@ -259,6 +259,7 @@ bool containsCoordinationForbiddenKey(const std::string& key) {
         "agentruntime", "agent_runtime", "policy",
         "random_hit", "random_damage", "damage_roll", "critical_hit",
         "true_hp", "actual_damage", "kill_result", "loot_drop", "war_result",
+        "damage", "death", "kill", "loot", "hp",
         "random_split", "probability_split"
     };
     for (const auto& token : forbidden) {
@@ -290,6 +291,8 @@ Result<void> ThreatPressureSummary::validateBasic() const {
     std::set<std::string> seen;
     for (const auto& id : known_counter_knowledge_ids) {
         if (id.empty()) return Result<void>::fail(makeError(ErrorCode::id_missing, "ThreatPressureSummary counter knowledge_id missing"));
+        if (!pathfinder::foundation::isValidIdString(id.value()))
+            return Result<void>::fail(makeError(ErrorCode::id_invalid_format, "ThreatPressureSummary counter knowledge_id invalid"));
         if (!seen.insert(id.value()).second) {
             return Result<void>::fail(makeError(ErrorCode::validation_failed, "ThreatPressureSummary duplicate counter knowledge_id"));
         }
@@ -316,6 +319,8 @@ Result<void> CombatParticipant::validateBasic() const {
     std::set<std::string> seen;
     for (const auto& id : known_knowledge_ids) {
         if (id.empty()) return Result<void>::fail(makeError(ErrorCode::id_missing, "CombatParticipant knowledge_id missing"));
+        if (!pathfinder::foundation::isValidIdString(id.value()))
+            return Result<void>::fail(makeError(ErrorCode::id_invalid_format, "CombatParticipant knowledge_id invalid"));
         if (!seen.insert(id.value()).second)
             return Result<void>::fail(makeError(ErrorCode::validation_failed, "CombatParticipant duplicate knowledge_id"));
     }
@@ -390,6 +395,11 @@ Result<void> DefendAction::validateBasic() const {
         auto r = validateId(protected_member_id.value(), "DefendAction protected_member_id");
         if (r.is_error()) return r;
     }
+    if (protected_key.has_value()) {
+        if (protected_key.value().empty() || containsCoordinationForbiddenKey(protected_key.value())) {
+            return Result<void>::fail(makeError(ErrorCode::validation_failed, "DefendAction protected_key invalid"));
+        }
+    }
     if (threat_id.has_value()) {
         auto r = validateId(threat_id.value(), "DefendAction threat_id");
         if (r.is_error()) return r;
@@ -462,12 +472,10 @@ Result<void> MemberCoordinationSummary::validateBasic() const {
 Result<void> CombatCoordinationInput::validateBasic() const {
     auto id_result = validateId(tribe_id, "CombatCoordinationInput tribe_id");
     if (id_result.is_error()) return id_result;
-    if (!tribe_state.tribe_id.empty() && tribe_state.tribe_id != tribe_id) {
+    auto ts_result = tribe_state.validateBasic();
+    if (ts_result.is_error()) return ts_result;
+    if (tribe_state.tribe_id != tribe_id) {
         return Result<void>::fail(makeError(ErrorCode::id_type_mismatch, "CombatCoordinationInput tribe_id mismatch with tribe_state"));
-    }
-    if (!tribe_state.tribe_id.empty()) {
-        auto ts_result = tribe_state.validateBasic();
-        if (ts_result.is_error()) return ts_result;
     }
     std::set<std::string> seen_threat_ids;
     for (const auto& threat : threats) {
@@ -717,16 +725,16 @@ Result<CombatCoordinationResult> CombatCoordinationResolver::resolve(
     if (has_teacher) role_bonus += 0.05;
     if (participants.size() >= 3) role_bonus += 0.05;
 
+    double threat_pressure = meanThreatPressure(input.threats);
+
     double coordination_score = clampRatio(
         avg_member_score +
         role_bonus -
         input.tribe_state.split_risk.risk * options.split_risk_penalty_weight -
-        input.safety_pressure * 0.10
+        input.safety_pressure * 0.10 -
+        threat_pressure * options.threat_weight
     );
     CoordinationQuality quality = qualityForScore(coordination_score);
-
-    // Threat pressure
-    double threat_pressure = meanThreatPressure(input.threats);
 
     // Intent selection
     GroupIntentKind intent_kind = GroupIntentKind::HoldTogether;
