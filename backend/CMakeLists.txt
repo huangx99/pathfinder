@@ -537,5 +537,43 @@ target_link_libraries(pathfinder_agent_debug_cli_exe PRIVATE
     pathfinder_agent_debug_cli_lib
 )
 
+# H5 Dialog library (P22)
+add_library(pathfinder_h5_dialog STATIC
+    src/h5_dialog/dialog_types.cpp
+    src/h5_dialog/dialog_intent.cpp
+    src/h5_dialog/dialog_scenario.cpp
+    src/h5_dialog/dialog_session.cpp
+    src/h5_dialog/dialog_learning_adapter.cpp
+    src/h5_dialog/dialog_presenter.cpp
+    src/h5_dialog/dialog_turn_service.cpp
+    src/h5_dialog/dialog_wire_codec.cpp
+    src/h5_dialog/dialog_http_server.cpp
+)
+
+target_include_directories(pathfinder_h5_dialog PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(pathfinder_h5_dialog PUBLIC
+    pathfinder_foundation
+    pathfinder_cognition
+    pathfinder_memory
+    pathfinder_knowledge
+    pathfinder_learning
+)
+
+# H5 Dialog Server executable (P22)
+add_executable(pathfinder_h5_dialog_server_exe
+    apps/h5_dialog_server_main.cpp
+)
+
+set_target_properties(pathfinder_h5_dialog_server_exe PROPERTIES
+    OUTPUT_NAME pathfinder_h5_dialog_server
+)
+
+target_link_libraries(pathfinder_h5_dialog_server_exe PRIVATE
+    pathfinder_h5_dialog
+)
+
 # Tests
 add_subdirectory(tests)

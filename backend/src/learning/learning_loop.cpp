@@ -1,5 +1,6 @@
 #include "pathfinder/learning/learning_loop.h"
 #include <algorithm>
+#include <cmath>
 #include <sstream>
 
 namespace pathfinder::learning {
@@ -139,6 +140,37 @@ static double clamp01(double v) {
     if (v < 0.0) return 0.0;
     if (v > 1.0) return 1.0;
     return v;
+}
+
+static bool sameConditionKeys(const std::vector<KnowledgeCondition>& a,
+                              const std::vector<KnowledgeCondition>& b) {
+    if (a.size() != b.size()) {
+        return false;
+    }
+    std::vector<std::string> left;
+    std::vector<std::string> right;
+    left.reserve(a.size());
+    right.reserve(b.size());
+    for (const auto& condition : a) {
+        left.push_back(condition.condition_key);
+    }
+    for (const auto& condition : b) {
+        right.push_back(condition.condition_key);
+    }
+    std::sort(left.begin(), left.end());
+    std::sort(right.begin(), right.end());
+    return left == right;
+}
+
+static bool shouldReviseForConditionScope(const std::vector<KnowledgeCondition>& existing_conditions,
+                                          const std::vector<KnowledgeCondition>& incoming_conditions) {
+    if (sameConditionKeys(existing_conditions, incoming_conditions)) {
+        return true;
+    }
+    if (existing_conditions.empty()) {
+        return true;
+    }
+    return false;
 }
 
 static bool isValidEnumStoryKind(LearningLoopStoryKind k) {
@@ -835,7 +867,7 @@ static MemoryRecord makeSyntheticRepresentativeMemory(const LearningLoopInput& i
     record.strength = clamp01(strength);
     record.strength_band = strengthToBand(record.strength);
     record.reinforcement_count = 0;
-    record.contradiction_count = input.feedback.risk_delta > 0.0 ? 1 : 0;
+    record.contradiction_count = input.feedback.risk_delta >= 0.7 ? 1 : 0;
     record.teaching_candidate = record.strength >= 0.55;
     record.created_tick = input.feedback.observed_tick;
     record.last_touched_tick = input.feedback.observed_tick;
@@ -865,7 +897,7 @@ static MemorySummary makeLearningSummary(const LearningLoopInput& input,
     summary.failure_count = input.feedback.utility_delta < 0.0 ? 1 : 0;
     summary.warning_count = input.feedback.risk_delta > 0.0 ? 1 : 0;
     summary.accident_count = input.feedback.risk_delta >= 0.7 ? 1 : 0;
-    summary.contradiction_count = input.feedback.risk_delta > 0.0 ? 1 : 0;
+    summary.contradiction_count = input.feedback.risk_delta >= 0.7 ? 1 : 0;
     summary.teaching_candidate_count = summary.aggregate_strength >= 0.55 ? 1 : 0;
     summary.first_observed_tick = input.feedback.observed_tick;
     summary.last_observed_tick = input.feedback.observed_tick;
@@ -1202,8 +1234,25 @@ Result<LearningLoopResult> LearningLoopService::run(
                     best_summary = &s;
                 }
             }
-            if (!best_summary && !actor_summaries.empty()) {
-                best_summary = &actor_summaries.back();
+
+            MemorySummary current_subject_summary;
+            if (!best_summary) {
+                std::vector<MemoryRecord> current_subject_records;
+                for (const auto& record : actor_memories) {
+                    if (record.subject.subject_id == input.feedback.memory_subject.subject_id) {
+                        current_subject_records.push_back(record);
+                    }
+                }
+                const double direct_feedback_strength = clamp01(
+                    0.35 + std::max(std::abs(input.feedback.utility_delta), std::abs(input.feedback.risk_delta)) * 0.5);
+                current_subject_summary = makeLearningSummary(
+                    input,
+                    input.actor.memory_owner,
+                    input.feedback.memory_subject,
+                    current_subject_records,
+                    direct_feedback_strength,
+                    {"learning_loop_current_subject_summary"});
+                best_summary = &current_subject_summary;
             }
 
             if (best_summary) {
@@ -1239,6 +1288,7 @@ Result<LearningLoopResult> LearningLoopService::run(
                 formation_opts.min_summary_strength = 0.20;
                 formation_opts.min_hypothesis_confidence = 0.10;
                 formation_opts.active_confidence_threshold = 0.15;
+                formation_opts.allow_contradiction_summary = true;
 
                 auto form_r = formation_service.formFromMemorySummary(formation_input, formation_opts);
                 if (form_r.is_error()) {
@@ -1289,7 +1339,8 @@ Result<LearningLoopResult> LearningLoopService::run(
                 if (existing.subject.subject_id == new_claim.subject.subject_id &&
                     existing.predicate.action_key == new_claim.predicate.action_key &&
                     existing.predicate.relation_type == new_claim.predicate.relation_type &&
-                    existing.predicate.effect_key != new_claim.predicate.effect_key) {
+                    existing.predicate.effect_key != new_claim.predicate.effect_key &&
+                    shouldReviseForConditionScope(existing.conditions, new_claim.conditions)) {
                     conflicting.push_back(existing);
                 }
             }
@@ -1400,8 +1451,8 @@ Result<LearningLoopResult> LearningLoopService::run(
             attempt.reason_keys.push_back("learning_loop_propagation");
 
             KnowledgePropagationOptions propagation_opts;
-            propagation_opts.min_source_confidence = 0.10;
-            propagation_opts.min_transfer_score = 0.05;
+            propagation_opts.min_source_confidence = 0.0;
+            propagation_opts.min_transfer_score = 0.0;
             auto prop_r = propagation_service.propagate(attempt, propagation_opts);
             if (prop_r.is_error()) {
                 result.traces.push_back(makeTrace(LearningLoopStage::KnowledgePropagated, LearningStepDecision::Failed,

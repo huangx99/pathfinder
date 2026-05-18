@@ -4340,3 +4340,233 @@ add_test(
     NAME p21_propagation_no_teaching
     COMMAND pathfinder_tests_p21_security propagation_without_teaching_evidence_rejected
 )
+
+# P22 unit tests: h5_dialog_types
+add_executable(pathfinder_tests_h5_dialog_types
+    unit/h5_dialog/dialog_types_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_h5_dialog_types PRIVATE
+    pathfinder_h5_dialog
+    pathfinder_learning
+    pathfinder_knowledge
+    pathfinder_memory
+    pathfinder_cognition
+    pathfinder_foundation
+)
+
+add_test(
+    NAME h5_dialog_smoke
+    COMMAND pathfinder_tests_h5_dialog_types smoke
+)
+
+add_test(
+    NAME h5_dialog_intent_parse_chinese
+    COMMAND pathfinder_tests_h5_dialog_types intent_parse_chinese
+)
+
+add_test(
+    NAME h5_dialog_scenario_catalog
+    COMMAND pathfinder_tests_h5_dialog_types scenario_catalog
+)
+
+add_test(
+    NAME h5_dialog_wire_codec_escape
+    COMMAND pathfinder_tests_h5_dialog_types wire_codec_escape
+)
+
+# P22 unit tests: h5_dialog_intent
+add_executable(pathfinder_tests_h5_dialog_intent
+    unit/h5_dialog/dialog_intent_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_h5_dialog_intent PRIVATE
+    pathfinder_h5_dialog
+    pathfinder_foundation
+)
+
+add_test(
+    NAME h5_dialog_intent_observe
+    COMMAND pathfinder_tests_h5_dialog_intent observe
+)
+
+add_test(
+    NAME h5_dialog_intent_eat_red_berry
+    COMMAND pathfinder_tests_h5_dialog_intent eat_red_berry
+)
+
+add_test(
+    NAME h5_dialog_intent_teach
+    COMMAND pathfinder_tests_h5_dialog_intent teach
+)
+
+add_test(
+    NAME h5_dialog_intent_unknown
+    COMMAND pathfinder_tests_h5_dialog_intent unknown
+)
+
+# P22 unit tests: h5_dialog_scenario
+add_executable(pathfinder_tests_h5_dialog_scenario
+    unit/h5_dialog/dialog_scenario_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_h5_dialog_scenario PRIVATE
+    pathfinder_h5_dialog
+    pathfinder_foundation
+)
+
+add_test(
+    NAME h5_dialog_scenario_default
+    COMMAND pathfinder_tests_h5_dialog_scenario default_scenario
+)
+
+add_test(
+    NAME h5_dialog_scenario_find_object
+    COMMAND pathfinder_tests_h5_dialog_scenario find_object
+)
+
+add_test(
+    NAME h5_dialog_scenario_find_feedback
+    COMMAND pathfinder_tests_h5_dialog_scenario find_feedback
+)
+
+# P22 unit tests: h5_dialog_session
+add_executable(pathfinder_tests_h5_dialog_session
+    unit/h5_dialog/dialog_session_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_h5_dialog_session PRIVATE
+    pathfinder_h5_dialog
+    pathfinder_foundation
+)
+
+add_test(
+    NAME h5_dialog_session_create
+    COMMAND pathfinder_tests_h5_dialog_session session_create
+)
+
+add_test(
+    NAME h5_dialog_session_save_load
+    COMMAND pathfinder_tests_h5_dialog_session session_save_load
+)
+
+# P22 unit tests: h5_dialog_learning_adapter
+add_executable(pathfinder_tests_h5_dialog_learning_adapter
+    unit/h5_dialog/dialog_learning_adapter_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_h5_dialog_learning_adapter PRIVATE
+    pathfinder_h5_dialog
+    pathfinder_learning
+    pathfinder_knowledge
+    pathfinder_memory
+    pathfinder_cognition
+    pathfinder_foundation
+)
+
+add_test(
+    NAME h5_dialog_learning_adapter_valid_input
+    COMMAND pathfinder_tests_h5_dialog_learning_adapter valid_input
+)
+
+# P22 unit tests: h5_dialog_presenter
+add_executable(pathfinder_tests_h5_dialog_presenter
+    unit/h5_dialog/dialog_presenter_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_h5_dialog_presenter PRIVATE
+    pathfinder_h5_dialog
+    pathfinder_learning
+    pathfinder_knowledge
+    pathfinder_memory
+    pathfinder_cognition
+    pathfinder_foundation
+)
+
+add_test(
+    NAME h5_dialog_presenter_chinese_response
+    COMMAND pathfinder_tests_h5_dialog_presenter chinese_response
+)
+
+# P22 unit tests: h5_dialog_wire_codec
+add_executable(pathfinder_tests_h5_dialog_wire_codec
+    unit/h5_dialog/dialog_wire_codec_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_h5_dialog_wire_codec PRIVATE
+    pathfinder_h5_dialog
+    pathfinder_foundation
+)
+
+add_test(
+    NAME h5_dialog_wire_codec_parse
+    COMMAND pathfinder_tests_h5_dialog_wire_codec parse_request
+)
+
+add_test(
+    NAME h5_dialog_wire_codec_encode
+    COMMAND pathfinder_tests_h5_dialog_wire_codec encode_response
+)
+
+add_test(
+    NAME h5_dialog_wire_codec_chinese
+    COMMAND pathfinder_tests_h5_dialog_wire_codec chinese_escape
+)
+
+# P22 integration tests: learning story
+add_executable(pathfinder_tests_p22_learning_story
+    integration/p22/h5_dialog_learning_story_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_p22_learning_story PRIVATE
+    pathfinder_h5_dialog
+    pathfinder_learning
+    pathfinder_knowledge
+    pathfinder_memory
+    pathfinder_cognition
+    pathfinder_foundation
+)
+
+add_test(
+    NAME p22_red_berry_learning_flow
+    COMMAND pathfinder_tests_p22_learning_story red_berry_learning_flow
+)
+
+add_test(
+    NAME p22_teach_companion_flow
+    COMMAND pathfinder_tests_p22_learning_story teach_companion_flow
+)
+
+add_test(
+    NAME p22_decayed_red_berry_revision_flow
+    COMMAND pathfinder_tests_p22_learning_story decayed_red_berry_revision_flow
+)
+
+add_test(
+    NAME p22_non_red_object_flow
+    COMMAND pathfinder_tests_p22_learning_story non_red_object_flow
+)
+
+# P22 integration tests: security
+add_executable(pathfinder_tests_p22_security
+    integration/p22/h5_dialog_security_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_p22_security PRIVATE
+    pathfinder_h5_dialog
+    pathfinder_learning
+    pathfinder_knowledge
+    pathfinder_memory
+    pathfinder_cognition
+    pathfinder_foundation
+)
+
+add_test(
+    NAME p22_security_forbidden_input
+    COMMAND pathfinder_tests_p22_security forbidden_input
+)
+
+add_test(
+    NAME p22_security_hidden_truth
+    COMMAND pathfinder_tests_p22_security hidden_truth
+)

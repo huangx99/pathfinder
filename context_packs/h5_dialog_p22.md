@@ -6,7 +6,7 @@ P22 turns the P21 backend learning loop into a minimal Chinese H5 text game.
 
 It is not a formal UI, not the final protocol layer, and not a new rule system.
 
-The goal is to let a player open port 6006 on a phone and complete:
+The goal is to let a player open port 1999 on a phone and complete:
 
 ```text
 observe -> try -> learn -> inspect knowledge -> teach companion -> inspect companion -> contradiction/revision
@@ -235,7 +235,7 @@ p22_security_forbidden_input
 Manual run:
 
 ```bash
-./build/backend/pathfinder_h5_dialog_server --host 0.0.0.0 --port 6006 --static-root frontend/h5_dialog
+./build/backend/pathfinder_h5_dialog_server --host 0.0.0.0 --port 1999 --static-root frontend/h5_dialog
 ```
 
 Manual phone flow:
@@ -261,7 +261,7 @@ backend builds
 P22 unit tests pass
 P22 integration tests pass
 full regression passes
-phone can open H5 page on port 6006
+phone can open H5 page on port 1999
 all visible UI text is Chinese
 red berry learning works
 teaching works
