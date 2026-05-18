@@ -4341,6 +4341,125 @@ add_test(
     COMMAND pathfinder_tests_p21_security propagation_without_teaching_evidence_rejected
 )
 
+
+# P23 unit tests: tribe types
+add_executable(pathfinder_tests_tribe_types
+    unit/tribe/tribe_types_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_tribe_types PRIVATE
+    pathfinder_tribe
+    pathfinder_foundation
+)
+
+add_test(
+    NAME tribe_role_enum_roundtrip
+    COMMAND pathfinder_tests_tribe_types role_enum_roundtrip
+)
+
+add_test(
+    NAME tribe_cohesion_enum_roundtrip
+    COMMAND pathfinder_tests_tribe_types cohesion_enum_roundtrip
+)
+
+add_test(
+    NAME tribe_member_validate
+    COMMAND pathfinder_tests_tribe_types member_validate
+)
+
+add_test(
+    NAME tribe_split_risk_validate
+    COMMAND pathfinder_tests_tribe_types split_risk_validate
+)
+
+# P23 unit tests: tribe state
+add_executable(pathfinder_tests_tribe_state
+    unit/tribe/tribe_state_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_tribe_state PRIVATE
+    pathfinder_tribe
+    pathfinder_knowledge
+    pathfinder_foundation
+)
+
+add_test(
+    NAME tribe_state_validate
+    COMMAND pathfinder_tests_tribe_state state_validate
+)
+
+add_test(
+    NAME tribe_projection_safe_summary
+    COMMAND pathfinder_tests_tribe_state projection_safe_summary
+)
+
+add_test(
+    NAME tribe_resolver_member_join
+    COMMAND pathfinder_tests_tribe_state resolver_member_join
+)
+
+add_test(
+    NAME tribe_resolver_role_change
+    COMMAND pathfinder_tests_tribe_state resolver_role_change
+)
+
+add_test(
+    NAME tribe_resolver_morale_trust
+    COMMAND pathfinder_tests_tribe_state resolver_morale_trust
+)
+
+add_test(
+    NAME tribe_resolver_split_risk
+    COMMAND pathfinder_tests_tribe_state resolver_split_risk
+)
+
+# P23 integration tests: tribe state flows
+add_executable(pathfinder_tests_p23_flow
+    integration/p23/tribe_state_flow_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_p23_flow PRIVATE
+    pathfinder_tribe
+    pathfinder_knowledge
+    pathfinder_foundation
+)
+
+add_test(
+    NAME p23_tribe_creation_flow
+    COMMAND pathfinder_tests_p23_flow tribe_creation_flow
+)
+
+add_test(
+    NAME p23_tribe_role_and_projection_flow
+    COMMAND pathfinder_tests_p23_flow tribe_role_and_projection_flow
+)
+
+add_test(
+    NAME p23_split_risk_deterministic_flow
+    COMMAND pathfinder_tests_p23_flow split_risk_deterministic_flow
+)
+
+# P23 integration tests: tribe security
+add_executable(pathfinder_tests_p23_security
+    integration/p23/tribe_state_security_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_p23_security PRIVATE
+    pathfinder_tribe
+    pathfinder_knowledge
+    pathfinder_foundation
+)
+
+add_test(
+    NAME p23_security_forbidden_keys
+    COMMAND pathfinder_tests_p23_security forbidden_keys
+)
+
+add_test(
+    NAME p23_security_rejects_random_split
+    COMMAND pathfinder_tests_p23_security rejects_random_split
+)
+
 # P22 unit tests: h5_dialog_types
 add_executable(pathfinder_tests_h5_dialog_types
     unit/h5_dialog/dialog_types_test.cpp

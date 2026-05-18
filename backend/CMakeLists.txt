@@ -508,6 +508,21 @@ target_link_libraries(pathfinder_knowledge PUBLIC
     pathfinder_memory
 )
 
+# Tribe library (P23)
+add_library(pathfinder_tribe STATIC
+    src/tribe/tribe_types.cpp
+    src/tribe/tribe_state.cpp
+)
+
+target_include_directories(pathfinder_tribe PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(pathfinder_tribe PUBLIC
+    pathfinder_foundation
+    pathfinder_knowledge
+)
+
 # Learning library (P21)
 add_library(pathfinder_learning STATIC
     src/learning/learning_loop.cpp
