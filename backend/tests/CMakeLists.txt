@@ -4798,6 +4798,14 @@ add_test(
     NAME p25_projection_includes_target_pressure_flow
     COMMAND pathfinder_tests_p25_flow projection_target
 )
+add_test(
+    NAME p25_intimidated_applies_pressure_to_losing_tribe_flow
+    COMMAND pathfinder_tests_p25_flow intimidated_loser_pressure
+)
+add_test(
+    NAME p25_forced_retreat_applies_retreat_pressure_to_forced_side_flow
+    COMMAND pathfinder_tests_p25_flow forced_retreat_pressure
+)
 
 # --- P25 integration tests: conflict security ---
 

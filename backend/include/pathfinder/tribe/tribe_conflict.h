@@ -289,7 +289,9 @@ public:
         const ConflictParticipantTribe& participant,
         ConflictOutcomeKind outcome,
         const ConflictIntent& own_intent,
-        const ConflictIntent& opponent_intent) const;
+        const ConflictIntent& opponent_intent,
+        double own_strength,
+        double opponent_strength) const;
 };
 
 class TribeRelationTransitionPolicy {

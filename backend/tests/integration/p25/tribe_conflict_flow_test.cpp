@@ -3,6 +3,7 @@
 #include "pathfinder/tribe/tribe_state.h"
 #include <algorithm>
 #include <cassert>
+#include <cmath>
 #include <iostream>
 
 using namespace pathfinder::tribe;
@@ -595,9 +596,9 @@ static void test_conflict_outcome_trust_delta_not_overwritten() {
     auto dto = result.value();
     assert(dto.ok);
 
-    // If Standoff, trust_delta = P24 baseline (0.05) + outcome modifier (-0.02) = ~0.03
-    // Must NOT be just P24 baseline (0.05) — that would mean the outcome was overwritten
-    assert(std::abs(dto.source_state_draft.trust_delta) <= 0.05);
+    assert(dto.outcome_kind == ConflictOutcomeKind::Standoff);
+    assert(std::abs(dto.source_state_draft.trust_delta - 0.03) < 0.001);
+    assert(std::abs(dto.target_state_draft.trust_delta - 0.03) < 0.001);
     std::cout << "p25_conflict_outcome_trust_delta_not_overwritten_flow passed" << std::endl;
 }
 
@@ -646,7 +647,7 @@ static void test_truce_offered_with_medium_strength_high_loss() {
     auto dto = result.value();
     assert(dto.ok);
     // With both sides having high loss + low resource, should be able to truce
-    assert(dto.outcome_kind != ConflictOutcomeKind::Unknown);
+    assert(dto.outcome_kind == ConflictOutcomeKind::TruceOffered);
     std::cout << "p25_truce_offered_with_medium_strength_high_loss_flow passed" << std::endl;
 }
 
@@ -704,10 +705,100 @@ static void test_projection_includes_target_pressure() {
     auto dto = result.value();
     assert(dto.ok);
 
-    // With target weak + high hostility, target state draft should have pressure
-    // Projection should combine both sides
-    assert(!dto.projection.visible_pressure_level.empty());
+    // With target weak + high hostility, target state draft should have pressure.
+    // Projection must combine both sides instead of only reading source pressure.
+    assert(dto.projection.state_pressure_changed);
+    assert(dto.projection.visible_pressure_level == "low" ||
+           dto.projection.visible_pressure_level == "moderate" ||
+           dto.projection.visible_pressure_level == "high");
+    assert(std::abs(dto.target_state_draft.retreat_pressure_delta) > 0.0 ||
+           std::abs(dto.target_state_draft.loss_pressure_delta) > 0.0 ||
+           std::abs(dto.target_state_draft.safety_pressure_delta) > 0.0);
     std::cout << "p25_projection_includes_target_pressure_flow passed" << std::endl;
+}
+
+static void test_intimidated_applies_pressure_to_losing_tribe() {
+    auto s_a = makeTribeState(TribeId("tribe_a"), {{"pa", TribeMemberRole::Pioneer}, {"ga", TribeMemberRole::Guardian}, {"ea", TribeMemberRole::Explorer}});
+    auto s_b = makeTribeState(TribeId("tribe_b"), {{"pb", TribeMemberRole::Pioneer}});
+
+    auto coord_a = getCoordinationResult(s_a, {{"generic", 0.1}});
+    auto coord_b = getCoordinationResult(s_b, {{"wolf", 0.9}});
+
+    auto pa = makeParticipant(TribeId("tribe_a"), "source", s_a, coord_a);
+    pa.morale_summary = 1.0;
+    pa.trust_summary = 1.0;
+    pa.split_risk_summary = 0.0;
+    pa.safety_pressure_summary = 0.0;
+    pa.loss_pressure_summary = 0.0;
+    pa.coordination_result.pack_tactic.coordination_score = 1.0;
+
+    auto pb = makeParticipant(TribeId("tribe_b"), "target", s_b, coord_b);
+    pb.morale_summary = 0.0;
+    pb.trust_summary = 0.0;
+    pb.split_risk_summary = 1.0;
+    pb.safety_pressure_summary = 0.5;
+    pb.loss_pressure_summary = 0.2;
+    pb.coordination_result.pack_tactic.coordination_score = 0.0;
+
+    auto rel = makeRelation(TribeId("tribe_a"), TribeId("tribe_b"), HostilityState::Threatened);
+    auto ps = makePressure("intimidation_pressure", 0.4, 0.4, 0.5, 0.3);
+    auto input = makeInput(pa, pb, rel, ps);
+
+    GroupCombatResolver resolver;
+    auto result = resolver.resolve(input);
+    assert(result.is_ok());
+    auto dto = result.value();
+    assert(dto.ok);
+    assert(dto.outcome_kind == ConflictOutcomeKind::Intimidated);
+    assert(dto.source_state_draft.morale_delta > 0.0);
+    assert(dto.target_state_draft.retreat_pressure_delta > 0.0);
+    assert(dto.target_state_draft.safety_pressure_delta > 0.0);
+    assert(dto.target_state_draft.morale_delta < 0.0);
+    assert(dto.projection.state_pressure_changed);
+    assert(dto.projection.visible_pressure_level != "none");
+    std::cout << "p25_intimidated_applies_pressure_to_losing_tribe_flow passed" << std::endl;
+}
+
+static void test_forced_retreat_applies_retreat_pressure_to_forced_side() {
+    auto s_a = makeTribeState(TribeId("tribe_a"), {{"pa", TribeMemberRole::Pioneer}});
+    auto s_b = makeTribeState(TribeId("tribe_b"), {{"pb", TribeMemberRole::Pioneer}, {"gb", TribeMemberRole::Guardian}, {"eb", TribeMemberRole::Explorer}});
+
+    auto coord_a = getCoordinationResult(s_a, {{"wolf", 0.9}});
+    auto coord_b = getCoordinationResult(s_b, {{"generic", 0.1}});
+
+    auto pa = makeParticipant(TribeId("tribe_a"), "source", s_a, coord_a);
+    pa.morale_summary = 0.0;
+    pa.trust_summary = 0.0;
+    pa.split_risk_summary = 1.0;
+    pa.safety_pressure_summary = 0.5;
+    pa.loss_pressure_summary = 0.2;
+    pa.coordination_result.pack_tactic.coordination_score = 0.0;
+
+    auto pb = makeParticipant(TribeId("tribe_b"), "target", s_b, coord_b);
+    pb.morale_summary = 1.0;
+    pb.trust_summary = 1.0;
+    pb.split_risk_summary = 0.0;
+    pb.safety_pressure_summary = 0.0;
+    pb.loss_pressure_summary = 0.0;
+    pb.coordination_result.pack_tactic.coordination_score = 1.0;
+
+    auto rel = makeRelation(TribeId("tribe_a"), TribeId("tribe_b"), HostilityState::Threatened);
+    auto ps = makePressure("forced_retreat_pressure", 0.4, 0.4, 0.7, 0.3);
+    auto input = makeInput(pa, pb, rel, ps);
+
+    GroupCombatResolver resolver;
+    auto result = resolver.resolve(input);
+    assert(result.is_ok());
+    auto dto = result.value();
+    assert(dto.ok);
+    assert(dto.outcome_kind == ConflictOutcomeKind::ForcedRetreat);
+    assert(dto.source_state_draft.retreat_pressure_delta > 0.0);
+    assert(dto.source_state_draft.safety_pressure_delta > 0.0);
+    assert(dto.source_state_draft.morale_delta < 0.0);
+    assert(dto.target_state_draft.safety_pressure_delta <= 0.0);
+    assert(dto.projection.state_pressure_changed);
+    assert(dto.projection.visible_pressure_level != "none");
+    std::cout << "p25_forced_retreat_applies_retreat_pressure_to_forced_side_flow passed" << std::endl;
 }
 
 int main(int argc, char* argv[]) {
@@ -726,6 +817,8 @@ int main(int argc, char* argv[]) {
     else if (arg == "trust_delta_not_overwritten") test_conflict_outcome_trust_delta_not_overwritten();
     else if (arg == "truce_medium_strength") test_truce_offered_with_medium_strength_high_loss();
     else if (arg == "projection_target") test_projection_includes_target_pressure();
+    else if (arg == "intimidated_loser_pressure") test_intimidated_applies_pressure_to_losing_tribe();
+    else if (arg == "forced_retreat_pressure") test_forced_retreat_applies_retreat_pressure_to_forced_side();
     else {
         test_neutral_low_pressure_avoids_conflict();
         test_resource_contest_standoff();
@@ -741,6 +834,8 @@ int main(int argc, char* argv[]) {
         test_conflict_outcome_trust_delta_not_overwritten();
         test_truce_offered_with_medium_strength_high_loss();
         test_projection_includes_target_pressure();
+        test_intimidated_applies_pressure_to_losing_tribe();
+        test_forced_retreat_applies_retreat_pressure_to_forced_side();
     }
     return 0;
 }

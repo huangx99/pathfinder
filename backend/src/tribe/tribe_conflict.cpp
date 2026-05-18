@@ -820,7 +820,9 @@ Result<ConflictStateDraft> ConflictStateDraftBuilder::buildForTribe(
     const ConflictParticipantTribe& participant,
     ConflictOutcomeKind outcome,
     const ConflictIntent& own_intent,
-    const ConflictIntent& opponent_intent) const {
+    const ConflictIntent& opponent_intent,
+    double own_strength,
+    double opponent_strength) const {
     ConflictStateDraft draft;
     draft.tribe_id = participant.tribe_id;
 
@@ -840,14 +842,22 @@ Result<ConflictStateDraft> ConflictStateDraftBuilder::buildForTribe(
                 draft.morale_delta = clampDelta(draft.morale_delta + 0.03);
                 draft.safety_pressure_delta = clampDelta(draft.safety_pressure_delta - 0.05);
                 draft.trust_delta = clampDelta(draft.trust_delta + 0.02);
+            } else if (opponent_intent.intent_kind == ConflictIntentKind::Intimidate || own_strength < opponent_strength) {
+                draft.morale_delta = clampDelta(draft.morale_delta - 0.04);
+                draft.trust_delta = clampDelta(draft.trust_delta - 0.03);
+                draft.safety_pressure_delta = clampDelta(draft.safety_pressure_delta + 0.08);
+                draft.retreat_pressure_delta = clampDelta(draft.retreat_pressure_delta + 0.12);
             }
             break;
         case ConflictOutcomeKind::ForcedRetreat:
-            if (own_intent.intent_kind == ConflictIntentKind::Retreat) {
+            if (own_intent.intent_kind == ConflictIntentKind::Retreat || own_strength < opponent_strength) {
                 draft.morale_delta = clampDelta(draft.morale_delta - 0.05);
                 draft.retreat_pressure_delta = clampDelta(draft.retreat_pressure_delta + 0.15);
                 draft.safety_pressure_delta = clampDelta(draft.safety_pressure_delta + 0.10);
                 draft.trust_delta = clampDelta(draft.trust_delta - 0.03);
+            } else if (opponent_intent.intent_kind == ConflictIntentKind::Retreat) {
+                draft.morale_delta = clampDelta(draft.morale_delta + 0.02);
+                draft.safety_pressure_delta = clampDelta(draft.safety_pressure_delta - 0.03);
             }
             break;
         case ConflictOutcomeKind::Standoff:
@@ -1094,13 +1104,15 @@ Result<ConflictResolutionResult> GroupCombatResolver::resolve(
     ConflictIntent target_intent_full{input.target.tribe_id, target_intent_kind, target_stance, target_strength, input.pressure_summary.resource_pressure, {"p25"}};
 
     auto ssd_result = state_builder.buildForTribe(
-        input.source, result.outcome_kind, source_intent_full, target_intent_full);
+        input.source, result.outcome_kind, source_intent_full, target_intent_full,
+        source_strength, target_strength);
     if (ssd_result.is_ok()) {
         result.source_state_draft = ssd_result.value();
     }
 
     auto tsd_result = state_builder.buildForTribe(
-        input.target, result.outcome_kind, target_intent_full, source_intent_full);
+        input.target, result.outcome_kind, target_intent_full, source_intent_full,
+        target_strength, source_strength);
     if (tsd_result.is_ok()) {
         result.target_state_draft = tsd_result.value();
     }
