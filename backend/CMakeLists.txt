@@ -513,6 +513,7 @@ add_library(pathfinder_tribe STATIC
     src/tribe/tribe_types.cpp
     src/tribe/tribe_state.cpp
     src/tribe/tribe_coordination.cpp
+    src/tribe/tribe_conflict.cpp
 )
 
 target_include_directories(pathfinder_tribe PUBLIC

@@ -4673,6 +4673,159 @@ add_test(
     COMMAND pathfinder_tests_p24_security invalid_knowledge_id
 )
 
+# --- P25 unit tests: tribe_conflict ---
+
+add_executable(pathfinder_tests_tribe_conflict
+    unit/tribe/tribe_conflict_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_tribe_conflict PRIVATE
+    pathfinder_tribe
+)
+
+add_test(
+    NAME tribe_conflict_hostility_enum_roundtrip
+    COMMAND pathfinder_tests_tribe_conflict hostility_enum_roundtrip
+)
+add_test(
+    NAME tribe_conflict_intent_enum_roundtrip
+    COMMAND pathfinder_tests_tribe_conflict conflict_intent_enum_roundtrip
+)
+add_test(
+    NAME tribe_conflict_outcome_enum_roundtrip
+    COMMAND pathfinder_tests_tribe_conflict conflict_outcome_enum_roundtrip
+)
+add_test(
+    NAME tribe_conflict_tribe_relation_validate
+    COMMAND pathfinder_tests_tribe_conflict tribe_relation_validate
+)
+add_test(
+    NAME tribe_conflict_pressure_summary_validate
+    COMMAND pathfinder_tests_tribe_conflict conflict_pressure_summary_validate
+)
+add_test(
+    NAME tribe_conflict_participant_requires_coordination
+    COMMAND pathfinder_tests_tribe_conflict conflict_participant_requires_coordination
+)
+add_test(
+    NAME tribe_conflict_resolution_input_validate
+    COMMAND pathfinder_tests_tribe_conflict conflict_resolution_input_validate
+)
+add_test(
+    NAME tribe_conflict_resolution_result_validate
+    COMMAND pathfinder_tests_tribe_conflict conflict_resolution_result_validate
+)
+add_test(
+    NAME tribe_conflict_projection_safe_summary
+    COMMAND pathfinder_tests_tribe_conflict conflict_projection_safe_summary
+)
+add_test(
+    NAME tribe_conflict_trace_safe_summary
+    COMMAND pathfinder_tests_tribe_conflict conflict_trace_safe_summary
+)
+add_test(
+    NAME tribe_conflict_state_draft_unique_member
+    COMMAND pathfinder_tests_tribe_conflict conflict_state_draft_unique_member
+)
+
+# --- P25 integration tests: conflict flow ---
+
+add_executable(pathfinder_tests_p25_flow
+    integration/p25/tribe_conflict_flow_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_p25_flow PRIVATE
+    pathfinder_tribe
+)
+
+add_test(
+    NAME p25_neutral_low_pressure_avoids_conflict_flow
+    COMMAND pathfinder_tests_p25_flow neutral_low_pressure
+)
+add_test(
+    NAME p25_resource_contest_standoff_flow
+    COMMAND pathfinder_tests_p25_flow resource_contest
+)
+add_test(
+    NAME p25_high_coordination_intimidates_flow
+    COMMAND pathfinder_tests_p25_flow high_coordination_intimidates
+)
+add_test(
+    NAME p25_low_morale_forced_retreat_flow
+    COMMAND pathfinder_tests_p25_flow low_morale_retreat
+)
+add_test(
+    NAME p25_hostility_escalates_deterministically_flow
+    COMMAND pathfinder_tests_p25_flow hostility_escalates
+)
+add_test(
+    NAME p25_loss_pressure_without_death_flow
+    COMMAND pathfinder_tests_p25_flow loss_pressure_no_death
+)
+add_test(
+    NAME p25_truce_offered_when_pressure_drops_flow
+    COMMAND pathfinder_tests_p25_flow truce_pressure_drops
+)
+add_test(
+    NAME p25_uses_p24_coordination_result_flow
+    COMMAND pathfinder_tests_p25_flow uses_p24
+)
+add_test(
+    NAME p25_relation_draft_does_not_mutate_state_flow
+    COMMAND pathfinder_tests_p25_flow relation_draft
+)
+add_test(
+    NAME p25_deterministic_resolution_flow
+    COMMAND pathfinder_tests_p25_flow deterministic
+)
+
+# --- P25 integration tests: conflict security ---
+
+add_executable(pathfinder_tests_p25_security
+    integration/p25/tribe_conflict_security_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_p25_security PRIVATE
+    pathfinder_tribe
+)
+
+add_test(
+    NAME p25_security_rejects_missing_coordination
+    COMMAND pathfinder_tests_p25_security missing_coordination
+)
+add_test(
+    NAME p25_security_rejects_raw_game_state
+    COMMAND pathfinder_tests_p25_security raw_game_state
+)
+add_test(
+    NAME p25_security_rejects_hidden_truth
+    COMMAND pathfinder_tests_p25_security hidden_truth
+)
+add_test(
+    NAME p25_security_rejects_damage_death_keys
+    COMMAND pathfinder_tests_p25_security damage_death_keys
+)
+add_test(
+    NAME p25_security_projection_no_hidden_truth
+    COMMAND pathfinder_tests_p25_security projection_no_hidden
+)
+add_test(
+    NAME p25_security_trace_no_hp_death
+    COMMAND pathfinder_tests_p25_security trace_no_hp_death
+)
+add_test(
+    NAME p25_security_rejects_duplicate_member
+    COMMAND pathfinder_tests_p25_security duplicate_member
+)
+add_test(
+    NAME p25_security_rejects_same_tribe
+    COMMAND pathfinder_tests_p25_security same_tribe
+)
+add_test(
+    NAME p25_security_rejects_test_only_enum
+    COMMAND pathfinder_tests_p25_security test_only_enum
+)
+
 # P22 unit tests: h5_dialog_types
 add_executable(pathfinder_tests_h5_dialog_types
     unit/h5_dialog/dialog_types_test.cpp
