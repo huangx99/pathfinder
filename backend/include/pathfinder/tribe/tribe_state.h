@@ -61,7 +61,6 @@ struct TribeStateInput {
 };
 
 struct TribeStateOptions {
-    bool allow_test_only{false};
     double morale_delta_weight{1.0};
     double trust_delta_weight{1.0};
 

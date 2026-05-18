@@ -4413,6 +4413,11 @@ add_test(
     COMMAND pathfinder_tests_tribe_state resolver_split_risk
 )
 
+add_test(
+    NAME tribe_resolver_member_leave
+    COMMAND pathfinder_tests_tribe_state resolver_member_leave
+)
+
 # P23 integration tests: tribe state flows
 add_executable(pathfinder_tests_p23_flow
     integration/p23/tribe_state_flow_test.cpp
@@ -4458,6 +4463,66 @@ add_test(
 add_test(
     NAME p23_security_rejects_random_split
     COMMAND pathfinder_tests_p23_security rejects_random_split
+)
+
+add_test(
+    NAME p23_security_tribe_id_empty_rejected
+    COMMAND pathfinder_tests_p23_security tribe_id_empty_rejected
+)
+
+add_test(
+    NAME p23_security_member_id_empty_rejected
+    COMMAND pathfinder_tests_p23_security member_id_empty_rejected
+)
+
+add_test(
+    NAME p23_security_ratio_out_of_range_rejected
+    COMMAND pathfinder_tests_p23_security ratio_out_of_range_rejected
+)
+
+add_test(
+    NAME p23_security_active_population_exceeds_total_rejected
+    COMMAND pathfinder_tests_p23_security active_population_exceeds_total_rejected
+)
+
+add_test(
+    NAME p23_security_duplicate_member_id_rejected
+    COMMAND pathfinder_tests_p23_security duplicate_member_id_rejected
+)
+
+add_test(
+    NAME p23_security_duplicate_knowledge_id_rejected
+    COMMAND pathfinder_tests_p23_security duplicate_knowledge_id_rejected
+)
+
+add_test(
+    NAME p23_security_test_only_enum_rejected
+    COMMAND pathfinder_tests_p23_security test_only_enum_rejected
+)
+
+add_test(
+    NAME p23_security_trust_changed_missing_trust_rejected
+    COMMAND pathfinder_tests_p23_security trust_changed_missing_trust_rejected
+)
+
+add_test(
+    NAME p23_security_morale_changed_missing_morale_rejected
+    COMMAND pathfinder_tests_p23_security morale_changed_missing_morale_rejected
+)
+
+add_test(
+    NAME p23_security_duplicate_member_events_rejected
+    COMMAND pathfinder_tests_p23_security duplicate_member_events_rejected
+)
+
+add_test(
+    NAME p23_security_duplicate_knowledge_events_rejected
+    COMMAND pathfinder_tests_p23_security duplicate_knowledge_events_rejected
+)
+
+add_test(
+    NAME p23_security_draft_validation_rejected
+    COMMAND pathfinder_tests_p23_security draft_validation_rejected
 )
 
 # P22 unit tests: h5_dialog_types

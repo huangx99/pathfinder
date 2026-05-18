@@ -158,6 +158,9 @@ Result<void> TribeState::validateBasic() const {
     if (active_population != active_count) {
         return Result<void>::fail(makeError(ErrorCode::validation_failed, "TribeState active_population mismatch"));
     }
+    if (active_population > population_total) {
+        return Result<void>::fail(makeError(ErrorCode::validation_failed, "TribeState active_population exceeds population_total"));
+    }
     auto morale_result = morale.validateBasic();
     if (morale_result.is_error()) return morale_result;
     auto trust_result = trust.validateBasic();
@@ -177,6 +180,12 @@ Result<void> TribeMemberEvent::validateBasic() const {
     if (id_result.is_error()) return id_result;
     if ((kind == TribeStateChangeKind::MemberAdded || kind == TribeStateChangeKind::MemberRoleChanged) && !role.has_value()) {
         return Result<void>::fail(makeError(ErrorCode::validation_failed, "TribeMemberEvent role missing"));
+    }
+    if (kind == TribeStateChangeKind::TrustChanged && !trust.has_value()) {
+        return Result<void>::fail(makeError(ErrorCode::validation_failed, "TribeMemberEvent trust missing for TrustChanged"));
+    }
+    if (kind == TribeStateChangeKind::MoraleChanged && !morale.has_value()) {
+        return Result<void>::fail(makeError(ErrorCode::validation_failed, "TribeMemberEvent morale missing for MoraleChanged"));
     }
     if (role.has_value() && !isValidRoleForInput(role.value())) {
         return Result<void>::fail(makeError(ErrorCode::validation_enum_unknown, "TribeMemberEvent role invalid"));
@@ -203,13 +212,21 @@ Result<void> TribeKnowledgeEvent::validateBasic() const {
 Result<void> TribeStateInput::validateBasic() const {
     auto id_result = validateId(tribe_id, "TribeStateInput tribe_id");
     if (id_result.is_error()) return id_result;
+    std::set<std::string> seen_member_ids;
     for (const auto& event : member_events) {
         auto result = event.validateBasic();
         if (result.is_error()) return result;
+        if (!seen_member_ids.insert(event.member_id.value()).second) {
+            return Result<void>::fail(makeError(ErrorCode::validation_failed, "TribeStateInput duplicate member_id in member_events"));
+        }
     }
+    std::set<std::string> seen_knowledge_ids;
     for (const auto& event : knowledge_events) {
         auto result = event.validateBasic();
         if (result.is_error()) return result;
+        if (!seen_knowledge_ids.insert(event.knowledge_id.value()).second) {
+            return Result<void>::fail(makeError(ErrorCode::validation_failed, "TribeStateInput duplicate knowledge_id in knowledge_events"));
+        }
     }
     for (const auto& item : {std::pair<double, const char*>{resource_pressure, "TribeStateInput resource_pressure"},
                             {safety_pressure, "TribeStateInput safety_pressure"},
@@ -239,6 +256,42 @@ Result<void> TribeStateChangeDraft::validateBasic() const {
     if (!isValidChangeKind(kind)) {
         return Result<void>::fail(makeError(ErrorCode::validation_enum_unknown, "TribeStateChangeDraft kind invalid"));
     }
+    if (kind == TribeStateChangeKind::MemberAdded) {
+        if (!member_id.has_value()) {
+            return Result<void>::fail(makeError(ErrorCode::command_missing_required_field, "TribeStateChangeDraft MemberAdded requires member_id"));
+        }
+        if (!new_role.has_value()) {
+            return Result<void>::fail(makeError(ErrorCode::command_missing_required_field, "TribeStateChangeDraft MemberAdded requires new_role"));
+        }
+    } else if (kind == TribeStateChangeKind::MemberRemoved) {
+        if (!member_id.has_value()) {
+            return Result<void>::fail(makeError(ErrorCode::command_missing_required_field, "TribeStateChangeDraft MemberRemoved requires member_id"));
+        }
+        if (!old_role.has_value()) {
+            return Result<void>::fail(makeError(ErrorCode::command_missing_required_field, "TribeStateChangeDraft MemberRemoved requires old_role"));
+        }
+    } else if (kind == TribeStateChangeKind::MemberRoleChanged) {
+        if (!member_id.has_value()) {
+            return Result<void>::fail(makeError(ErrorCode::command_missing_required_field, "TribeStateChangeDraft MemberRoleChanged requires member_id"));
+        }
+        if (!old_role.has_value()) {
+            return Result<void>::fail(makeError(ErrorCode::command_missing_required_field, "TribeStateChangeDraft MemberRoleChanged requires old_role"));
+        }
+        if (!new_role.has_value()) {
+            return Result<void>::fail(makeError(ErrorCode::command_missing_required_field, "TribeStateChangeDraft MemberRoleChanged requires new_role"));
+        }
+    } else if (kind == TribeStateChangeKind::TrustChanged ||
+               kind == TribeStateChangeKind::MoraleChanged ||
+               kind == TribeStateChangeKind::SplitRiskChanged ||
+               kind == TribeStateChangeKind::CohesionChanged) {
+        if (!isValidRatio(old_value) || !isValidRatio(new_value)) {
+            return Result<void>::fail(makeError(ErrorCode::validation_value_out_of_range, "TribeStateChangeDraft value out of 0..1 range"));
+        }
+    } else if (kind == TribeStateChangeKind::KnowledgeLinked) {
+        if (new_value < 0.0 || !std::isfinite(new_value)) {
+            return Result<void>::fail(makeError(ErrorCode::validation_value_out_of_range, "TribeStateChangeDraft KnowledgeLinked new_value invalid"));
+        }
+    }
     if (member_id.has_value()) {
         auto id_result = validateId(member_id.value(), "TribeStateChangeDraft member_id");
         if (id_result.is_error()) return id_result;
@@ -248,9 +301,6 @@ Result<void> TribeStateChangeDraft::validateBasic() const {
     }
     if (new_role.has_value() && !isValidRoleForInput(new_role.value())) {
         return Result<void>::fail(makeError(ErrorCode::validation_enum_unknown, "TribeStateChangeDraft new_role invalid"));
-    }
-    if (!std::isfinite(old_value) || !std::isfinite(new_value)) {
-        return Result<void>::fail(makeError(ErrorCode::validation_value_out_of_range, "TribeStateChangeDraft values must be finite"));
     }
     if (summary_key.empty() || containsTribeForbiddenKey(summary_key)) {
         return Result<void>::fail(makeError(ErrorCode::validation_failed, "TribeStateChangeDraft summary_key invalid"));
@@ -401,26 +451,9 @@ Result<TribeStateResolveResult> TribeStateResolver::resolve(const TribeState& cu
                 draft.reason_keys = event.reason_keys;
                 result.state_changes.push_back(std::move(draft));
                 result.trace.steps.push_back("member_added:" + event.member_id.value());
-            } else if (!found->active) {
-                found->active = true;
-                found->updated_tick = input.input_tick;
-                if (event.role.has_value()) found->role = event.role.value();
-                appendUniqueReasons(found->reason_keys, event.reason_keys);
-                TribeStateChangeDraft draft;
-                draft.kind = TribeStateChangeKind::MemberAdded;
-                draft.member_id = event.member_id;
-                draft.new_role = found->role;
-                draft.new_value = 1.0;
-                draft.summary_key = "member_reactivated";
-                draft.reason_keys = event.reason_keys;
-                result.state_changes.push_back(std::move(draft));
-                result.trace.steps.push_back("member_reactivated:" + event.member_id.value());
             }
         } else if (event.kind == TribeStateChangeKind::MemberRemoved) {
-            if (found != state.members.end() && found->active) {
-                found->active = false;
-                found->updated_tick = input.input_tick;
-                appendUniqueReasons(found->reason_keys, event.reason_keys);
+            if (found != state.members.end()) {
                 TribeStateChangeDraft draft;
                 draft.kind = TribeStateChangeKind::MemberRemoved;
                 draft.member_id = event.member_id;
@@ -430,6 +463,7 @@ Result<TribeStateResolveResult> TribeStateResolver::resolve(const TribeState& cu
                 draft.reason_keys = event.reason_keys;
                 result.state_changes.push_back(std::move(draft));
                 result.trace.steps.push_back("member_removed:" + event.member_id.value());
+                state.members.erase(found);
             }
         } else if (event.kind == TribeStateChangeKind::MemberRoleChanged && found != state.members.end()) {
             if (found->role != event.role.value()) {

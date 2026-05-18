@@ -162,6 +162,49 @@ static void test_resolver_split_risk() {
     std::cout << "tribe_resolver_split_risk passed" << std::endl;
 }
 
+static void test_resolver_member_leave() {
+    TribeStateInput create;
+    create.tribe_id = TribeId("tribe_alpha");
+    create.input_tick = Tick(10);
+    create.member_events = {
+        addMember("pioneer", TribeMemberRole::Pioneer),
+        addMember("companion", TribeMemberRole::Learner),
+    };
+    create.reason_keys = {"tribe_creation"};
+
+    TribeStateResolver resolver;
+    auto created_result = resolver.resolve(TribeState{}, create);
+    assert(created_result.is_ok());
+    auto created = created_result.value();
+    assert(created.updated_state.population_total == 2);
+    assert(created.updated_state.active_population == 2);
+
+    TribeMemberEvent leave;
+    leave.kind = TribeStateChangeKind::MemberRemoved;
+    leave.member_id = EntityId("companion");
+    leave.reason_keys = {"member_left"};
+
+    TribeStateInput input;
+    input.tribe_id = TribeId("tribe_alpha");
+    input.input_tick = Tick(11);
+    input.member_events = {leave};
+    input.reason_keys = {"member_departure"};
+
+    auto result = resolver.resolve(created.updated_state, input);
+    assert(result.is_ok());
+    auto dto = result.value();
+    assert(dto.updated_state.population_total == 1);
+    assert(dto.updated_state.active_population == 1);
+    assert(dto.updated_state.members.size() == 1);
+    assert(dto.updated_state.members[0].member_id == EntityId("pioneer"));
+    assert(dto.projection.population_summary.find("population_total=1") != std::string::npos);
+    assert(dto.projection.population_summary.find("active_population=1") != std::string::npos);
+    assert(std::any_of(dto.state_changes.begin(), dto.state_changes.end(), [](const auto& draft) {
+        return draft.kind == TribeStateChangeKind::MemberRemoved;
+    }));
+    std::cout << "tribe_resolver_member_leave passed" << std::endl;
+}
+
 int main(int argc, char* argv[]) {
     const std::string arg = argc > 1 ? argv[1] : "all";
     if (arg == "state_validate") test_state_validate();
@@ -170,6 +213,7 @@ int main(int argc, char* argv[]) {
     else if (arg == "resolver_role_change") test_resolver_role_change();
     else if (arg == "resolver_morale_trust") test_resolver_morale_trust();
     else if (arg == "resolver_split_risk") test_resolver_split_risk();
+    else if (arg == "resolver_member_leave") test_resolver_member_leave();
     else {
         test_state_validate();
         test_projection_safe_summary();
@@ -177,6 +221,7 @@ int main(int argc, char* argv[]) {
         test_resolver_role_change();
         test_resolver_morale_trust();
         test_resolver_split_risk();
+        test_resolver_member_leave();
     }
     return 0;
 }
