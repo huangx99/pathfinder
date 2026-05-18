@@ -172,10 +172,21 @@ static void test_safe_foraging_stable_flow() {
     auto r3 = resolver.resolve(in3);
     assert(r3.is_ok() && r3.value().ok);
 
-    auto& res3 = r3.value();
-    auto* cap = getCap(res3.updated_state.capabilities, CapabilityType::SafeForaging);
-    // SafeForaging should exist after its prerequisites are met
+    // Step 4-5: repeated successful resolution promotes SafeForaging to Stable
+    auto in4 = makeInput(4, 3, 0.7, 0.8, 0.1, 0, 0, 0, 0.2, 0.1, 0.7, Tick(40));
+    in4.current_state = r3.value().updated_state;
+    auto r4 = resolver.resolve(in4);
+    assert(r4.is_ok() && r4.value().ok);
+
+    auto in5 = makeInput(4, 3, 0.7, 0.8, 0.1, 0, 0, 0, 0.2, 0.1, 0.7, Tick(50));
+    in5.current_state = r4.value().updated_state;
+    auto r5 = resolver.resolve(in5);
+    assert(r5.is_ok() && r5.value().ok);
+
+    auto* cap = getCap(r5.value().updated_state.capabilities, CapabilityType::SafeForaging);
     assert(cap);
+    assert(cap->maturity == CapabilityMaturityState::Stable);
+    assert(cap->stability > 0.0);
     std::cout << "p26_safe_foraging_stable_flow passed" << std::endl;
 }
 
@@ -363,6 +374,7 @@ static void test_effect_draft_from_stable_usable_capability_flow() {
     for (const auto& eff : result.value().effect_drafts) {
         if (eff.capability_type == CapabilityType::IdentifyEdible) {
             has_effect = true;
+            assert(eff.strength > 0.0);
             break;
         }
     }

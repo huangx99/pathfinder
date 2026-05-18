@@ -212,6 +212,22 @@ static void test_capability_condition_validate() {
     assert(c.validateBasic().is_error());
     c.condition_key = "test_condition";
 
+    c.condition_type = "hidden_truth";
+    assert(c.validateBasic().is_error());
+    c.condition_type = "stage";
+    assert(c.validateBasic().is_error());
+    c.condition_type = "not_a_supported_condition";
+    assert(c.validateBasic().is_error());
+    c.condition_type = "known_edible_count";
+
+    CivilizationCapability cap;
+    cap.capability_type = CapabilityType::IdentifyEdible;
+    cap.display_key = "identify_edible";
+    cap.domain_key = "knowledge";
+    assert(cap.validateBasic().is_error());
+    cap.required_conditions.push_back(c);
+    assert(cap.validateBasic().is_ok());
+
     std::cout << "capability_condition_validate passed" << std::endl;
 }
 

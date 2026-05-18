@@ -272,6 +272,7 @@ static void test_state_resolver_emerging_to_stable() {
     assert(result.is_ok());
     auto& state = result.value();
     assert(state.maturity == CapabilityMaturityState::Stable);
+    assert(state.stability > 0.0);
     std::cout << "state_resolver_emerging_to_stable passed" << std::endl;
 }
 
@@ -334,7 +335,7 @@ static void test_effect_resolver_stable_capability() {
     CapabilityEffectResolver resolver;
 
     std::vector<CivilizationCapability> defs = {
-        makeDef(CapabilityType::IdentifyEdible, {},
+        makeDef(CapabilityType::IdentifyEdible, {{"known_edible_count", 2.0}},
                 {{"reduce_unknown_food_risk", CapabilityEffectTarget::Risk,
                   EffectOperationType::Multiply, "reduce_unknown_food_risk", 0.90}})
     };
@@ -357,6 +358,7 @@ static void test_effect_resolver_stable_capability() {
     assert(drafts[0].effect_key == "reduce_unknown_food_risk");
     assert(drafts[0].target == CapabilityEffectTarget::Risk);
     assert(drafts[0].operation == EffectOperationType::Multiply);
+    assert(drafts[0].strength > 0.0);
     std::cout << "effect_resolver_stable_capability passed" << std::endl;
 }
 

@@ -59,6 +59,7 @@ static void test_rejects_unlocked_bool_shortcut() {
     cap.capability_type = CapabilityType::IdentifyEdible;
     cap.display_key = "test";
     cap.domain_key = "test";
+    cap.required_conditions = {{"coverage_c", "coverage", 0.5, 0.0, false, {}, {}}};
     cap.reason_keys = {"unlocked"};
     assert(cap.validateBasic().is_error());
 
@@ -81,7 +82,12 @@ static void test_rejects_stage_only_unlock() {
     assert(cond.validateBasic().is_error());
 
     cond.condition_key = "coverage_based_condition";
+    cond.condition_type = "coverage";
     assert(cond.validateBasic().is_ok());
+    cond.condition_type = "stage";
+    assert(cond.validateBasic().is_error());
+    cond.condition_type = "unknown_condition";
+    assert(cond.validateBasic().is_error());
     std::cout << "p26_security_rejects_stage_only_unlock passed" << std::endl;
 }
 
@@ -93,6 +99,7 @@ static void test_rejects_frontend_unlock_source() {
     cap.capability_type = CapabilityType::IdentifyEdible;
     cap.display_key = "test";
     cap.domain_key = "test";
+    cap.required_conditions = {{"coverage_c", "coverage", 0.5, 0.0, false, {}, {}}};
     cap.reason_keys = {"frontend_unlock"};
     assert(cap.validateBasic().is_error());
     std::cout << "p26_security_rejects_frontend_unlock_source passed" << std::endl;
@@ -110,6 +117,17 @@ static void test_rejects_hidden_truth_keys() {
     auto result = CivilizationResolver().resolve(in);
     assert(result.is_ok());
     assert(!result.value().ok);
+
+    CivilizationProjection projection;
+    projection.tribe_id = TribeId("sec_tribe");
+    projection.stage = CivilizationStage::Awakening;
+    projection.active_effect_summary_keys = {"hidden_truth"};
+    assert(projection.validateBasic().is_error());
+
+    CivilizationTrace trace;
+    trace.trace_id = EventId("trace1");
+    trace.effect_steps = {"hidden_truth"};
+    assert(trace.validateBasic().is_error());
     std::cout << "p26_security_rejects_hidden_truth_keys passed" << std::endl;
 }
 
@@ -168,6 +186,24 @@ static void test_rejects_direct_state_mutation_effect() {
 
     eff.effect_key = "reduce_unknown_food_risk";
     assert(eff.validateBasic().is_ok());
+
+    CapabilityEffectDraft draft;
+    draft.draft_id = EventId("draft1");
+    draft.tribe_id = TribeId("sec_tribe");
+    draft.capability_type = CapabilityType::IdentifyEdible;
+    draft.effect_key = "frontend_unlock";
+    draft.target = CapabilityEffectTarget::Risk;
+    draft.operation = EffectOperationType::Multiply;
+    draft.value_key = "safe_value";
+    draft.strength = 0.5;
+    assert(draft.validateBasic().is_error());
+
+    CivilizationEventDraft event;
+    event.event_id = EventId("event1");
+    event.event_type_key = "safe_event";
+    event.tribe_id = TribeId("sec_tribe");
+    event.message_key = "frontend_unlock";
+    assert(event.validateBasic().is_error());
     std::cout << "p26_security_rejects_direct_state_mutation_effect passed" << std::endl;
 }
 
@@ -211,6 +247,7 @@ static void test_rejects_test_only_enum_in_production() {
     assert(cap.validateBasic().is_error());
 
     cap.capability_type = CapabilityType::IdentifyEdible;
+    cap.required_conditions = {{"coverage_c", "coverage", 0.5, 0.0, false, {}, {}}};
     assert(cap.validateBasic().is_ok());
     std::cout << "p26_security_rejects_test_only_enum_in_production passed" << std::endl;
 }

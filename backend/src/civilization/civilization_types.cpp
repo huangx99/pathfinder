@@ -67,6 +67,47 @@ static Result<void> validateReasonKeys(const std::vector<std::string>& keys, con
     return Result<void>::ok();
 }
 
+static Result<void> validateSafeString(const std::string& value, const std::string& field) {
+    if (value == "capability_unlocked" || value.rfind("capability_unlocked:", 0) == 0) {
+        return Result<void>::ok();
+    }
+    if (containsCivilizationForbiddenKey(value)) {
+        return Result<void>::fail(makeError(ErrorCode::validation_failed, field + " contains forbidden key"));
+    }
+    return Result<void>::ok();
+}
+
+static Result<void> validateSafeStrings(const std::vector<std::string>& values, const std::string& field) {
+    if (containsCivilizationForbiddenKey(values)) {
+        return Result<void>::fail(makeError(ErrorCode::validation_failed, field + " contains forbidden key"));
+    }
+    return Result<void>::ok();
+}
+
+static bool isSupportedConditionType(const std::string& condition_type) {
+    static const std::set<std::string> supported = {
+        "known_edible_count",
+        "known_danger_count",
+        "stable_tribe_knowledge_count",
+        "teachable_knowledge_count",
+        "coverage",
+        "success_rate",
+        "truce_success_count",
+        "forced_retreat_low_loss_count",
+        "standoff_controlled_count",
+        "coordination_score",
+        "intimidation_success_count",
+        "retreat_success_count",
+        "resource_defense_success_count",
+        "stable_coordination_count",
+        "misunderstanding_rate",
+        "conflicted_knowledge_count",
+        "open_conflict_pressure",
+        "loss_pressure"
+    };
+    return supported.find(condition_type) != supported.end();
+}
+
 static Result<void> validateEventIdsUnique(const std::vector<EventId>& ids, const std::string& owner) {
     std::set<std::string> seen;
     for (const auto& id : ids) {
@@ -394,6 +435,9 @@ Result<void> CapabilityUnlockCondition::validateBasic() const {
     if (condition_key.empty()) return Result<void>::fail(makeError(ErrorCode::validation_failed, "CapabilityUnlockCondition condition_key empty"));
     if (containsCivilizationForbiddenKey(condition_key)) return Result<void>::fail(makeError(ErrorCode::validation_failed, "CapabilityUnlockCondition condition_key forbidden"));
     if (condition_type.empty()) return Result<void>::fail(makeError(ErrorCode::validation_failed, "CapabilityUnlockCondition condition_type empty"));
+    auto type_safe_result = validateSafeString(condition_type, "CapabilityUnlockCondition condition_type");
+    if (type_safe_result.is_error()) return type_safe_result;
+    if (!isSupportedConditionType(condition_type)) return Result<void>::fail(makeError(ErrorCode::validation_failed, "CapabilityUnlockCondition condition_type unsupported"));
     if (required_score < 0.0) return Result<void>::fail(makeError(ErrorCode::validation_value_out_of_range, "CapabilityUnlockCondition required_score negative"));
     // required_score is a threshold (can be >1 for count-based conditions)
     auto cur_result = validateRatio(current_score, "CapabilityUnlockCondition current_score");
@@ -429,6 +473,7 @@ Result<void> CivilizationCapability::validateBasic() const {
     if (containsCivilizationForbiddenKey(display_key)) return Result<void>::fail(makeError(ErrorCode::validation_failed, "CivilizationCapability display_key forbidden"));
     if (domain_key.empty()) return Result<void>::fail(makeError(ErrorCode::validation_failed, "CivilizationCapability domain_key empty"));
     if (containsCivilizationForbiddenKey(domain_key)) return Result<void>::fail(makeError(ErrorCode::validation_failed, "CivilizationCapability domain_key forbidden"));
+    if (required_conditions.empty()) return Result<void>::fail(makeError(ErrorCode::validation_failed, "CivilizationCapability required_conditions empty"));
     for (const auto& cond : required_conditions) {
         auto result = cond.validateBasic();
         if (result.is_error()) return result;
@@ -471,6 +516,8 @@ Result<void> CivilizationCapabilityState::validateBasic() const {
     if (cov_result.is_error()) return cov_result;
     auto ev_result = evidence.validateBasic();
     if (ev_result.is_error()) return ev_result;
+    auto active_effects_result = validateSafeStrings(active_effect_keys, "CivilizationCapabilityState active_effect_keys");
+    if (active_effects_result.is_error()) return active_effects_result;
     return validateReasonKeys(reason_keys, "CivilizationCapabilityState");
 }
 
@@ -481,8 +528,13 @@ Result<void> CapabilityEffectDraft::validateBasic() const {
     if (!isValidIdString(tribe_id.value())) return Result<void>::fail(makeError(ErrorCode::id_invalid_format, "CapabilityEffectDraft tribe_id invalid"));
     if (!isValidCapabilityType(capability_type)) return Result<void>::fail(makeError(ErrorCode::validation_enum_unknown, "CapabilityEffectDraft capability_type invalid"));
     if (effect_key.empty()) return Result<void>::fail(makeError(ErrorCode::validation_failed, "CapabilityEffectDraft effect_key empty"));
+    auto effect_key_result = validateSafeString(effect_key, "CapabilityEffectDraft effect_key");
+    if (effect_key_result.is_error()) return effect_key_result;
     if (!isValidEffectTarget(target)) return Result<void>::fail(makeError(ErrorCode::validation_enum_unknown, "CapabilityEffectDraft target invalid"));
     if (!isValidEffectOp(operation)) return Result<void>::fail(makeError(ErrorCode::validation_enum_unknown, "CapabilityEffectDraft operation invalid"));
+    if (value_key.empty()) return Result<void>::fail(makeError(ErrorCode::validation_failed, "CapabilityEffectDraft value_key empty"));
+    auto value_key_result = validateSafeString(value_key, "CapabilityEffectDraft value_key");
+    if (value_key_result.is_error()) return value_key_result;
     auto str_result = validateRatio(strength, "CapabilityEffectDraft strength");
     if (str_result.is_error()) return str_result;
     auto ev_result = validateEventIdsUnique(source_evidence_ids, "CapabilityEffectDraft");
@@ -540,6 +592,8 @@ Result<void> CivilizationStateChangeDraft::validateBasic() const {
     if (tribe_id.empty()) return Result<void>::fail(makeError(ErrorCode::id_missing, "CivilizationStateChangeDraft tribe_id missing"));
     if (!isValidIdString(tribe_id.value())) return Result<void>::fail(makeError(ErrorCode::id_invalid_format, "CivilizationStateChangeDraft tribe_id invalid"));
     if (deterministic_key.empty()) return Result<void>::fail(makeError(ErrorCode::validation_failed, "CivilizationStateChangeDraft deterministic_key empty"));
+    auto deterministic_key_result = validateSafeString(deterministic_key, "CivilizationStateChangeDraft deterministic_key");
+    if (deterministic_key_result.is_error()) return deterministic_key_result;
     auto ev_result = validateEventIdsUnique(evidence_ids, "CivilizationStateChangeDraft");
     if (ev_result.is_error()) return ev_result;
     return validateReasonKeys(reason_keys, "CivilizationStateChangeDraft");
@@ -549,17 +603,31 @@ Result<void> CivilizationProjection::validateBasic() const {
     if (tribe_id.empty()) return Result<void>::fail(makeError(ErrorCode::id_missing, "CivilizationProjection tribe_id missing"));
     if (!isValidIdString(tribe_id.value())) return Result<void>::fail(makeError(ErrorCode::id_invalid_format, "CivilizationProjection tribe_id invalid"));
     if (!isValidStage(stage)) return Result<void>::fail(makeError(ErrorCode::validation_enum_unknown, "CivilizationProjection stage invalid"));
+    for (const auto& item : {std::pair<const std::string*, const char*>{&stage_label_key, "CivilizationProjection stage_label_key"},
+                            {&explanation_key, "CivilizationProjection explanation_key"}}) {
+        auto result = validateSafeString(*item.first, item.second);
+        if (result.is_error()) return result;
+    }
+    for (const auto& item : {std::pair<const std::vector<std::string>*, const char*>{&active_effect_summary_keys, "CivilizationProjection active_effect_summary_keys"},
+                            {&risk_warning_keys, "CivilizationProjection risk_warning_keys"}}) {
+        auto result = validateSafeStrings(*item.first, item.second);
+        if (result.is_error()) return result;
+    }
     return Result<void>::ok();
 }
 
 Result<void> CivilizationTrace::validateBasic() const {
     if (trace_id.empty()) return Result<void>::fail(makeError(ErrorCode::id_missing, "CivilizationTrace trace_id missing"));
     if (!isValidIdString(trace_id.value())) return Result<void>::fail(makeError(ErrorCode::id_invalid_format, "CivilizationTrace trace_id invalid"));
-    // Trace keys must not contain forbidden content
-    for (const auto& step : rejected_unsafe_keys) {
-        if (containsCivilizationForbiddenKey(step)) {
-            return Result<void>::fail(makeError(ErrorCode::validation_failed, "CivilizationTrace rejected_unsafe_keys contains forbidden key"));
-        }
+    for (const auto& item : {std::pair<const std::vector<std::string>*, const char*>{&input_summary_keys, "CivilizationTrace input_summary_keys"},
+                            {&candidate_steps, "CivilizationTrace candidate_steps"},
+                            {&requirement_steps, "CivilizationTrace requirement_steps"},
+                            {&state_transition_steps, "CivilizationTrace state_transition_steps"},
+                            {&effect_steps, "CivilizationTrace effect_steps"},
+                            {&stage_steps, "CivilizationTrace stage_steps"},
+                            {&rejected_unsafe_keys, "CivilizationTrace rejected_unsafe_keys"}}) {
+        auto result = validateSafeStrings(*item.first, item.second);
+        if (result.is_error()) return result;
     }
     return Result<void>::ok();
 }
@@ -568,8 +636,12 @@ Result<void> CivilizationEventDraft::validateBasic() const {
     if (event_id.empty()) return Result<void>::fail(makeError(ErrorCode::id_missing, "CivilizationEventDraft event_id missing"));
     if (!isValidIdString(event_id.value())) return Result<void>::fail(makeError(ErrorCode::id_invalid_format, "CivilizationEventDraft event_id invalid"));
     if (event_type_key.empty()) return Result<void>::fail(makeError(ErrorCode::validation_failed, "CivilizationEventDraft event_type_key empty"));
+    auto event_type_result = validateSafeString(event_type_key, "CivilizationEventDraft event_type_key");
+    if (event_type_result.is_error()) return event_type_result;
     if (tribe_id.empty()) return Result<void>::fail(makeError(ErrorCode::id_missing, "CivilizationEventDraft tribe_id missing"));
     if (!isValidIdString(tribe_id.value())) return Result<void>::fail(makeError(ErrorCode::id_invalid_format, "CivilizationEventDraft tribe_id invalid"));
+    auto message_result = validateSafeString(message_key, "CivilizationEventDraft message_key");
+    if (message_result.is_error()) return message_result;
     auto ev_result = validateEventIdsUnique(evidence_ids, "CivilizationEventDraft");
     if (ev_result.is_error()) return ev_result;
     return validateReasonKeys(reason_keys, "CivilizationEventDraft");

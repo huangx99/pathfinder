@@ -283,6 +283,11 @@ static void test_resolver_projection_safe() {
     assert(!res.projection.tribe_id.empty());
     // projection's explanation should be non-empty
     assert(!res.projection.explanation_key.empty());
+    assert(res.projection.validateBasic().is_ok());
+
+    CivilizationProjection unsafe_projection = res.projection;
+    unsafe_projection.active_effect_summary_keys.push_back("hidden_truth");
+    assert(unsafe_projection.validateBasic().is_error());
     std::cout << "resolver_projection_safe passed" << std::endl;
 }
 
@@ -298,6 +303,11 @@ static void test_resolver_trace_safe() {
     assert(!res.trace.candidate_steps.empty());
     // Trace should not contain forbidden content
     assert(res.trace.rejected_unsafe_keys.empty());
+    assert(res.trace.validateBasic().is_ok());
+
+    CivilizationTrace unsafe_trace = res.trace;
+    unsafe_trace.effect_steps.push_back("frontend_unlock");
+    assert(unsafe_trace.validateBasic().is_error());
     std::cout << "resolver_trace_safe passed" << std::endl;
 }
 

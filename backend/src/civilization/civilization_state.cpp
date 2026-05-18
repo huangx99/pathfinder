@@ -409,6 +409,11 @@ CapabilityStateResolver::resolveState(
     // Update progress from candidate
     result.progress.candidate_score = candidate.readiness;
     result.progress.emerging_score = candidate.requirement_snapshot.total_score;
+    const double evidence_score = candidate.evidence.confidence;
+    const double derived_stability = clampRatio(
+        candidate.readiness * 0.35 +
+        candidate.requirement_snapshot.total_score * 0.40 +
+        evidence_score * 0.25);
 
     CapabilityMaturityState prev_maturity = current.maturity;
 
@@ -477,6 +482,19 @@ CapabilityStateResolver::resolveState(
     if (result.maturity == CapabilityMaturityState::Stable ||
         result.maturity == CapabilityMaturityState::Institutionalized) {
         result.progress.stable_score = std::max(result.progress.stable_score, candidate.requirement_snapshot.total_score);
+    }
+
+    if (result.maturity == CapabilityMaturityState::Candidate) {
+        result.stability = std::max(current.stability, clampRatio(derived_stability * 0.35));
+    } else if (result.maturity == CapabilityMaturityState::Emerging) {
+        result.stability = std::max(current.stability, clampRatio(derived_stability * 0.70));
+    } else if (result.maturity == CapabilityMaturityState::Stable ||
+               result.maturity == CapabilityMaturityState::Institutionalized) {
+        result.stability = std::max(current.stability, derived_stability);
+    } else if (result.maturity == CapabilityMaturityState::Degraded) {
+        result.stability = clampRatio(std::min(current.stability, derived_stability) * 0.75);
+    } else if (result.maturity == CapabilityMaturityState::Lost) {
+        result.stability = 0.0;
     }
 
     // Track success/failure
