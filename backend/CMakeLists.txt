@@ -525,6 +525,22 @@ target_link_libraries(pathfinder_tribe PUBLIC
     pathfinder_knowledge
 )
 
+# Civilization library (P26)
+add_library(pathfinder_civilization STATIC
+    src/civilization/civilization_types.cpp
+    src/civilization/civilization_state.cpp
+)
+
+target_include_directories(pathfinder_civilization PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(pathfinder_civilization PUBLIC
+    pathfinder_foundation
+    pathfinder_knowledge
+    pathfinder_tribe
+)
+
 # Learning library (P21)
 add_library(pathfinder_learning STATIC
     src/learning/learning_loop.cpp

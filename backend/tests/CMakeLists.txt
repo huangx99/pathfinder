@@ -5091,3 +5091,133 @@ add_test(
     NAME p22_security_hidden_truth
     COMMAND pathfinder_tests_p22_security hidden_truth
 )
+
+# P26 Civilization unit tests: types
+add_executable(pathfinder_tests_civilization_types
+    unit/civilization/civilization_types_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_civilization_types PRIVATE
+    pathfinder_civilization
+    pathfinder_tribe
+    pathfinder_knowledge
+    pathfinder_memory
+    pathfinder_event
+    pathfinder_cognition
+    pathfinder_foundation
+)
+
+add_test(NAME civilization_stage_enum_roundtrip COMMAND pathfinder_tests_civilization_types stage_enum_roundtrip)
+add_test(NAME capability_type_enum_roundtrip COMMAND pathfinder_tests_civilization_types capability_type_enum_roundtrip)
+add_test(NAME capability_maturity_enum_roundtrip COMMAND pathfinder_tests_civilization_types maturity_enum_roundtrip)
+add_test(NAME capability_usability_enum_roundtrip COMMAND pathfinder_tests_civilization_types usability_enum_roundtrip)
+add_test(NAME capability_change_reason_enum_roundtrip COMMAND pathfinder_tests_civilization_types change_reason_enum_roundtrip)
+add_test(NAME capability_effect_target_enum_roundtrip COMMAND pathfinder_tests_civilization_types effect_target_enum_roundtrip)
+add_test(NAME effect_operation_type_enum_roundtrip COMMAND pathfinder_tests_civilization_types effect_op_enum_roundtrip)
+add_test(NAME civilization_forbidden_keys COMMAND pathfinder_tests_civilization_types forbidden_keys)
+add_test(NAME civilization_progress_validate COMMAND pathfinder_tests_civilization_types progress_validate)
+add_test(NAME capability_condition_validate COMMAND pathfinder_tests_civilization_types condition_validate)
+
+# P26 Civilization unit tests: state resolvers
+add_executable(pathfinder_tests_civilization_state
+    unit/civilization/civilization_state_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_civilization_state PRIVATE
+    pathfinder_civilization
+    pathfinder_tribe
+    pathfinder_knowledge
+    pathfinder_memory
+    pathfinder_event
+    pathfinder_cognition
+    pathfinder_foundation
+)
+
+add_test(NAME candidate_builder_identify_edible COMMAND pathfinder_tests_civilization_state candidate_builder_identify_edible)
+add_test(NAME candidate_builder_identify_danger COMMAND pathfinder_tests_civilization_state candidate_builder_identify_danger)
+add_test(NAME candidate_builder_safe_foraging_prereq COMMAND pathfinder_tests_civilization_state candidate_builder_safe_foraging_prereq)
+add_test(NAME requirement_evaluator_scores COMMAND pathfinder_tests_civilization_state requirement_evaluator_scores)
+add_test(NAME state_resolver_unknown_to_candidate COMMAND pathfinder_tests_civilization_state state_resolver_unknown_to_candidate)
+add_test(NAME state_resolver_candidate_to_emerging COMMAND pathfinder_tests_civilization_state state_resolver_candidate_to_emerging)
+add_test(NAME state_resolver_emerging_to_stable COMMAND pathfinder_tests_civilization_state state_resolver_emerging_to_stable)
+add_test(NAME usability_blocked_by_conflict COMMAND pathfinder_tests_civilization_state usability_blocked_by_conflict)
+add_test(NAME stage_foraging_derived COMMAND pathfinder_tests_civilization_state stage_foraging_derived)
+add_test(NAME effect_resolver_stable_capability COMMAND pathfinder_tests_civilization_state effect_resolver_stable_capability)
+
+# P26 Civilization unit tests: resolver orchestrator
+add_executable(pathfinder_tests_civilization_resolver
+    unit/civilization/civilization_resolver_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_civilization_resolver PRIVATE
+    pathfinder_civilization
+    pathfinder_tribe
+    pathfinder_knowledge
+    pathfinder_memory
+    pathfinder_event
+    pathfinder_cognition
+    pathfinder_foundation
+)
+
+add_test(NAME resolver_validates_input COMMAND pathfinder_tests_civilization_resolver validates_input)
+add_test(NAME resolver_builds_candidates COMMAND pathfinder_tests_civilization_resolver builds_candidates)
+add_test(NAME resolver_full_pipeline COMMAND pathfinder_tests_civilization_resolver full_pipeline)
+add_test(NAME resolver_deterministic COMMAND pathfinder_tests_civilization_resolver deterministic)
+add_test(NAME resolver_rejects_forbidden_keys COMMAND pathfinder_tests_civilization_resolver rejects_forbidden_keys)
+add_test(NAME resolver_events_on_unlock COMMAND pathfinder_tests_civilization_resolver events_on_unlock)
+add_test(NAME resolver_single_success_not_stable COMMAND pathfinder_tests_civilization_resolver single_success_not_stable)
+add_test(NAME resolver_stage_no_reverse_unlock COMMAND pathfinder_tests_civilization_resolver stage_no_reverse_unlock)
+add_test(NAME resolver_projection_safe COMMAND pathfinder_tests_civilization_resolver projection_safe)
+add_test(NAME resolver_trace_safe COMMAND pathfinder_tests_civilization_resolver trace_safe)
+
+# P26 Civilization integration tests: capability flow
+add_executable(pathfinder_tests_p26_flow
+    integration/p26/civilization_capability_flow_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_p26_flow PRIVATE
+    pathfinder_civilization
+    pathfinder_tribe
+    pathfinder_knowledge
+    pathfinder_memory
+    pathfinder_event
+    pathfinder_cognition
+    pathfinder_foundation
+)
+
+add_test(NAME p26_identify_edible_candidate_flow COMMAND pathfinder_tests_p26_flow identify_edible_candidate_flow)
+add_test(NAME p26_identify_danger_candidate_flow COMMAND pathfinder_tests_p26_flow identify_danger_candidate_flow)
+add_test(NAME p26_safe_foraging_stable_flow COMMAND pathfinder_tests_p26_flow safe_foraging_stable_flow)
+add_test(NAME p26_conflict_deescalation_candidate_from_p25 COMMAND pathfinder_tests_p26_flow conflict_deescalation_candidate_from_p25)
+add_test(NAME p26_capability_requires_repeated_evidence COMMAND pathfinder_tests_p26_flow requires_repeated_evidence)
+add_test(NAME p26_stable_capability_emits_unlock_once COMMAND pathfinder_tests_p26_flow emits_unlock_once)
+add_test(NAME p26_stage_foraging_from_stable_capabilities COMMAND pathfinder_tests_p26_flow foraging_stage)
+add_test(NAME p26_blocked_by_conflict_does_not_lose_maturity COMMAND pathfinder_tests_p26_flow blocked_keeps_maturity)
+add_test(NAME p26_effect_draft_from_stable_usable_capability COMMAND pathfinder_tests_p26_flow effect_draft_stable_usable)
+add_test(NAME p26_deterministic_resolution COMMAND pathfinder_tests_p26_flow deterministic)
+
+# P26 Civilization integration tests: security
+add_executable(pathfinder_tests_p26_security
+    integration/p26/civilization_capability_security_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_p26_security PRIVATE
+    pathfinder_civilization
+    pathfinder_tribe
+    pathfinder_knowledge
+    pathfinder_memory
+    pathfinder_event
+    pathfinder_cognition
+    pathfinder_foundation
+)
+
+add_test(NAME p26_security_rejects_unlocked_bool COMMAND pathfinder_tests_p26_security unlocked_bool)
+add_test(NAME p26_security_rejects_stage_only_unlock COMMAND pathfinder_tests_p26_security stage_only_unlock)
+add_test(NAME p26_security_rejects_frontend_unlock COMMAND pathfinder_tests_p26_security frontend_unlock)
+add_test(NAME p26_security_rejects_hidden_truth COMMAND pathfinder_tests_p26_security hidden_truth)
+add_test(NAME p26_security_rejects_raw_game_state COMMAND pathfinder_tests_p26_security raw_game_state)
+add_test(NAME p26_security_rejects_hp_death_kill_loot COMMAND pathfinder_tests_p26_security hp_death_kill_loot)
+add_test(NAME p26_security_rejects_direct_state_mutation COMMAND pathfinder_tests_p26_security direct_state_mutation)
+add_test(NAME p26_security_rejects_duplicate_capability COMMAND pathfinder_tests_p26_security duplicate_capability)
+add_test(NAME p26_security_rejects_test_only_enum COMMAND pathfinder_tests_p26_security test_only_enum)
+add_test(NAME p26_security_rejects_single_success_as_stable COMMAND pathfinder_tests_p26_security single_success)
