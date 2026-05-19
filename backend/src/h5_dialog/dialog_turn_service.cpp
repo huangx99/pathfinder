@@ -302,6 +302,13 @@ void recordCausalExposure(DialogSessionState& state, const DialogScenario& scena
     pruneCausalExposureHistory(state);
 }
 
+std::string requiredThreatKnowledgeEffect(const DialogScenario& scenario, const std::string& threat_object_key) {
+    for (const auto& config : scenario.threat_knowledge_templates) {
+        if (config.threat_object_key == threat_object_key) return config.required_effect_key;
+    }
+    return "";
+}
+
 DialogResponseDto buildWaitResponse(const DialogSessionState& state) {
     DialogResponseDto response;
     response.session_id = state.session_id;
@@ -337,8 +344,8 @@ Result<void> DialogTurnService::resetSession(const std::string& session_id) {
 }
 
 Result<DialogTurnServiceResult> DialogTurnService::handleDetailed(const DialogRequestDto& request) {
-    auto wrap = [](const DialogResponseDto& response, const DialogSessionState& state) {
-        return Result<DialogTurnServiceResult>::ok(DialogTurnServiceResult{response, state});
+    auto wrap = [](const DialogResponseDto& response, const DialogSessionState& state, const DialogIntent& intent = DialogIntent{}, const std::string& observed_effect_key = std::string{}) {
+        return Result<DialogTurnServiceResult>::ok(DialogTurnServiceResult{response, state, intent, observed_effect_key});
     };
     auto rejected = [&](const DialogSessionState& state, const DialogIntent& intent, const std::string& reason_key) {
         auto response = presenter_.buildRejectedResponse(state, intent, reason_key);
@@ -421,7 +428,7 @@ Result<DialogTurnServiceResult> DialogTurnService::handleDetailed(const DialogRe
                         companion_request.agent_actor_key = "companion";
                         companion_request.trigger_key = "threat_progress";
                         companion_request.target_threat_key = "beast_shadow";
-                        companion_request.required_knowledge_effect_key = "repel_beast";
+                        companion_request.required_knowledge_effect_key = requiredThreatKnowledgeEffect(scenario, companion_request.target_threat_key);
                         auto companion_result_r = agent_service.tryAct(snapshot, companion_request);
                         if (companion_result_r.is_ok()) {
                             auto companion_result = companion_result_r.value();
@@ -616,7 +623,7 @@ Result<DialogTurnServiceResult> DialogTurnService::handleDetailed(const DialogRe
         companion_request.agent_actor_key = "companion";
         companion_request.trigger_key = "player_action";
         companion_request.target_threat_key = "beast_shadow";
-        companion_request.required_knowledge_effect_key = "repel_beast";
+        companion_request.required_knowledge_effect_key = requiredThreatKnowledgeEffect(scenario, companion_request.target_threat_key);
         auto companion_result_r = agent_service.tryAct(after_player, companion_request);
         if (companion_result_r.is_ok()) {
             auto companion_result = companion_result_r.value();
@@ -699,7 +706,7 @@ Result<DialogTurnServiceResult> DialogTurnService::handleDetailed(const DialogRe
     appendWorldPatchToResponse(response_value, world_patch);
 
     session_store_->save(state);
-    return wrap(response_value, state);
+    return wrap(response_value, state, intent, feedback.effect_key);
 }
 
 } // namespace pathfinder::h5_dialog

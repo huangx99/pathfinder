@@ -14,6 +14,8 @@ namespace pathfinder::h5_dialog {
 struct DialogTurnServiceResult {
     DialogResponseDto response;
     DialogSessionState state;
+    DialogIntent intent;
+    std::string observed_effect_key;
 };
 
 class DialogTurnService {

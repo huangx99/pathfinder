@@ -1,8 +1,8 @@
 #include "pathfinder/h5_dialog/dialog_intent.h"
+#include "pathfinder/h5_dialog/dialog_scenario.h"
 #include <algorithm>
 #include <cctype>
 #include <sstream>
-#include <unordered_map>
 
 namespace pathfinder::h5_dialog {
 
@@ -36,38 +36,75 @@ bool containsAny(const std::string& text, const std::vector<std::string>& keywor
     return false;
 }
 
-std::string detectObjectKey(const std::string& text) {
-    if (text.find("制作火把") != std::string::npos || text.find("做火把") != std::string::npos) return "wood";
-    const bool mentions_torch = text.find("火把") != std::string::npos;
-    const bool mentions_beast = text.find("野兽") != std::string::npos || text.find("低吼") != std::string::npos || text.find("影子") != std::string::npos;
-    const bool explicitly_repels = text.find("驱赶") != std::string::npos || text.find("赶走") != std::string::npos || text.find("吓退") != std::string::npos;
-    if (text.find("腐烂红果") != std::string::npos) return "decayed_red_berry";
-    if (text.find("红果") != std::string::npos) return "red_berry";
-    if (text.find("磨石") != std::string::npos || text.find("打磨") != std::string::npos || text.find("磨一下") != std::string::npos) return "whetstone";
-    if (text.find("斧头") != std::string::npos || text.find("斧子") != std::string::npos) return "axe";
-    if (text.find("苦叶") != std::string::npos) return "bitter_leaf";
-    if (text.find("石片") != std::string::npos) return "stone_flake";
-    if ((mentions_torch && mentions_beast) || explicitly_repels) return "torch";
-    if (text.find("火把") != std::string::npos) return "torch";
-    if (mentions_beast) return "beast_shadow";
-    if (text.find("火种") != std::string::npos || text.find("点燃") != std::string::npos || text.find("火源") != std::string::npos || text.find("生火") != std::string::npos) return "fire_seed";
-    if (text.find("干草") != std::string::npos || text.find("草") != std::string::npos) return "dry_grass";
-    if (text.find("木头") != std::string::npos || text.find("木材") != std::string::npos || text.find("制作火把") != std::string::npos) return "wood";
+bool aliasesMatch(const std::string& text, const DialogScenarioObject& object) {
+    if (!object.display_name.empty() && text.find(object.display_name) != std::string::npos) return true;
+    for (const auto& alias : object.input_aliases) {
+        if (!alias.empty() && text.find(alias) != std::string::npos) return true;
+    }
+    return false;
+}
+
+const DialogScenarioActionTemplate* matchingScenarioAction(const std::string& text, const DialogScenario& scenario) {
+    const DialogScenarioActionTemplate* best = nullptr;
+    size_t best_length = 0;
+    for (const auto& action : scenario.suggested_action_templates) {
+        if (action.input_text.empty() || action.object_key.empty()) continue;
+        if (text.find(action.input_text) == std::string::npos) continue;
+        if (action.input_text.size() >= best_length) {
+            best = &action;
+            best_length = action.input_text.size();
+        }
+    }
+    return best;
+}
+
+const DialogScenarioObject* findScenarioObject(const DialogScenario& scenario, const std::string& object_key) {
+    auto it = std::find_if(scenario.objects.begin(), scenario.objects.end(), [&](const auto& object) { return object.object_key == object_key; });
+    return it == scenario.objects.end() ? nullptr : &*it;
+}
+
+std::string detectObjectKey(const std::string& text, const DialogScenario& scenario) {
+    for (const auto& feedback : scenario.feedbacks) {
+        if (feedback.target_object_key.empty()) continue;
+        const auto* source = findScenarioObject(scenario, feedback.object_key);
+        const auto* target = findScenarioObject(scenario, feedback.target_object_key);
+        if (source != nullptr && target != nullptr && aliasesMatch(text, *source) && aliasesMatch(text, *target)) return feedback.object_key;
+    }
+    std::string best_key;
+    size_t best_length = 0;
+    for (const auto& object : scenario.objects) {
+        if (!aliasesMatch(text, object)) continue;
+        size_t candidate_length = object.display_name.size();
+        for (const auto& alias : object.input_aliases) {
+            if (text.find(alias) != std::string::npos) candidate_length = std::max(candidate_length, alias.size());
+        }
+        if (candidate_length >= best_length) {
+            best_key = object.object_key;
+            best_length = candidate_length;
+        }
+    }
+    return best_key;
+}
+
+bool textMentionsObject(const std::string& text, const DialogScenarioObject& object) {
+    return aliasesMatch(text, object);
+}
+
+std::string detectTargetObjectKey(const std::string& text, const std::string& object_key, DialogActionKind action, const DialogScenario& scenario) {
+    for (const auto& feedback : scenario.feedbacks) {
+        if (feedback.object_key != object_key || feedback.action != action || feedback.target_object_key.empty()) continue;
+        auto it = std::find_if(scenario.objects.begin(), scenario.objects.end(), [&](const auto& object) { return object.object_key == feedback.target_object_key; });
+        if (it != scenario.objects.end() && textMentionsObject(text, *it)) return feedback.target_object_key;
+    }
     return "";
 }
 
-std::string detectTargetObjectKey(const std::string& text, const std::string& object_key) {
-    if (object_key == "axe" && (text.find("木头") != std::string::npos || text.find("木材") != std::string::npos || text.find("砍") != std::string::npos)) return "wood";
-    if (object_key == "whetstone" && (text.find("斧头") != std::string::npos || text.find("斧子") != std::string::npos || text.find("打磨") != std::string::npos || text.find("磨") != std::string::npos)) return "axe";
-    if (object_key == "fire_seed" && (text.find("干草") != std::string::npos || text.find("草") != std::string::npos || text.find("火源") != std::string::npos || text.find("生火") != std::string::npos || text.find("点燃") != std::string::npos)) return "dry_grass";
-    if (object_key == "wood" && (text.find("火把") != std::string::npos || text.find("制作") != std::string::npos)) return "fire_seed";
-    if (object_key == "torch" && (text.find("野兽") != std::string::npos || text.find("驱赶") != std::string::npos || text.find("影子") != std::string::npos || text.find("低吼") != std::string::npos)) return "beast_shadow";
-    return "";
-}
-
-DialogActionKind defaultActionForObject(const std::string& object_key) {
-    if (object_key == "stone_flake" || object_key == "axe" || object_key == "whetstone" || object_key == "wood" || object_key == "dry_grass" || object_key == "fire_seed" || object_key == "torch" || object_key == "beast_shadow") return DialogActionKind::Use;
-    if (!object_key.empty()) return DialogActionKind::Eat;
+DialogActionKind defaultActionForObject(const std::string& object_key, const DialogScenario& scenario) {
+    auto it = std::find_if(scenario.objects.begin(), scenario.objects.end(), [&](const auto& object) { return object.object_key == object_key; });
+    if (it != scenario.objects.end()) {
+        if (it->default_action != DialogActionKind::Unknown) return it->default_action;
+        if (!it->allowed_actions.empty()) return it->allowed_actions.front();
+    }
     return DialogActionKind::Unknown;
 }
 
@@ -77,16 +114,23 @@ DialogIntentKind kindFromAction(DialogActionKind action) {
     return DialogIntentKind::Unknown;
 }
 
-DialogActionKind detectLearningAction(const std::string& text, const std::string& object_key) {
+DialogActionKind detectLearningAction(const std::string& text, const std::string& object_key, const DialogScenario& scenario) {
     if (containsAny(text, {"吃", "咬", "吞"})) return DialogActionKind::Eat;
     if (containsAny(text, {"使用", "用", "拿", "试用", "砍", "打磨", "磨"})) return DialogActionKind::Use;
-    if (containsAny(text, {"尝试", "试试"})) return defaultActionForObject(object_key);
-    return defaultActionForObject(object_key);
+    if (containsAny(text, {"尝试", "试试"})) return defaultActionForObject(object_key, scenario);
+    return defaultActionForObject(object_key, scenario);
 }
 
 } // namespace
 
 Result<DialogIntent> DialogIntentParser::parse(const std::string& input_text) const {
+    DialogScenarioCatalog catalog;
+    auto scenario = catalog.defaultScenario();
+    if (scenario.is_error()) return Result<DialogIntent>::fail(scenario.errors());
+    return parseWithScenario(input_text, scenario.value());
+}
+
+Result<DialogIntent> DialogIntentParser::parseWithScenario(const std::string& input_text, const DialogScenario& scenario) const {
     auto trimmed = trim(input_text);
     if (trimmed.empty()) {
         return Result<DialogIntent>::fail(makeError(ErrorCode::validation_failed, "empty input"));
@@ -149,11 +193,20 @@ Result<DialogIntent> DialogIntentParser::parse(const std::string& input_text) co
         return Result<DialogIntent>::ok(intent);
     }
 
-    const auto object_key = detectObjectKey(trimmed);
+    if (const auto* action_template = matchingScenarioAction(trimmed, scenario)) {
+        intent.object_key = action_template->object_key;
+        intent.target_object_key = action_template->target_object_key;
+        intent.action = DialogActionKind::Use;
+        intent.kind = DialogIntentKind::TryUse;
+        intent.reason_keys.push_back("scenario_action_template:" + action_template->action_key);
+        return Result<DialogIntent>::ok(intent);
+    }
+
+    const auto object_key = detectObjectKey(trimmed, scenario);
     if (!object_key.empty()) {
         intent.object_key = object_key;
-        intent.target_object_key = detectTargetObjectKey(trimmed, object_key);
-        intent.action = detectLearningAction(trimmed, object_key);
+        intent.action = detectLearningAction(trimmed, object_key, scenario);
+        intent.target_object_key = detectTargetObjectKey(trimmed, object_key, intent.action, scenario);
         intent.kind = kindFromAction(intent.action);
         return Result<DialogIntent>::ok(intent);
     }

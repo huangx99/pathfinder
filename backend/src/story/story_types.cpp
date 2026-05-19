@@ -152,6 +152,12 @@ Result<void> StoryThreatDefinition::validateBasic() const {
     return ok();
 }
 
+Result<void> StorySuggestedActionDefinition::validateBasic() const {
+    if (emptyOrForbidden(action_key) || emptyOrForbidden(label_zh_cn) || emptyOrForbidden(input_text)) return fail("story suggested action invalid text");
+    if (containsStoryForbiddenKey(required_effect_key) || containsStoryForbiddenKey(target_object_key) || containsStoryForbiddenKey(generated_object_keys)) return fail("story suggested action contains forbidden key");
+    return ok();
+}
+
 Result<void> StoryTimeBudget::validateBasic() const {
     if (morning_to_afternoon <= 0 || afternoon_to_dusk <= morning_to_afternoon || dusk_to_night <= afternoon_to_dusk) return fail("story time budget invalid order");
     return ok();
@@ -185,6 +191,14 @@ Result<void> StoryScenarioDefinition::validateBasic() const {
         threat_keys.push_back(threat.threat_key);
     }
     if (hasDuplicate(threat_keys)) return fail("story scenario duplicate threat");
+    if (suggested_actions.empty()) return fail("story scenario requires suggested actions");
+    std::vector<std::string> suggested_action_keys;
+    for (const auto& action : suggested_actions) {
+        auto valid = action.validateBasic();
+        if (valid.is_error()) return valid;
+        suggested_action_keys.push_back(action.action_key);
+    }
+    if (hasDuplicate(suggested_action_keys)) return fail("story scenario duplicate suggested action");
     return time_budget.validateBasic();
 }
 
@@ -224,7 +238,7 @@ Result<void> StoryRuntimeState::validateBasic() const {
 }
 
 Result<void> StoryEvaluationContext::validateBasic() const {
-    if (containsStoryForbiddenKey(actor_knowledge_effect_keys) || containsStoryForbiddenKey(recipient_knowledge_effect_keys) || containsStoryForbiddenKey(available_object_keys) || containsStoryForbiddenKey(completed_action_keys) || containsStoryForbiddenKey(last_input_text)) return fail("story context forbidden key");
+    if (containsStoryForbiddenKey(actor_knowledge_effect_keys) || containsStoryForbiddenKey(recipient_knowledge_effect_keys) || containsStoryForbiddenKey(available_object_keys) || containsStoryForbiddenKey(completed_action_keys) || containsStoryForbiddenKey(last_input_text) || containsStoryForbiddenKey(last_intent_kind) || containsStoryForbiddenKey(last_action_key) || containsStoryForbiddenKey(last_object_key) || containsStoryForbiddenKey(last_target_object_key) || containsStoryForbiddenKey(last_effect_key)) return fail("story context forbidden key");
     return ok();
 }
 

@@ -1,4 +1,5 @@
 #include "pathfinder/h5_dialog/dialog_types.h"
+#include "pathfinder/foundation/id.h"
 #include <algorithm>
 #include <sstream>
 #include <cctype>
@@ -6,6 +7,7 @@
 namespace pathfinder::h5_dialog {
 
 using pathfinder::foundation::ErrorCode;
+using pathfinder::foundation::isValidIdString;
 using pathfinder::foundation::makeError;
 using pathfinder::foundation::Result;
 
@@ -265,6 +267,12 @@ Result<void> DialogScenarioObject::validateBasic() const {
     if (containsDialogForbiddenKey(object_key) || containsDialogForbiddenKey(display_name) || containsDialogForbiddenKey(player_description)) {
         return Result<void>::fail(makeError(ErrorCode::validation_failed, "scenario object contains forbidden key"));
     }
+    if (default_action == DialogActionKind::TestOnly) {
+        return Result<void>::fail(makeError(ErrorCode::validation_failed, "scenario object default action TestOnly not allowed"));
+    }
+    if (containsDialogForbiddenKey(input_aliases)) {
+        return Result<void>::fail(makeError(ErrorCode::validation_failed, "scenario object aliases contain forbidden key"));
+    }
     return Result<void>::ok();
 }
 
@@ -323,6 +331,51 @@ Result<void> DialogFeedbackTemplate::validateBasic() const {
     for (const auto& mutation : state_mutations) {
         auto result = mutation.validateBasic();
         if (result.is_error()) return result;
+    }
+    return Result<void>::ok();
+}
+
+Result<void> DialogDefaultKnowledgeTemplate::validateBasic() const {
+    if (template_key.empty() || owner_display_key.empty() || subject_object_key.empty() || action_key.empty() || effect_key.empty()) {
+        return Result<void>::fail(makeError(ErrorCode::validation_failed, "default knowledge required field empty"));
+    }
+    if (!isValidIdString(template_key) || !isValidIdString(owner_display_key) || !isValidIdString(subject_object_key) || !isValidIdString(action_key) || !isValidIdString(effect_key) || (!target_object_key.empty() && !isValidIdString(target_object_key))) {
+        return Result<void>::fail(makeError(ErrorCode::validation_failed, "default knowledge key format invalid"));
+    }
+    if (confidence < 0.0 || confidence > 1.0) {
+        return Result<void>::fail(makeError(ErrorCode::validation_failed, "default knowledge confidence out of range"));
+    }
+    if (containsDialogForbiddenKey(template_key) || containsDialogForbiddenKey(owner_display_key) || containsDialogForbiddenKey(subject_object_key) || containsDialogForbiddenKey(target_object_key) || containsDialogForbiddenKey(action_key) || containsDialogForbiddenKey(effect_key) || containsDialogForbiddenKey(reason_keys)) {
+        return Result<void>::fail(makeError(ErrorCode::validation_failed, "default knowledge contains forbidden key"));
+    }
+    return Result<void>::ok();
+}
+
+Result<void> DialogScenarioActionTemplate::validateBasic() const {
+    if (action_key.empty() || label_text.empty() || input_text.empty()) {
+        return Result<void>::fail(makeError(ErrorCode::validation_failed, "scenario action required field empty"));
+    }
+    if (!isValidIdString(action_key) || (!object_key.empty() && !isValidIdString(object_key)) || (!required_effect_key.empty() && !isValidIdString(required_effect_key)) || (!target_object_key.empty() && !isValidIdString(target_object_key))) {
+        return Result<void>::fail(makeError(ErrorCode::validation_failed, "scenario action key format invalid"));
+    }
+    if (containsDialogForbiddenKey(action_key) || containsDialogForbiddenKey(label_text) || containsDialogForbiddenKey(input_text) || containsDialogForbiddenKey(object_key) || containsDialogForbiddenKey(required_effect_key) || containsDialogForbiddenKey(target_object_key) || containsDialogForbiddenKey(reason_keys)) {
+        return Result<void>::fail(makeError(ErrorCode::validation_failed, "scenario action contains forbidden key"));
+    }
+    return Result<void>::ok();
+}
+
+Result<void> DialogScenarioThreatKnowledgeTemplate::validateBasic() const {
+    if (template_key.empty() || threat_object_key.empty() || required_effect_key.empty()) {
+        return Result<void>::fail(makeError(ErrorCode::validation_failed, "threat knowledge required field empty"));
+    }
+    if (!isValidIdString(template_key) || !isValidIdString(threat_object_key) || !isValidIdString(required_effect_key)) {
+        return Result<void>::fail(makeError(ErrorCode::validation_failed, "threat knowledge key format invalid"));
+    }
+    for (const auto& key : fallback_effect_keys) {
+        if (!isValidIdString(key)) return Result<void>::fail(makeError(ErrorCode::validation_failed, "threat knowledge fallback key format invalid"));
+    }
+    if (containsDialogForbiddenKey(template_key) || containsDialogForbiddenKey(threat_object_key) || containsDialogForbiddenKey(required_effect_key) || containsDialogForbiddenKey(fallback_effect_keys)) {
+        return Result<void>::fail(makeError(ErrorCode::validation_failed, "threat knowledge contains forbidden key"));
     }
     return Result<void>::ok();
 }

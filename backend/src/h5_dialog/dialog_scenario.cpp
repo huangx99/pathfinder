@@ -9,6 +9,38 @@ using pathfinder::foundation::Result;
 
 namespace {
 
+void configureInput(DialogScenarioObject& object, DialogActionKind default_action, std::vector<std::string> aliases) {
+    object.default_action = default_action;
+    object.input_aliases = std::move(aliases);
+}
+
+Result<void> validateDialogScenario(const DialogScenario& scenario) {
+    if (scenario.scenario_key.empty() || scenario.display_name.empty() || scenario.welcome_text.empty()) {
+        return Result<void>::fail(makeError(ErrorCode::validation_failed, "dialog scenario required field empty"));
+    }
+    for (const auto& object : scenario.objects) {
+        auto valid = object.validateBasic();
+        if (valid.is_error()) return valid;
+    }
+    for (const auto& feedback : scenario.feedbacks) {
+        auto valid = feedback.validateBasic();
+        if (valid.is_error()) return valid;
+    }
+    for (const auto& knowledge : scenario.default_knowledge_templates) {
+        auto valid = knowledge.validateBasic();
+        if (valid.is_error()) return valid;
+    }
+    for (const auto& action : scenario.suggested_action_templates) {
+        auto valid = action.validateBasic();
+        if (valid.is_error()) return valid;
+    }
+    for (const auto& threat : scenario.threat_knowledge_templates) {
+        auto valid = threat.validateBasic();
+        if (valid.is_error()) return valid;
+    }
+    return Result<void>::ok();
+}
+
 DialogScenario buildDefaultScenario() {
     DialogScenario scenario;
     scenario.scenario_key = "p22_minimal";
@@ -22,6 +54,7 @@ DialogScenario buildDefaultScenario() {
     red_berry.player_description = "一枚红色的小果实。你不知道吃下去会发生什么。";
     red_berry.visibility = DialogObjectVisibility::Visible;
     red_berry.allowed_actions = {DialogActionKind::Eat};
+    configureInput(red_berry, DialogActionKind::Eat, {"红果"});
     red_berry.safe_tags = {"fruit", "red"};
     scenario.objects.push_back(red_berry);
 
@@ -32,6 +65,7 @@ DialogScenario buildDefaultScenario() {
     decayed.player_description = "一枚气味奇怪的红果，看起来和普通红果相似，但状态不太一样。";
     decayed.visibility = DialogObjectVisibility::Visible;
     decayed.allowed_actions = {DialogActionKind::Eat};
+    configureInput(decayed, DialogActionKind::Eat, {"腐烂红果", "坏红果"});
     decayed.safe_tags = {"fruit", "red", "decayed"};
     scenario.objects.push_back(decayed);
 
@@ -42,6 +76,7 @@ DialogScenario buildDefaultScenario() {
     bitter.player_description = "一片发苦的叶子，看起来不像常见的食物。";
     bitter.visibility = DialogObjectVisibility::Visible;
     bitter.allowed_actions = {DialogActionKind::Eat};
+    configureInput(bitter, DialogActionKind::Eat, {"苦叶"});
     bitter.safe_tags = {"leaf", "green"};
     scenario.objects.push_back(bitter);
 
@@ -52,6 +87,7 @@ DialogScenario buildDefaultScenario() {
     stone.player_description = "一块边缘锋利的石片，似乎可以用来做些什么。";
     stone.visibility = DialogObjectVisibility::Visible;
     stone.allowed_actions = {DialogActionKind::Use};
+    configureInput(stone, DialogActionKind::Use, {"石片"});
     stone.safe_tags = {"tool", "stone"};
     scenario.objects.push_back(stone);
 
@@ -62,6 +98,7 @@ DialogScenario buildDefaultScenario() {
     axe.player_description = "一把可以尝试砍伐的斧头，用久了可能需要维护。";
     axe.visibility = DialogObjectVisibility::Visible;
     axe.allowed_actions = {DialogActionKind::Use};
+    configureInput(axe, DialogActionKind::Use, {"斧头", "斧子"});
     axe.safe_tags = {"tool", "axe", "sharp"};
     scenario.objects.push_back(axe);
 
@@ -72,6 +109,7 @@ DialogScenario buildDefaultScenario() {
     wood.player_description = "一段粗木头，似乎可以被工具处理。";
     wood.visibility = DialogObjectVisibility::Visible;
     wood.allowed_actions = {DialogActionKind::Use};
+    configureInput(wood, DialogActionKind::Use, {"木头", "木材", "制作火把", "做火把"});
     wood.safe_tags = {"material", "wood"};
     scenario.objects.push_back(wood);
 
@@ -82,6 +120,7 @@ DialogScenario buildDefaultScenario() {
     whetstone.player_description = "一块粗糙的磨石，可能可以维护某些工具。";
     whetstone.visibility = DialogObjectVisibility::Visible;
     whetstone.allowed_actions = {DialogActionKind::Use};
+    configureInput(whetstone, DialogActionKind::Use, {"磨石", "打磨", "磨一下"});
     whetstone.safe_tags = {"tool", "maintenance"};
     scenario.objects.push_back(whetstone);
 
@@ -92,6 +131,7 @@ DialogScenario buildDefaultScenario() {
     dry_grass.player_description = "一团干燥的草，似乎很容易被点燃。";
     dry_grass.visibility = DialogObjectVisibility::Visible;
     dry_grass.allowed_actions = {DialogActionKind::Use};
+    configureInput(dry_grass, DialogActionKind::Use, {"干草", "草"});
     dry_grass.safe_tags = {"fuel", "dry"};
     scenario.objects.push_back(dry_grass);
 
@@ -102,6 +142,7 @@ DialogScenario buildDefaultScenario() {
     fire_seed.player_description = "一点微弱的火星，需要合适的材料才能变成火源。";
     fire_seed.visibility = DialogObjectVisibility::Visible;
     fire_seed.allowed_actions = {DialogActionKind::Use};
+    configureInput(fire_seed, DialogActionKind::Use, {"火种", "点燃", "火源", "生火"});
     fire_seed.safe_tags = {"ignition", "fire"};
     scenario.objects.push_back(fire_seed);
 
@@ -112,6 +153,7 @@ DialogScenario buildDefaultScenario() {
     torch.player_description = "需要先理解材料和火源的用途，才能可靠地使用它。";
     torch.visibility = DialogObjectVisibility::Mentioned;
     torch.allowed_actions = {DialogActionKind::Use};
+    configureInput(torch, DialogActionKind::Use, {"火把", "驱赶", "赶走", "吓退"});
     torch.safe_tags = {"tool", "light_source", "generated_item"};
     scenario.objects.push_back(torch);
 
@@ -122,6 +164,7 @@ DialogScenario buildDefaultScenario() {
     camp_fire.player_description = "一处被点燃的火源，能带来光和热，也会影响靠近的野兽。";
     camp_fire.visibility = DialogObjectVisibility::Mentioned;
     camp_fire.allowed_actions = {};
+    configureInput(camp_fire, DialogActionKind::Use, {"火堆", "营火"});
     camp_fire.safe_tags = {"fire", "light_source", "generated_item"};
     scenario.objects.push_back(camp_fire);
 
@@ -132,6 +175,7 @@ DialogScenario buildDefaultScenario() {
     beast.player_description = "树林里靠近的影子。它不是可以采集的物品，而是夜晚危险的征兆。";
     beast.visibility = DialogObjectVisibility::Mentioned;
     beast.allowed_actions = {DialogActionKind::Use};
+    configureInput(beast, DialogActionKind::Use, {"野兽", "低吼", "影子", "靠近的野兽"});
     beast.safe_tags = {"threat", "creature"};
     scenario.objects.push_back(beast);
 
@@ -282,6 +326,50 @@ DialogScenario buildDefaultScenario() {
     fb10.reason_keys.push_back("story_danger_countermeasure");
     scenario.feedbacks.push_back(fb10);
 
+    DialogScenarioThreatKnowledgeTemplate beast_threat;
+    beast_threat.template_key = "threat_beast_counter_fire";
+    beast_threat.threat_object_key = "beast_shadow";
+    beast_threat.required_effect_key = "repel_beast";
+    beast_threat.fallback_effect_keys = {"ignite_fire", "make_torch"};
+    scenario.threat_knowledge_templates.push_back(beast_threat);
+
+    DialogScenarioActionTemplate make_torch;
+    make_torch.action_key = "make_torch";
+    make_torch.label_text = "制作火把";
+    make_torch.input_text = "制作火把";
+    make_torch.object_key = "wood";
+    make_torch.required_effect_key = "make_torch";
+    make_torch.target_object_key = "fire_seed";
+    make_torch.reason_keys = {"scenario.action.fire_counter"};
+    scenario.suggested_action_templates.push_back(make_torch);
+
+    DialogScenarioActionTemplate light_fire;
+    light_fire.action_key = "light_fire";
+    light_fire.label_text = "点燃火源";
+    light_fire.input_text = "点燃火源";
+    light_fire.object_key = "fire_seed";
+    light_fire.required_effect_key = "ignite_fire";
+    light_fire.target_object_key = "dry_grass";
+    light_fire.reason_keys = {"scenario.action.fire_counter"};
+    scenario.suggested_action_templates.push_back(light_fire);
+
+    DialogScenarioActionTemplate repel_beast;
+    repel_beast.action_key = "repel_beast";
+    repel_beast.label_text = "用火把驱赶野兽";
+    repel_beast.input_text = "用火把驱赶野兽";
+    repel_beast.object_key = "torch";
+    repel_beast.required_effect_key = "repel_beast";
+    repel_beast.target_object_key = "beast_shadow";
+    repel_beast.reason_keys = {"scenario.action.threat_counter"};
+    scenario.suggested_action_templates.push_back(repel_beast);
+
+    DialogScenarioActionTemplate inspect_objective;
+    inspect_objective.action_key = "inspect_objective";
+    inspect_objective.label_text = "查看目标";
+    inspect_objective.input_text = "查看目标";
+    inspect_objective.reason_keys = {"scenario.action.inspect"};
+    scenario.suggested_action_templates.push_back(inspect_objective);
+
     scenario.quick_action_input_texts = {
         "观察", "吃红果", "等待一会", "用斧头砍木头", "用磨石打磨斧头", "用火种点燃干草", "制作火把", "用火把驱赶野兽", "教同伴", "查看知识", "查看同伴", "吃腐烂红果", "帮助", "重开"
     };
@@ -292,7 +380,10 @@ DialogScenario buildDefaultScenario() {
 } // namespace
 
 Result<DialogScenario> DialogScenarioCatalog::defaultScenario() const {
-    return Result<DialogScenario>::ok(buildDefaultScenario());
+    auto scenario = buildDefaultScenario();
+    auto valid = validateDialogScenario(scenario);
+    if (valid.is_error()) return Result<DialogScenario>::fail(valid.errors());
+    return Result<DialogScenario>::ok(std::move(scenario));
 }
 
 Result<const DialogScenarioObject*> DialogScenarioCatalog::findObject(

@@ -1,4 +1,5 @@
 #include "pathfinder/h5_dialog/dialog_intent.h"
+#include "pathfinder/h5_dialog/dialog_scenario.h"
 #include <iostream>
 #include <cassert>
 
@@ -75,12 +76,36 @@ static void test_unknown() {
     std::cout << "unknown passed" << std::endl;
 }
 
+static void test_scenario_alias_driven_object_detection() {
+    DialogScenario scenario;
+    scenario.scenario_key = "test_alias_scene";
+    scenario.display_name = "测试场景";
+    scenario.welcome_text = "测试";
+    DialogScenarioObject crystal;
+    crystal.object_key = "glow_crystal";
+    crystal.display_name = "发光晶体";
+    crystal.player_description = "测试物品";
+    crystal.visibility = DialogObjectVisibility::Visible;
+    crystal.allowed_actions = {DialogActionKind::Use};
+    crystal.default_action = DialogActionKind::Use;
+    crystal.input_aliases = {"晶体", "发光石"};
+    scenario.objects.push_back(crystal);
+
+    DialogIntentParser parser;
+    auto result = parser.parseWithScenario("用发光石", scenario);
+    assert(result.is_ok());
+    assert(result.value().kind == DialogIntentKind::TryUse);
+    assert(result.value().object_key == "glow_crystal");
+    std::cout << "scenario_alias_driven_object_detection passed" << std::endl;
+}
+
 int main(int argc, char* argv[]) {
     test_observe();
     test_eat_red_berry();
     test_action_object_pairing();
     test_teach();
     test_unknown();
+    test_scenario_alias_driven_object_detection();
     std::cout << "All h5_dialog_intent tests passed" << std::endl;
     return 0;
 }

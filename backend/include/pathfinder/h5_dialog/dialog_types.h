@@ -138,6 +138,8 @@ struct DialogScenarioObject {
     std::string player_description;
     DialogObjectVisibility visibility = DialogObjectVisibility::Visible;
     std::vector<DialogActionKind> allowed_actions;
+    DialogActionKind default_action = DialogActionKind::Unknown;
+    std::vector<std::string> input_aliases;
     std::vector<std::string> safe_tags;
 
     pathfinder::foundation::Result<void> validateBasic() const;
@@ -181,12 +183,52 @@ struct DialogFeedbackTemplate {
     pathfinder::foundation::Result<void> validateBasic() const;
 };
 
+struct DialogDefaultKnowledgeTemplate {
+    std::string template_key;
+    std::string owner_display_key;
+    std::string subject_object_key;
+    std::string target_object_key;
+    std::string action_key;
+    std::string effect_key;
+    double confidence = 0.0;
+    bool visible_to_player = true;
+    bool usable_by_ai = true;
+    bool usable_for_action = true;
+    std::vector<std::string> reason_keys;
+
+    pathfinder::foundation::Result<void> validateBasic() const;
+};
+
+struct DialogScenarioActionTemplate {
+    std::string action_key;
+    std::string label_text;
+    std::string input_text;
+    std::string object_key;
+    std::string required_effect_key;
+    std::string target_object_key;
+    std::vector<std::string> reason_keys;
+
+    pathfinder::foundation::Result<void> validateBasic() const;
+};
+
+struct DialogScenarioThreatKnowledgeTemplate {
+    std::string template_key;
+    std::string threat_object_key;
+    std::string required_effect_key;
+    std::vector<std::string> fallback_effect_keys;
+
+    pathfinder::foundation::Result<void> validateBasic() const;
+};
+
 struct DialogScenario {
     std::string scenario_key;
     std::string display_name;
     std::string welcome_text;
     std::vector<DialogScenarioObject> objects;
     std::vector<DialogFeedbackTemplate> feedbacks;
+    std::vector<DialogDefaultKnowledgeTemplate> default_knowledge_templates;
+    std::vector<DialogScenarioActionTemplate> suggested_action_templates;
+    std::vector<DialogScenarioThreatKnowledgeTemplate> threat_knowledge_templates;
     std::vector<std::string> quick_action_input_texts;
     std::vector<std::string> reason_keys;
 };

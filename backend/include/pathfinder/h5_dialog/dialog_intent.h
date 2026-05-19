@@ -8,6 +8,7 @@ namespace pathfinder::h5_dialog {
 class DialogIntentParser {
 public:
     pathfinder::foundation::Result<DialogIntent> parse(const std::string& input_text) const;
+    pathfinder::foundation::Result<DialogIntent> parseWithScenario(const std::string& input_text, const DialogScenario& scenario) const;
 };
 
 } // namespace pathfinder::h5_dialog

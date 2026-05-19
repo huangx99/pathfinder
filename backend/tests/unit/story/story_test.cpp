@@ -61,6 +61,10 @@ static void test_runtime_progression_success() {
     assert(state.current_phase == StoryTimePhase::Afternoon);
 
     context.last_input_text = "用火种点燃干草";
+    context.last_object_key = "fire_seed";
+    context.last_target_object_key = "dry_grass";
+    context.last_action_key = "use";
+    context.last_effect_key = "ignite_fire";
     context.actor_knowledge_effect_keys.push_back("ignite_fire");
     context.available_object_keys.push_back("camp_fire");
     auto r3 = progression.applyTurn(scenario, state, context);
@@ -68,6 +72,10 @@ static void test_runtime_progression_success() {
     state = r3.value().new_state;
 
     context.last_input_text = "制作火把";
+    context.last_object_key = "wood";
+    context.last_target_object_key = "fire_seed";
+    context.last_action_key = "use";
+    context.last_effect_key = "make_torch";
     context.actor_knowledge_effect_keys.push_back("make_torch");
     context.available_object_keys.push_back("torch");
     auto r4 = progression.applyTurn(scenario, state, context);
@@ -76,6 +84,7 @@ static void test_runtime_progression_success() {
     assert(!state.generated_object_keys.empty());
 
     context.last_input_text = "教同伴";
+    context.last_effect_key.clear();
     context.teach_action_happened = true;
     context.recipient_knowledge_effect_keys.push_back("make_torch");
     auto r5 = progression.applyTurn(scenario, state, context);
@@ -84,6 +93,10 @@ static void test_runtime_progression_success() {
     assert(state.current_phase == StoryTimePhase::Dusk);
 
     context.last_input_text = "用火把驱赶野兽";
+    context.last_object_key = "torch";
+    context.last_target_object_key = "beast_shadow";
+    context.last_action_key = "use";
+    context.last_effect_key = "repel_beast";
     context.actor_knowledge_effect_keys.push_back("repel_beast");
     auto r6 = progression.applyTurn(scenario, state, context);
     assert(r6.is_ok());
@@ -117,6 +130,21 @@ static void test_runtime_progression_failure() {
     assert(state.current_phase == StoryTimePhase::Failed);
 }
 
+static void test_story_ignores_fire_words_without_structured_effect() {
+    StoryScenarioRegistry registry;
+    StoryRuntimeFactory factory;
+    StoryProgressionService progression;
+    auto scenario = registry.firstDaySurvival().value();
+    auto state = factory.createInitialState(scenario).value();
+
+    StoryEvaluationContext context;
+    context.last_input_text = "用火把驱赶野兽";
+    auto result = progression.applyTurn(scenario, state, context);
+    assert(result.is_ok());
+    assert(result.value().new_state.generated_object_keys.empty());
+    assert(result.value().story_event_keys.empty());
+}
+
 static void test_projection_player_safe() {
     StoryScenarioRegistry registry;
     StoryRuntimeFactory factory;
@@ -139,6 +167,7 @@ int main(int argc, char* argv[]) {
     else if (name == "scenario") test_scenario_validation();
     else if (name == "success") test_runtime_progression_success();
     else if (name == "failure") test_runtime_progression_failure();
+    else if (name == "no_text_magic") test_story_ignores_fire_words_without_structured_effect();
     else if (name == "projection") test_projection_player_safe();
     else return 2;
     std::cout << "story " << name << " passed\n";

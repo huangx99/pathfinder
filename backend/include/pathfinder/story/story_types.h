@@ -125,6 +125,17 @@ struct StoryThreatDefinition {
     pathfinder::foundation::Result<void> validateBasic() const;
 };
 
+struct StorySuggestedActionDefinition {
+    std::string action_key;
+    std::string label_zh_cn;
+    std::string input_text;
+    std::string required_effect_key;
+    std::string target_object_key;
+    std::vector<std::string> generated_object_keys;
+
+    pathfinder::foundation::Result<void> validateBasic() const;
+};
+
 struct StoryTimeBudget {
     int morning_to_afternoon{2};
     int afternoon_to_dusk{5};
@@ -143,6 +154,7 @@ struct StoryScenarioDefinition {
     std::vector<StoryMaterialEntry> material_entries;
     std::vector<StoryObjectiveDefinition> objectives;
     std::vector<StoryThreatDefinition> threats;
+    std::vector<StorySuggestedActionDefinition> suggested_actions;
     StoryTimeBudget time_budget;
     std::string success_objective_key;
 
@@ -189,6 +201,11 @@ struct StoryEvaluationContext {
     std::vector<std::string> completed_action_keys;
     bool teach_action_happened{false};
     std::string last_input_text;
+    std::string last_intent_kind;
+    std::string last_action_key;
+    std::string last_object_key;
+    std::string last_target_object_key;
+    std::string last_effect_key;
 
     pathfinder::foundation::Result<void> validateBasic() const;
 };

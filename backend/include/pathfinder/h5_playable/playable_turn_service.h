@@ -24,6 +24,8 @@ private:
     pathfinder::foundation::Result<H5PlayableResponse> buildResponse(
         const pathfinder::h5_dialog::DialogResponseDto& dialog_response,
         const pathfinder::h5_dialog::DialogSessionState& session_state,
+        const pathfinder::h5_dialog::DialogIntent& turn_intent,
+        const std::string& observed_effect_key,
         PlayableFeedbackTone tone,
         const std::string& request_key);
 };

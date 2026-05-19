@@ -1,5 +1,6 @@
 #include "pathfinder/h5_playable/playable_turn_service.h"
 #include "pathfinder/goal_execution/goal_execution_system.h"
+#include "pathfinder/h5_dialog/dialog_scenario.h"
 #include "pathfinder/world_interaction/world_services.h"
 #include <algorithm>
 
@@ -37,6 +38,26 @@ bool containsKey(const std::vector<std::string>& keys, const std::string& value)
     return std::find(keys.begin(), keys.end(), value) != keys.end();
 }
 
+std::string scenarioThreatCounterEffectKey(const std::string& threat_object_key) {
+    pathfinder::h5_dialog::DialogScenarioCatalog catalog;
+    auto scenario = catalog.defaultScenario();
+    if (scenario.is_error()) return "";
+    for (const auto& config : scenario.value().threat_knowledge_templates) {
+        if (config.threat_object_key == threat_object_key) return config.required_effect_key;
+    }
+    return "";
+}
+
+std::string scenarioFeedbackEffectKey(const std::string& object_key, const std::string& target_object_key, pathfinder::h5_dialog::DialogActionKind action) {
+    pathfinder::h5_dialog::DialogScenarioCatalog catalog;
+    auto scenario = catalog.defaultScenario();
+    if (scenario.is_error()) return "";
+    for (const auto& feedback : scenario.value().feedbacks) {
+        if (feedback.object_key == object_key && feedback.target_object_key == target_object_key && feedback.action == action) return feedback.effect_key;
+    }
+    return "";
+}
+
 void upsertKey(std::vector<std::string>& keys, const std::string& prefix, const std::string& value) {
     keys.erase(std::remove_if(keys.begin(), keys.end(), [&](const std::string& key) { return hasPrefix(key, prefix); }), keys.end());
     keys.push_back(prefix + value);
@@ -48,9 +69,16 @@ void addUnique(std::vector<std::string>& keys, const std::string& value) {
 
 pathfinder::story::StoryEvaluationContext buildStoryContext(
     const pathfinder::h5_dialog::DialogResponseDto& dialog_response,
-    const pathfinder::h5_dialog::DialogSessionState& session_state) {
+    const pathfinder::h5_dialog::DialogSessionState& session_state,
+    const pathfinder::h5_dialog::DialogIntent& turn_intent,
+    const std::string& observed_effect_key) {
     pathfinder::story::StoryEvaluationContext context;
-    context.last_input_text = dialog_response.reply_text;
+    context.last_input_text = turn_intent.normalized_text.empty() ? dialog_response.reply_text : turn_intent.normalized_text;
+    context.last_intent_kind = pathfinder::h5_dialog::toString(turn_intent.kind);
+    context.last_action_key = pathfinder::h5_dialog::toString(turn_intent.action);
+    context.last_object_key = turn_intent.object_key;
+    context.last_target_object_key = turn_intent.target_object_key;
+    context.last_effect_key = observed_effect_key;
     for (const auto& claim : session_state.actor_claims) {
         if (!claim.predicate.effect_key.empty()) context.actor_knowledge_effect_keys.push_back(claim.predicate.effect_key);
     }
@@ -63,7 +91,7 @@ pathfinder::story::StoryEvaluationContext buildStoryContext(
         if (quantity != runtime.numeric_states.end() && quantity->second > 0.0) addUnique(context.available_object_keys, object_key);
     }
     context.completed_action_keys = session_state.completed_action_keys;
-    context.teach_action_happened = dialog_response.decision == pathfinder::h5_dialog::DialogTurnDecision::TeachingRan || dialog_response.reply_text.find("同伴听取") != std::string::npos;
+    context.teach_action_happened = dialog_response.decision == pathfinder::h5_dialog::DialogTurnDecision::TeachingRan;
     return context;
 }
 
@@ -122,11 +150,16 @@ void applyStoryProjection(pathfinder::h5_projection::H5GameProjection& game_proj
     for (const auto& action : story_projection.suggested_actions) game_projection.action_bar.push_back(action);
 }
 
-PlayableFeedbackTone toneFromDialog(const pathfinder::h5_dialog::DialogResponseDto& response) {
+PlayableFeedbackTone toneFromDialog(const pathfinder::h5_dialog::DialogResponseDto& response, const pathfinder::h5_dialog::DialogIntent& intent, const std::string& observed_effect_key) {
     if (response.decision == pathfinder::h5_dialog::DialogTurnDecision::Rejected ||
         response.decision == pathfinder::h5_dialog::DialogTurnDecision::Failed) return PlayableFeedbackTone::Warning;
-    if (response.reply_text.find("不适") != std::string::npos || response.reply_text.find("危险") != std::string::npos) return PlayableFeedbackTone::Danger;
-    if (response.reply_text.find("形成") != std::string::npos || response.reply_text.find("缓解") != std::string::npos || response.reply_text.find("同伴听取") != std::string::npos) return PlayableFeedbackTone::Positive;
+    if (observed_effect_key == "poison" || intent.object_key == "beast_shadow" || intent.target_object_key == "beast_shadow") return PlayableFeedbackTone::Danger;
+    if (response.decision == pathfinder::h5_dialog::DialogTurnDecision::LearningLoopRan ||
+        response.decision == pathfinder::h5_dialog::DialogTurnDecision::TeachingRan ||
+        observed_effect_key == "restore_hunger" ||
+        observed_effect_key == "make_torch" ||
+        observed_effect_key == "ignite_fire" ||
+        observed_effect_key == "repel_beast") return PlayableFeedbackTone::Positive;
     return PlayableFeedbackTone::Neutral;
 }
 
@@ -160,8 +193,9 @@ H5PlayableExecutionStatus toPlayableExecutionStatus(const pathfinder::goal_execu
 // TODO(P41-execution-persistence): This builds a minimal visible plan for H5 P40 projection.
 // Long-running goals should persist ExecutionContext in the session/save system once map and scheduling stages land.
 pathfinder::agent_reasoning::AgentPlan playableExecutionPlan(
-    const pathfinder::h5_dialog::DialogResponseDto& dialog_response,
-    const pathfinder::h5_dialog::DialogSessionState& session_state) {
+    const pathfinder::h5_dialog::DialogSessionState& session_state,
+    const pathfinder::h5_dialog::DialogIntent& turn_intent,
+    const std::string& observed_effect_key) {
     pathfinder::agent_reasoning::AgentPlan plan;
     plan.plan_id = "plan.h5_visible_execution." + session_state.session_id + "." + std::to_string(session_state.turn_index);
     plan.actor_key = "companion";
@@ -178,8 +212,10 @@ pathfinder::agent_reasoning::AgentPlan playableExecutionPlan(
     step.estimated_ticks = 1;
     step.explanation_zh_cn = "同伴正在根据当前局势行动。";
 
-    const auto text = dialog_response.reply_text;
-    const bool beast_related = text.find("野兽") != std::string::npos || text.find("危险") != std::string::npos || containsKey(session_state.debug_keys, "story.threat.beast_shadow.active");
+    const bool beast_related = turn_intent.object_key == "beast_shadow" ||
+        turn_intent.target_object_key == "beast_shadow" ||
+        observed_effect_key == scenarioThreatCounterEffectKey("beast_shadow") ||
+        containsKey(session_state.debug_keys, "story.threat.beast_shadow.active");
     if (beast_related) {
         plan.goal.kind = pathfinder::agent_reasoning::AgentGoalKind::ReduceThreat;
         plan.goal.target_key = "beast_shadow";
@@ -188,16 +224,18 @@ pathfinder::agent_reasoning::AgentPlan playableExecutionPlan(
         step.object_key = "torch";
         step.target_key = "beast_shadow";
         step.action_key = "use";
-        step.effect_key = "repel_beast";
+        step.effect_key = scenarioThreatCounterEffectKey("beast_shadow");
+        if (step.effect_key.empty()) step.effect_key = "use";
         step.explanation_zh_cn = "同伴正在盯住靠近的危险。";
-    } else if (text.find("斧头") != std::string::npos || text.find("木头") != std::string::npos) {
+    } else if ((turn_intent.object_key == "axe" && turn_intent.target_object_key == "wood") || observed_effect_key == scenarioFeedbackEffectKey("axe", "wood", pathfinder::h5_dialog::DialogActionKind::Use)) {
         plan.goal.kind = pathfinder::agent_reasoning::AgentGoalKind::AcquireObject;
         plan.goal.target_key = "wood_processed";
         step.kind = pathfinder::agent_reasoning::PlanStepKind::DirectAction;
         step.object_key = "axe";
         step.target_key = "wood";
         step.action_key = "use";
-        step.effect_key = "cut_wood";
+        step.effect_key = scenarioFeedbackEffectKey("axe", "wood", pathfinder::h5_dialog::DialogActionKind::Use);
+        if (step.effect_key.empty()) step.effect_key = "use";
         step.explanation_zh_cn = "同伴正在为营地准备木材。";
     } else {
         step.kind = pathfinder::agent_reasoning::PlanStepKind::WaitForCondition;
@@ -212,10 +250,13 @@ pathfinder::agent_reasoning::AgentPlan playableExecutionPlan(
 }
 
 std::vector<pathfinder::goal_execution::ExternalInterruptSignal> playableInterrupts(
-    const pathfinder::h5_dialog::DialogResponseDto& dialog_response,
-    const pathfinder::h5_dialog::DialogSessionState& session_state) {
-    const auto text = dialog_response.reply_text;
-    const bool beast_related = text.find("野兽") != std::string::npos || text.find("危险") != std::string::npos || containsKey(session_state.debug_keys, "story.threat.beast_shadow.active");
+    const pathfinder::h5_dialog::DialogSessionState& session_state,
+    const pathfinder::h5_dialog::DialogIntent& turn_intent,
+    const std::string& observed_effect_key) {
+    const bool beast_related = turn_intent.object_key == "beast_shadow" ||
+        turn_intent.target_object_key == "beast_shadow" ||
+        observed_effect_key == scenarioThreatCounterEffectKey("beast_shadow") ||
+        containsKey(session_state.debug_keys, "story.threat.beast_shadow.active");
     if (!beast_related) return {};
     pathfinder::goal_execution::ExternalInterruptSignal signal;
     signal.interrupt_id = "interrupt.h5.beast_shadow." + std::to_string(session_state.turn_index);
@@ -232,8 +273,9 @@ std::vector<pathfinder::goal_execution::ExternalInterruptSignal> playableInterru
 }
 
 Result<H5PlayableExecutionStatus> buildExecutionStatus(
-    const pathfinder::h5_dialog::DialogResponseDto& dialog_response,
-    const pathfinder::h5_dialog::DialogSessionState& session_state) {
+    const pathfinder::h5_dialog::DialogSessionState& session_state,
+    const pathfinder::h5_dialog::DialogIntent& turn_intent,
+    const std::string& observed_effect_key) {
     pathfinder::h5_dialog::DialogScenarioCatalog catalog;
     auto scenario = catalog.defaultScenario();
     if (scenario.is_error()) return Result<H5PlayableExecutionStatus>::fail(scenario.errors());
@@ -252,8 +294,8 @@ Result<H5PlayableExecutionStatus> buildExecutionStatus(
     request.request_id = "execution_tick.h5." + session_state.session_id + "." + std::to_string(session_state.turn_index);
     request.context = std::move(context);
     request.world_snapshot = snapshot.value();
-    request.visible_events = playableInterrupts(dialog_response, session_state);
-    request.incoming_plan = playableExecutionPlan(dialog_response, session_state);
+    request.visible_events = playableInterrupts(session_state, turn_intent, observed_effect_key);
+    request.incoming_plan = playableExecutionPlan(session_state, turn_intent, observed_effect_key);
     request.elapsed_ticks = 1;
     request.tick = session_state.turn_index;
 
@@ -290,7 +332,7 @@ Result<H5PlayableResponse> H5PlayableTurnService::bootstrap(const H5PlayableBoot
     if (state_result.is_error()) return Result<H5PlayableResponse>::fail(state_result.errors());
     auto state = state_result.value();
     auto dialog_response = bootstrapDialogResponse(request.session_id, state.turn_index);
-    return buildResponse(dialog_response, state, PlayableFeedbackTone::System, request.reset ? "reset" : "bootstrap");
+    return buildResponse(dialog_response, state, pathfinder::h5_dialog::DialogIntent{}, "", PlayableFeedbackTone::System, request.reset ? "reset" : "bootstrap");
 }
 
 Result<H5PlayableResponse> H5PlayableTurnService::handleTurn(const H5PlayableRequest& request) {
@@ -315,12 +357,14 @@ Result<H5PlayableResponse> H5PlayableTurnService::handleTurn(const H5PlayableReq
     auto detailed_result = dialog_service_.handleDetailed(dialog_request);
     if (detailed_result.is_error()) return Result<H5PlayableResponse>::fail(detailed_result.errors());
     const auto detailed = detailed_result.value();
-    return buildResponse(detailed.response, detailed.state, toneFromDialog(detailed.response), "turn_" + std::to_string(request.client_turn));
+    return buildResponse(detailed.response, detailed.state, detailed.intent, detailed.observed_effect_key, toneFromDialog(detailed.response, detailed.intent, detailed.observed_effect_key), "turn_" + std::to_string(request.client_turn));
 }
 
 Result<H5PlayableResponse> H5PlayableTurnService::buildResponse(
     const pathfinder::h5_dialog::DialogResponseDto& dialog_response,
     const pathfinder::h5_dialog::DialogSessionState& session_state,
+    const pathfinder::h5_dialog::DialogIntent& turn_intent,
+    const std::string& observed_effect_key,
     PlayableFeedbackTone tone,
     const std::string& request_key) {
     auto source_result = mapper_.buildSourceBundle(dialog_response, session_state);
@@ -340,7 +384,7 @@ Result<H5PlayableResponse> H5PlayableTurnService::buildResponse(
     auto scenario_result = story_registry_.firstDaySurvival();
     if (scenario_result.is_error()) return Result<H5PlayableResponse>::fail(scenario_result.errors());
     auto story_state = storyStateFromSession(scenario_result.value(), story_factory_, session_state);
-    auto story_context = buildStoryContext(dialog_response, session_state);
+    auto story_context = buildStoryContext(dialog_response, session_state, turn_intent, observed_effect_key);
     auto progressed_story = story_progression_.applyTurn(scenario_result.value(), story_state, story_context);
     if (progressed_story.is_error()) return Result<H5PlayableResponse>::fail(progressed_story.errors());
     auto story_session_state = session_state;
@@ -358,7 +402,7 @@ Result<H5PlayableResponse> H5PlayableTurnService::buildResponse(
     response.reply_text = makeSafeText("playable.reply." + request_key, SafeTextKind::Feedback, playableSafeReplyText(dialog_response));
     response.projection = std::move(projection_result.value());
     applyStoryProjection(response.projection, story_projection_result.value());
-    auto execution_status = buildExecutionStatus(dialog_response, story_session_state);
+    auto execution_status = buildExecutionStatus(story_session_state, turn_intent, observed_effect_key);
     if (execution_status.is_error()) return Result<H5PlayableResponse>::fail(execution_status.errors());
     response.execution_status = execution_status.value();
     response.issues = response.projection.issues;

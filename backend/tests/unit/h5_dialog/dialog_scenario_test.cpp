@@ -12,6 +12,10 @@ static void test_default_scenario() {
     auto scenario = r.value();
     assert(!scenario.objects.empty());
     assert(!scenario.feedbacks.empty());
+    assert(!scenario.threat_knowledge_templates.empty());
+    assert(scenario.threat_knowledge_templates.front().required_effect_key == "repel_beast");
+    assert(!scenario.suggested_action_templates.empty());
+    assert(scenario.default_knowledge_templates.empty());
     std::cout << "default_scenario passed" << std::endl;
 }
 
@@ -35,10 +39,29 @@ static void test_find_feedback() {
     std::cout << "find_feedback passed" << std::endl;
 }
 
+static void test_template_key_validation() {
+    DialogDefaultKnowledgeTemplate knowledge;
+    knowledge.template_key = "bad.template.key";
+    knowledge.owner_display_key = "companion";
+    knowledge.subject_object_key = "torch";
+    knowledge.action_key = "use";
+    knowledge.effect_key = "repel_beast";
+    knowledge.confidence = 0.8;
+    assert(knowledge.validateBasic().is_error());
+
+    DialogScenarioThreatKnowledgeTemplate threat;
+    threat.template_key = "threat.beast.counter";
+    threat.threat_object_key = "beast_shadow";
+    threat.required_effect_key = "repel_beast";
+    assert(threat.validateBasic().is_error());
+    std::cout << "template_key_validation passed" << std::endl;
+}
+
 int main(int argc, char* argv[]) {
     test_default_scenario();
     test_find_object();
     test_find_feedback();
+    test_template_key_validation();
     std::cout << "All h5_dialog_scenario tests passed" << std::endl;
     return 0;
 }

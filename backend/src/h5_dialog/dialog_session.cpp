@@ -1,5 +1,4 @@
 #include "pathfinder/h5_dialog/dialog_session.h"
-#include "pathfinder/agent_reasoning/effect_semantics.h"
 #include "pathfinder/h5_dialog/dialog_scenario.h"
 #include "pathfinder/knowledge/knowledge_claim.h"
 #include <algorithm>
@@ -20,56 +19,49 @@ using pathfinder::cognition::CognitionSubjectKind;
 
 namespace {
 
-pathfinder::knowledge::KnowledgeClaim defaultCompanionTorchKnowledge(
+pathfinder::knowledge::KnowledgeClaim defaultKnowledgeFromTemplate(
     const std::string& session_id,
-    const pathfinder::knowledge::KnowledgeOwner& owner) {
+    const pathfinder::knowledge::KnowledgeOwner& owner,
+    const DialogDefaultKnowledgeTemplate& config) {
     pathfinder::knowledge::KnowledgeClaim claim;
-    claim.knowledge_id = pathfinder::foundation::KnowledgeId("knowledge_companion_default_torch_repel_" + session_id);
+    claim.knowledge_id = pathfinder::foundation::KnowledgeId("knowledge_default_" + config.template_key + "_" + session_id);
     claim.owner = owner;
     claim.subject.kind = pathfinder::knowledge::KnowledgeSubjectKind::ObjectDefinition;
-    claim.subject.subject_id = "torch";
+    claim.subject.subject_id = config.subject_object_key;
     claim.subject.subject_type_key = "world_object";
-    claim.subject.related_subject_ids.push_back("beast_shadow");
+    if (!config.target_object_key.empty()) claim.subject.related_subject_ids.push_back(config.target_object_key);
     claim.predicate.relation_type = pathfinder::knowledge::KnowledgeRelationType::HasEffect;
-    claim.predicate.action_key = "use";
-    claim.predicate.effect_key = "repel_beast";
-    claim.confidence.confidence = 0.85;
+    claim.predicate.action_key = config.action_key;
+    claim.predicate.effect_key = config.effect_key;
+    claim.confidence.confidence = config.confidence;
     claim.confidence.band = pathfinder::knowledge::KnowledgeConfidenceBand::Strong;
     claim.confidence.support_count = 1;
-    claim.confidence.last_change_reason_key = "default_companion_survival_hint";
+    claim.confidence.last_change_reason_key = "scenario_default_knowledge";
     claim.status = pathfinder::knowledge::KnowledgeStatus::Shared;
-    claim.projection_flags.visible_to_player = true;
-    claim.projection_flags.usable_by_ai = true;
-    claim.projection_flags.usable_for_action = true;
-    claim.reason_keys = {"default_companion_torch_repel", "playtest_helper"};
+    claim.projection_flags.visible_to_player = config.visible_to_player;
+    claim.projection_flags.usable_by_ai = config.usable_by_ai;
+    claim.projection_flags.usable_for_action = config.usable_for_action;
+    claim.reason_keys = config.reason_keys;
     claim.created_tick = Tick(1);
     claim.updated_tick = Tick(1);
     return claim;
 }
 
-bool isThreatTargetEffect(const std::string& effect_key) {
-    pathfinder::agent_reasoning::EffectSemanticsRegistry registry;
-    auto semantics = registry.findByEffectKey(effect_key);
-    return semantics.is_ok() && semantics.value().required_target_kind && *semantics.value().required_target_kind == "threat";
+bool hasDefaultKnowledge(const DialogSessionState& state, const DialogDefaultKnowledgeTemplate& config) {
+    return std::any_of(state.recipient_claims.begin(), state.recipient_claims.end(), [&](const pathfinder::knowledge::KnowledgeClaim& claim) {
+        return claim.subject.subject_id == config.subject_object_key &&
+               claim.predicate.action_key == config.action_key &&
+               claim.predicate.effect_key == config.effect_key &&
+               (config.target_object_key.empty() || std::find(claim.subject.related_subject_ids.begin(), claim.subject.related_subject_ids.end(), config.target_object_key) != claim.subject.related_subject_ids.end());
+    });
 }
 
-bool hasDefaultCompanionThreatCounterKnowledge(const DialogSessionState& state) {
-    return std::any_of(
-        state.recipient_claims.begin(),
-        state.recipient_claims.end(),
-        [](const pathfinder::knowledge::KnowledgeClaim& claim) {
-            return claim.predicate.action_key == "use" && isThreatTargetEffect(claim.predicate.effect_key) &&
-                   std::find(
-                       claim.subject.related_subject_ids.begin(),
-                       claim.subject.related_subject_ids.end(),
-                       "beast_shadow") != claim.subject.related_subject_ids.end();
-        });
-}
-
-void ensureSessionDefaults(DialogSessionState& state) {
-    if (!hasDefaultCompanionThreatCounterKnowledge(state)) {
-        state.recipient_claims.push_back(defaultCompanionTorchKnowledge(state.session_id, state.recipient.knowledge_owner));
-        state.debug_keys.push_back("migration.default_companion_torch_knowledge");
+void ensureScenarioDefaultKnowledge(DialogSessionState& state, const DialogScenario& scenario) {
+    for (const auto& config : scenario.default_knowledge_templates) {
+        if (config.owner_display_key != state.recipient.display_key) continue;
+        if (hasDefaultKnowledge(state, config)) continue;
+        state.recipient_claims.push_back(defaultKnowledgeFromTemplate(state.session_id, state.recipient.knowledge_owner, config));
+        state.debug_keys.push_back("scenario.default_knowledge." + config.template_key);
     }
 }
 
@@ -124,7 +116,7 @@ DialogSessionState createNewSession(const std::string& session_id) {
     state.recipient.memory_owner = MemoryOwner{MemoryOwnerKind::Actor, recip_id, {}, "companion"};
     state.recipient.cognition_subject = CognitionSubject{CognitionSubjectKind::Actor, recip_id, std::nullopt};
     state.recipient.display_key = "companion";
-    ensureSessionDefaults(state);
+    ensureScenarioDefaultKnowledge(state, scenario);
 
     return state;
 }
@@ -135,7 +127,9 @@ Result<DialogSessionState> InMemoryDialogSessionStore::loadOrCreate(const std::s
     std::lock_guard<std::mutex> lock(mutex_);
     auto it = sessions_.find(session_id);
     if (it != sessions_.end()) {
-        ensureSessionDefaults(it->second);
+        DialogScenarioCatalog catalog;
+        auto scenario_r = catalog.defaultScenario();
+        if (scenario_r.is_ok()) ensureScenarioDefaultKnowledge(it->second, scenario_r.value());
         return Result<DialogSessionState>::ok(it->second);
     }
     auto state = createNewSession(session_id);

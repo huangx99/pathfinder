@@ -86,17 +86,32 @@ StoryTimePhase phaseForBudget(const StoryTimeBudget& budget, int used) {
     return StoryTimePhase::Morning;
 }
 
-bool hasCounterObject(const StoryEvaluationContext& context) {
-    return containsAny(context.available_object_keys, {"torch", "camp_fire", "fire_seed"}) ||
-           containsAny(context.completed_action_keys, {"made_torch", "lit_fire", "repelled_beast"}) ||
-           context.last_input_text.find("火把") != std::string::npos ||
-           context.last_input_text.find("火") != std::string::npos;
+bool hasCounterObject(const StoryEvaluationContext& context, const StoryScenarioDefinition& scenario) {
+    for (const auto& threat : scenario.threats) {
+        if (containsAny(context.available_object_keys, threat.counter_object_keys)) return true;
+    }
+    return containsAny(context.completed_action_keys, {"made_torch", "lit_fire", "repelled_beast"});
 }
 
-bool hasCounterKnowledge(const StoryEvaluationContext& context) {
-    return containsAny(context.actor_knowledge_effect_keys, {"repel_beast", "ignite_fire", "make_torch", "cut_wood"}) ||
-           context.last_input_text.find("火把") != std::string::npos ||
-           context.last_input_text.find("驱赶") != std::string::npos;
+bool hasCounterKnowledge(const StoryEvaluationContext& context, const StoryScenarioDefinition& scenario) {
+    for (const auto& threat : scenario.threats) {
+        if (containsAny(context.actor_knowledge_effect_keys, threat.counter_knowledge_keys)) return true;
+        if (containsAny(context.recipient_knowledge_effect_keys, threat.counter_knowledge_keys)) return true;
+        if (containsValue(threat.counter_knowledge_keys, context.last_effect_key)) return true;
+    }
+    return false;
+}
+
+bool lastEffectMatches(const StoryEvaluationContext& context, const std::string& effect_key) {
+    return !effect_key.empty() && context.last_effect_key == effect_key;
+}
+
+const StorySuggestedActionDefinition* findSuggestedActionByEffect(const StoryScenarioDefinition& scenario, const std::string& effect_key) {
+    if (effect_key.empty()) return nullptr;
+    for (const auto& action : scenario.suggested_actions) {
+        if (action.required_effect_key == effect_key) return &action;
+    }
+    return nullptr;
 }
 
 bool taughtCompanion(const StoryEvaluationContext& context) {
@@ -114,8 +129,21 @@ pathfinder::h5_projection::ActionProjection storyAction(const std::string& key, 
     return action;
 }
 
+std::vector<pathfinder::h5_projection::ActionProjection> suggestedActionsForScenario(const StoryScenarioDefinition& scenario) {
+    std::vector<pathfinder::h5_projection::ActionProjection> actions;
+    for (const auto& config : scenario.suggested_actions) {
+        actions.push_back(storyAction(config.action_key, config.label_zh_cn, config.input_text));
+    }
+    return actions;
+}
+
 } // namespace
 
+// Story is a temporary H5 prototype projection layer: it may summarize objectives,
+// hints, and chapter pacing, but must not become the long-term authority for world
+// objects, map state, NPC autonomy, resources, or real interaction rules. When the
+// open-world map/content package lands, move those responsibilities to world/content
+// systems and keep Story as a presentation/planning projection only.
 Result<StoryScenarioDefinition> StoryScenarioRegistry::firstDaySurvival() const {
     StoryScenarioDefinition scenario;
     scenario.scenario_key = "first_day_survival";
@@ -156,6 +184,12 @@ Result<StoryScenarioDefinition> StoryScenarioRegistry::firstDaySurvival() const 
     beast.success_feedback_key = "beast_repelled_by_fire";
     beast.failure_feedback_key = "beast_pressure_unanswered";
     scenario.threats = {beast};
+    scenario.suggested_actions = {
+        StorySuggestedActionDefinition{"make_torch", "制作火把", "制作火把", "make_torch", "", {"torch"}},
+        StorySuggestedActionDefinition{"light_fire", "点燃火源", "点燃火源", "ignite_fire", "", {"camp_fire"}},
+        StorySuggestedActionDefinition{"repel_beast", "用火把驱赶野兽", "用火把驱赶野兽", "repel_beast", "beast_shadow", {}},
+        StorySuggestedActionDefinition{"inspect_objective", "查看目标", "查看目标", "", "", {}}
+    };
     scenario.time_budget = StoryTimeBudget{2, 5, 8};
     scenario.success_objective_key = "survive_first_night";
     auto valid = scenario.validateBasic();
@@ -211,7 +245,7 @@ Result<std::vector<StoryObjectiveState>> StoryObjectiveEvaluator::evaluate(
     if (context.actor_knowledge_effect_keys.size() >= 2 || state.time_points_used >= 2) {
         setStatus("explore_food_and_tools", StoryObjectiveStatus::Completed, "story.explored_materials");
     }
-    if (hasCounterObject(context) || hasCounterKnowledge(context) || containsAny(state.generated_object_keys, {"torch", "camp_fire"})) {
+    if (hasCounterObject(context, scenario) || hasCounterKnowledge(context, scenario) || containsAny(state.generated_object_keys, {"torch", "camp_fire"})) {
         setStatus("prepare_fire_source", StoryObjectiveStatus::Completed, "story.prepared_fire_source");
     } else if (state.current_phase == StoryTimePhase::Dusk || state.current_phase == StoryTimePhase::Night) {
         setStatus("prepare_fire_source", StoryObjectiveStatus::Blocked, "story.need_fire_source");
@@ -255,14 +289,16 @@ Result<StoryTurnResult> StoryProgressionService::applyTurn(
     }
     result.new_state.current_phase = phaseForBudget(scenario.time_budget, result.new_state.time_points_used);
 
-    if (context.last_input_text.find("火把") != std::string::npos) {
-        if (!containsValue(result.new_state.generated_object_keys, std::string("torch"))) result.new_state.generated_object_keys.push_back("torch");
-        result.story_event_keys.push_back("story.torch_prepared");
-        result.feedback_zh_cn.push_back("你把材料整理成可以举起的火把。火光也许能让夜里的东西退开。");
-    }
-    if (context.last_input_text.find("火") != std::string::npos && !containsValue(result.new_state.generated_object_keys, std::string("camp_fire"))) {
-        result.new_state.generated_object_keys.push_back("camp_fire");
-        result.story_event_keys.push_back("story.fire_prepared");
+    if (const auto* action = findSuggestedActionByEffect(scenario, context.last_effect_key)) {
+        for (const auto& object_key : action->generated_object_keys) {
+            if (!containsValue(result.new_state.generated_object_keys, object_key)) result.new_state.generated_object_keys.push_back(object_key);
+        }
+        if (lastEffectMatches(context, "make_torch")) {
+            result.story_event_keys.push_back("story.torch_prepared");
+            result.feedback_zh_cn.push_back("你把材料整理成可以举起的火把。火光也许能让夜里的东西退开。");
+        } else if (lastEffectMatches(context, "ignite_fire")) {
+            result.story_event_keys.push_back("story.fire_prepared");
+        }
     }
 
     for (auto& threat : result.new_state.threat_states) {
@@ -273,7 +309,7 @@ Result<StoryTurnResult> StoryProgressionService::applyTurn(
         }
         if (result.new_state.current_phase == StoryTimePhase::Night) {
             threat.resolved = true;
-            threat.mitigated = hasCounterObject(context) || hasCounterKnowledge(context) || containsAny(result.new_state.generated_object_keys, {"torch", "camp_fire"});
+            threat.mitigated = hasCounterObject(context, scenario) || hasCounterKnowledge(context, scenario) || containsAny(result.new_state.generated_object_keys, {"torch", "camp_fire"});
             result.new_state.current_phase = threat.mitigated ? StoryTimePhase::Survived : StoryTimePhase::Failed;
             result.story_event_keys.push_back(threat.mitigated ? "story.beast_repelled" : "story.beast_unanswered");
             result.feedback_zh_cn.push_back(threat.mitigated ? "火光让靠近的影子退开了，你和同伴撑过了第一个夜晚。" : "夜里的低吼越来越近。你还没有准备足够的火源，只能慌乱撤离。第一夜没有成功撑过去。");
@@ -338,10 +374,8 @@ Result<StoryProjection> StoryProjectionAdapter::composeProjection(
         projection.material_hints.push_back(makeSafeText("story.hint.teach", SafeTextKind::Hint, "同伴不会自动知道你的经验，记得教同伴。"));
     }
 
-    projection.suggested_actions.push_back(storyAction("make_torch", "制作火把", "制作火把"));
-    projection.suggested_actions.push_back(storyAction("light_fire", "点燃火源", "点燃火源"));
-    projection.suggested_actions.push_back(storyAction("repel_beast", "用火把驱赶野兽", "用火把驱赶野兽"));
-    projection.suggested_actions.push_back(storyAction("inspect_objective", "查看目标", "查看目标"));
+    auto configured_actions = suggestedActionsForScenario(scenario);
+    projection.suggested_actions.insert(projection.suggested_actions.end(), configured_actions.begin(), configured_actions.end());
     if (audience != ProjectionAudience::Player) projection.debug_keys.push_back("story.projection.first_day_survival");
 
     auto valid = projection.validateBasic();

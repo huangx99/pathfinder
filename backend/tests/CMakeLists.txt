@@ -5669,6 +5669,7 @@ add_test(NAME story_enum COMMAND pathfinder_tests_story enum)
 add_test(NAME story_scenario_validation COMMAND pathfinder_tests_story scenario)
 add_test(NAME story_success_progression COMMAND pathfinder_tests_story success)
 add_test(NAME story_failure_progression COMMAND pathfinder_tests_story failure)
+add_test(NAME story_no_text_magic COMMAND pathfinder_tests_story no_text_magic)
 add_test(NAME story_projection_player_safe COMMAND pathfinder_tests_story projection)
 
 # H5 playable shell tests (P33)

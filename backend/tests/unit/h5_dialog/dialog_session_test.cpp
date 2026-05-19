@@ -12,6 +12,7 @@ static void test_session_create() {
     auto state = r.value();
     assert(state.session_id == "session_1");
     assert(!state.visible_object_keys.empty());
+    assert(state.recipient_claims.empty());
     std::cout << "session_create passed" << std::endl;
 }
 
