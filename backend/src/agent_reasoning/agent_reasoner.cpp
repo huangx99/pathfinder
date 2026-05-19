@@ -279,7 +279,7 @@ bool ownerMatchesActor(const KnowledgeClaim& claim, const std::string& actor_key
 }
 
 KnowledgeUsability usabilityFor(const KnowledgeClaim& claim, const EffectSemantics& semantics, const ReasoningOptions& options, double urgency) {
-    if (semantics.risk_score >= 70.0 || claim.predicate.effect_key == "poison") return KnowledgeUsability::Dangerous;
+    if (semantics.risk_score >= 70.0 || semantics.semantic_kind == EffectSemanticKind::RiskDelta) return KnowledgeUsability::Dangerous;
     if (claim.status == KnowledgeStatus::Deprecated || claim.status == KnowledgeStatus::Disproven) return KnowledgeUsability::Conflicted;
     if (claim.confidence.conflict_count > 0) return KnowledgeUsability::Conflicted;
     if (statusAtLeast(claim.status, semantics.confidence_floor) && claim.confidence.confidence >= options.min_confidence_score) return KnowledgeUsability::Usable;
@@ -628,11 +628,15 @@ Result<PlanScore> PlanUtilityScorer::score(const PlanScoreInput& input) const {
     }
     const double time_weight = input.goal.urgency >= 80.0 ? 8.0 : 3.0;
     const double risk_weight = input.need_state.health <= 30.0 ? 3.0 : 1.5;
-    const double durability_bonus = input.goal.urgency >= 80.0 ? 0.0 : (input.plan.steps.back().effect_key == "build_house" ? 90.0 : 0.0);
+    const double durability_bonus = input.goal.urgency >= 80.0 || input.plan.steps.empty() || input.goal.kind != AgentGoalKind::IncreaseShelterCapacity ? 0.0 : 90.0;
     double emergency_goal_bonus = input.goal.urgency >= 80.0 && input.goal.kind == AgentGoalKind::ReduceCold ? 1000.0 : 0.0;
-    if (input.goal.urgency >= 80.0 && (input.goal.kind == AgentGoalKind::ReduceCold || input.goal.kind == AgentGoalKind::IncreaseWarmth)) {
-        if (input.plan.steps.front().effect_key == "ignite_fire" || input.plan.steps.back().effect_key == "provide_warmth") emergency_goal_bonus += 2000.0;
-        if (input.plan.steps.back().effect_key == "build_house") emergency_goal_bonus -= 1200.0;
+    if (input.goal.urgency >= 80.0 && (input.goal.kind == AgentGoalKind::ReduceCold || input.goal.kind == AgentGoalKind::IncreaseWarmth) && !input.plan.steps.empty()) {
+        const auto& final_semantics = input.plan.steps.back().expected_semantics.front();
+        const bool directly_changes_temperature = std::any_of(final_semantics.state_deltas.begin(), final_semantics.state_deltas.end(), [](const auto& delta) {
+            return (delta.domain == "need" && delta.key == "cold" && delta.value < 0.0) || (delta.key == "warmth" && delta.value > 0.0);
+        });
+        if (directly_changes_temperature && input.plan.total_estimated_ticks <= 2) emergency_goal_bonus += 2000.0;
+        if (input.goal.kind == AgentGoalKind::ReduceCold && final_semantics.semantic_kind == EffectSemanticKind::CapabilityDelta) emergency_goal_bonus -= 1200.0;
     }
     const double confidence_bonus = std::max(0.0, 20.0 - static_cast<double>(input.plan.steps.size()) * 2.0);
     score.utility_score = input.goal.urgency * expected_benefit
@@ -720,12 +724,12 @@ Result<ReasoningResult> AgentReasoner::reason(const ReasoningRequest& request) c
     result.selected_plan = all_plans.front();
     result.trace.selected_plan_id = result.selected_plan->plan_id;
     result.safe_explanation_zh_cn = result.selected_plan->steps.front().explanation_zh_cn;
-    if ((result.selected_plan->goal.kind == AgentGoalKind::ReduceCold || result.selected_plan->goal.kind == AgentGoalKind::IncreaseWarmth) && result.selected_plan->steps.front().effect_key == "ignite_fire") {
-        result.safe_explanation_zh_cn = "同伴选择生火，因为它能最快缓解寒冷。";
+    if (result.selected_plan->goal.kind == AgentGoalKind::ReduceCold || result.selected_plan->goal.kind == AgentGoalKind::IncreaseWarmth) {
+        result.safe_explanation_zh_cn = "同伴选择能最快改善寒冷或保暖状态的行动。";
     } else if (result.selected_plan->goal.kind == AgentGoalKind::ReduceHunger) {
         result.safe_explanation_zh_cn = "同伴选择" + result.selected_plan->steps.front().explanation_zh_cn;
     } else if (result.selected_plan->goal.kind == AgentGoalKind::ReduceThreat) {
-        result.safe_explanation_zh_cn = "同伴选择火把，因为它能直接降低野兽威胁。";
+        result.safe_explanation_zh_cn = "同伴选择能直接降低当前威胁的行动。";
     }
     result.trace.public_reason_keys.push_back("goal:" + toString(result.selected_plan->goal.kind));
     result.trace.public_reason_keys.push_back("step:" + result.selected_plan->steps.front().effect_key);

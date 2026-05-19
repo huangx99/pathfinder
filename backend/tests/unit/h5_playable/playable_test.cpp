@@ -85,7 +85,7 @@ static void test_targeted_tool_actions_projection() {
     for (const auto& line : cut.value().projection.actor_knowledge) {
         if (line.subject_label.zh_cn == "斧头" &&
             line.predicate_label.zh_cn.find("对木头") != std::string::npos &&
-            line.effect_summary.zh_cn.find("砍开木头") != std::string::npos) {
+            line.effect_summary.zh_cn.find("处理木头") != std::string::npos) {
             saw_cut_target_knowledge = true;
         }
     }
@@ -97,7 +97,7 @@ static void test_targeted_tool_actions_projection() {
     for (const auto& line : sharpen.value().projection.actor_knowledge) {
         if (line.subject_label.zh_cn == "磨石" &&
             line.predicate_label.zh_cn.find("对斧头") != std::string::npos &&
-            line.effect_summary.zh_cn.find("恢复工具锋利度") != std::string::npos) {
+            line.effect_summary.zh_cn.find("打磨斧头") != std::string::npos) {
             saw_sharpen_target_knowledge = true;
         }
     }
@@ -268,7 +268,7 @@ static void test_story_first_day_projection_and_actions() {
     assert(projectionContainsText(fire.value(), "点燃"));
     bool has_ignite = false;
     for (const auto& line : fire.value().projection.actor_knowledge) {
-        if (line.effect_summary.zh_cn.find("点燃火源") != std::string::npos) has_ignite = true;
+        if (line.effect_summary.zh_cn.find("点燃火堆") != std::string::npos) has_ignite = true;
     }
     assert(has_ignite);
 

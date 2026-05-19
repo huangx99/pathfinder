@@ -1,4 +1,6 @@
 #include "pathfinder/h5_dialog/dialog_presenter.h"
+#include "pathfinder/agent_reasoning/effect_execution.h"
+#include "pathfinder/agent_reasoning/effect_semantics.h"
 #include "pathfinder/condition/condition_summary.h"
 #include "pathfinder/h5_dialog/dialog_scenario.h"
 #include <sstream>
@@ -29,13 +31,12 @@ std::string actionDescription(DialogActionKind action, const std::string& object
 }
 
 std::string effectDescription(const std::string& effect_key) {
-    if (effect_key == "restore_hunger") return "身体的需求有所缓解。";
-    if (effect_key == "poison") return "你感到不适，健康状况变差了。";
-    if (effect_key == "no_visible_effect") return "似乎没有什么明显的效果。";
-    if (effect_key == "use_hint") return "你感觉到这个工具有某种用途。";
-    if (effect_key == "cut_wood") return "斧刃切入木头，木头被砍开了。";
-    if (effect_key == "tool_dull") return "斧刃已经变钝，砍木头不再有效。";
-    if (effect_key == "restore_sharpness") return "你打磨了工具，斧刃重新锋利起来。";
+    pathfinder::agent_reasoning::EffectExecutionSpecRegistry specs;
+    auto spec = specs.findByEffectKey(effect_key);
+    if (spec.is_ok() && !spec.value().safe_summary_zh_cn.empty()) return spec.value().safe_summary_zh_cn;
+    pathfinder::agent_reasoning::EffectSemanticsRegistry registry;
+    auto semantics = registry.findByEffectKey(effect_key);
+    if (semantics.is_ok() && !semantics.value().display_zh_cn.empty()) return semantics.value().display_zh_cn + "。";
     return "你感知到了一些变化。";
 }
 
@@ -128,16 +129,12 @@ std::string actionChineseName(const std::string& action_key) {
 }
 
 std::string effectChineseName(const std::string& effect_key) {
-    if (effect_key == "restore_hunger") return "可以缓解饥饿";
-    if (effect_key == "poison") return "会让身体不适或中毒";
-    if (effect_key == "no_visible_effect") return "暂时没有明显效果";
-    if (effect_key == "use_hint") return "可能有工具用途";
-    if (effect_key == "cut_wood") return "可以砍开木头";
-    if (effect_key == "tool_dull") return "工具已经变钝";
-    if (effect_key == "restore_sharpness") return "可以恢复工具锋利度";
-    if (effect_key == "ignite_fire") return "可以点燃火源";
-    if (effect_key == "make_torch") return "可以制作火把";
-    if (effect_key == "repel_beast") return "可以驱赶靠近的危险";
+    pathfinder::agent_reasoning::EffectSemanticsRegistry registry;
+    auto semantics = registry.findByEffectKey(effect_key);
+    if (semantics.is_ok() && !semantics.value().display_zh_cn.empty()) return semantics.value().display_zh_cn;
+    pathfinder::agent_reasoning::EffectExecutionSpecRegistry specs;
+    auto spec = specs.findByEffectKey(effect_key);
+    if (spec.is_ok() && !spec.value().safe_summary_zh_cn.empty()) return spec.value().safe_summary_zh_cn;
     return effect_key;
 }
 

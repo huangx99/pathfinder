@@ -6,6 +6,7 @@
 #include "pathfinder/foundation/result.h"
 #include "pathfinder/reaction/reaction_rule.h"
 #include "pathfinder/world_interaction/world_types.h"
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <unordered_map>
@@ -27,6 +28,22 @@ enum class EffectExecutionOpKind {
     ResolveThreat,
     EmitWorldEvent,
     QueueFollowupGoal,
+    ApplyStatusEffect,
+    RemoveStatusEffect,
+    ChangeRelationship,
+    CreateAgreement,
+    BreakAgreement,
+    ChangeReputation,
+    UnlockCapability,
+    ChangePopulation,
+    ChangeSystemPressure,
+    ChangeWorldRule,
+    PropagateKnowledge,
+    CorruptKnowledge,
+    ChangeKnowledgeTrust,
+    ScheduleDelayedEffect,
+    StartPeriodicEffect,
+    StopPeriodicEffect,
     TestOnly
 };
 
@@ -40,6 +57,80 @@ enum class EffectExecutionTargetKind {
     ThreatTarget,
     GroupOrTribe,
     RuntimeKey,
+    InventoryScope,
+    Region,
+    WorldSystem,
+    Faction,
+    Civilization,
+    Megastructure,
+    KnowledgeGraph,
+    Agreement,
+    Timeline,
+    TestOnly
+};
+
+enum class WorldScopeKind {
+    Unknown,
+    Actor,
+    Inventory,
+    Object,
+    Location,
+    Region,
+    Threat,
+    GroupOrTribe,
+    Faction,
+    Civilization,
+    WorldSystem,
+    Megastructure,
+    KnowledgeGraph,
+    Agreement,
+    Timeline,
+    TestOnly
+};
+
+enum class EffectOperationGroupKind {
+    Unknown,
+    Primary,
+    Cost,
+    SideEffect,
+    Risk,
+    Trigger,
+    Knowledge,
+    Social,
+    Systemic,
+    Scheduled,
+    TestOnly
+};
+
+enum class OperationFailurePolicy {
+    Unknown,
+    FailSpec,
+    SkipOperation,
+    ContinueWithWarning,
+    QueueForRetry,
+    TestOnly
+};
+
+enum class TemporalEffectKind {
+    Unknown,
+    Instant,
+    Delayed,
+    Duration,
+    Periodic,
+    UntilConditionMet,
+    TestOnly
+};
+
+enum class TargetSelectionKind {
+    Unknown,
+    ExplicitRequest,
+    ActorSelf,
+    NearestMatching,
+    AllInScope,
+    RandomInScope,
+    HighestThreat,
+    LowestNeed,
+    LinkedKnowledgeTarget,
     TestOnly
 };
 
@@ -83,18 +174,123 @@ std::string toString(EffectExecutionTargetKind kind);
 std::string toString(ExecutionValueSourceKind kind);
 std::string toString(ExecutionFailureKind kind);
 std::string toString(AgentStepExecutionMode mode);
+std::string toString(WorldScopeKind kind);
+std::string toString(EffectOperationGroupKind kind);
+std::string toString(OperationFailurePolicy policy);
+std::string toString(TemporalEffectKind kind);
+std::string toString(TargetSelectionKind kind);
 
 pathfinder::foundation::Result<EffectExecutionOpKind> effectExecutionOpKindFromString(const std::string& value);
 pathfinder::foundation::Result<EffectExecutionTargetKind> effectExecutionTargetKindFromString(const std::string& value);
 pathfinder::foundation::Result<ExecutionValueSourceKind> executionValueSourceKindFromString(const std::string& value);
 pathfinder::foundation::Result<ExecutionFailureKind> executionFailureKindFromString(const std::string& value);
 pathfinder::foundation::Result<AgentStepExecutionMode> agentStepExecutionModeFromString(const std::string& value);
+pathfinder::foundation::Result<WorldScopeKind> worldScopeKindFromString(const std::string& value);
+pathfinder::foundation::Result<EffectOperationGroupKind> effectOperationGroupKindFromString(const std::string& value);
+pathfinder::foundation::Result<OperationFailurePolicy> operationFailurePolicyFromString(const std::string& value);
+pathfinder::foundation::Result<TemporalEffectKind> temporalEffectKindFromString(const std::string& value);
+pathfinder::foundation::Result<TargetSelectionKind> targetSelectionKindFromString(const std::string& value);
+
+struct WorldScopeRef {
+    WorldScopeKind kind{WorldScopeKind::Unknown};
+    std::string scope_key;
+    std::string parent_scope_key;
+    std::vector<std::string> safe_tags;
+
+    bool empty() const;
+    pathfinder::foundation::Result<void> validateBasic() const;
+};
+
+struct TemporalEffectPolicy {
+    TemporalEffectKind kind{TemporalEffectKind::Instant};
+    uint64_t delay_ticks{0};
+    uint64_t duration_ticks{0};
+    uint64_t period_ticks{0};
+    std::string until_condition_key;
+
+    pathfinder::foundation::Result<void> validateBasic() const;
+};
+
+struct TargetSelectionSpec {
+    TargetSelectionKind kind{TargetSelectionKind::ExplicitRequest};
+    WorldScopeRef scope;
+    std::string explicit_target_key;
+    std::vector<std::string> required_tags;
+    uint32_t max_targets{1};
+
+    pathfinder::foundation::Result<void> validateBasic() const;
+};
+
+struct KnowledgeEffectPayload {
+    std::string knowledge_key;
+    std::string subject_key;
+    std::string relation_key;
+    double trust_delta{0.0};
+    std::vector<std::string> propagation_tags;
+
+    bool empty() const;
+    pathfinder::foundation::Result<void> validateBasic() const;
+};
+
+struct RelationshipEffectPayload {
+    std::string source_actor_key;
+    std::string target_actor_key;
+    std::string relationship_key;
+    double relationship_delta{0.0};
+    double reputation_delta{0.0};
+    std::string agreement_key;
+
+    bool empty() const;
+    pathfinder::foundation::Result<void> validateBasic() const;
+};
+
+struct WorldRuleEffectPayload {
+    std::string rule_key;
+    std::string system_key;
+    double pressure_delta{0.0};
+    std::string capability_key;
+    std::string safe_summary_zh_cn;
+
+    bool empty() const;
+    pathfinder::foundation::Result<void> validateBasic() const;
+};
+
+struct RandomExecutionPolicy {
+    bool enabled{false};
+    std::string random_stream_key;
+    uint32_t seed_salt{0};
+    double chance{1.0};
+    std::vector<std::string> outcome_keys;
+
+    pathfinder::foundation::Result<void> validateBasic() const;
+};
+
+struct ScheduledEffectRef {
+    std::string schedule_id;
+    std::string effect_key;
+    WorldScopeRef scope;
+    uint64_t due_tick{0};
+    uint64_t repeat_period_ticks{0};
+
+    bool empty() const;
+    pathfinder::foundation::Result<void> validateBasic() const;
+};
 
 struct EffectExecutionOperation {
     std::string operation_id;
     EffectExecutionOpKind op_kind{EffectExecutionOpKind::Unknown};
     EffectExecutionTargetKind target_kind{EffectExecutionTargetKind::Unknown};
+    EffectOperationGroupKind group_kind{EffectOperationGroupKind::Primary};
+    OperationFailurePolicy failure_policy{OperationFailurePolicy::FailSpec};
     ExecutionValueSourceKind key_source{ExecutionValueSourceKind::Constant};
+    WorldScopeRef world_scope;
+    TargetSelectionSpec target_selection;
+    TemporalEffectPolicy temporal_policy;
+    KnowledgeEffectPayload knowledge_payload;
+    RelationshipEffectPayload relationship_payload;
+    WorldRuleEffectPayload world_rule_payload;
+    RandomExecutionPolicy random_policy;
+    ScheduledEffectRef scheduled_effect;
     std::string runtime_key;
     std::string effect_output_key;
     std::string state_key;
@@ -114,6 +310,11 @@ struct EffectExecutionSpec {
     bool atomic{true};
     bool allow_agent_use{true};
     bool allow_player_use{true};
+    WorldScopeRef default_scope;
+    TemporalEffectPolicy temporal_policy;
+    RandomExecutionPolicy random_policy;
+    std::vector<ScheduledEffectRef> scheduled_effects;
+    std::vector<std::string> unsupported_features;
     std::string safe_summary_zh_cn;
     std::string source_config_id{"builtin.p41"};
     std::string version{"1"};

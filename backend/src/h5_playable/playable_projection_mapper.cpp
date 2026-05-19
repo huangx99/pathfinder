@@ -1,5 +1,6 @@
 #include "pathfinder/h5_playable/playable_projection_mapper.h"
 #include "pathfinder/agent_reasoning/effect_execution.h"
+#include "pathfinder/agent_reasoning/effect_semantics.h"
 #include "pathfinder/condition/condition_expression_evaluator.h"
 #include "pathfinder/world_interaction/world_services.h"
 #include "pathfinder/condition/condition_summary.h"
@@ -69,17 +70,19 @@ std::string actionName(const std::string& action_key) {
 }
 
 std::string effectName(const std::string& effect_key) {
-    if (effect_key == "restore_hunger") return "可以缓解饥饿";
-    if (effect_key == "poison") return "会让身体不适或中毒";
-    if (effect_key == "no_visible_effect") return "暂时没有明显效果";
-    if (effect_key == "use_hint") return "可能有工具用途";
-    if (effect_key == "cut_wood") return "可以砍开木头";
-    if (effect_key == "tool_dull") return "工具已经变钝";
-    if (effect_key == "restore_sharpness") return "可以恢复工具锋利度";
-    if (effect_key == "ignite_fire") return "可以点燃火源";
-    if (effect_key == "make_torch") return "可以制作火把";
-    if (effect_key == "repel_beast") return "可以驱赶靠近的危险";
+    pathfinder::agent_reasoning::EffectSemanticsRegistry registry;
+    auto semantics = registry.findByEffectKey(effect_key);
+    if (semantics.is_ok() && !semantics.value().display_zh_cn.empty()) return semantics.value().display_zh_cn;
+    pathfinder::agent_reasoning::EffectExecutionSpecRegistry specs;
+    auto spec = specs.findByEffectKey(effect_key);
+    if (spec.is_ok() && !spec.value().safe_summary_zh_cn.empty()) return spec.value().safe_summary_zh_cn;
     return effect_key;
+}
+
+bool isRiskEffect(const std::string& effect_key) {
+    pathfinder::agent_reasoning::EffectSemanticsRegistry registry;
+    auto semantics = registry.findByEffectKey(effect_key);
+    return semantics.is_ok() && (semantics.value().semantic_kind == pathfinder::agent_reasoning::EffectSemanticKind::RiskDelta || semantics.value().risk_score >= 70.0);
 }
 
 const pathfinder::h5_dialog::DialogObjectRuntimeState* runtimeForObject(
@@ -502,7 +505,7 @@ std::vector<KnowledgeLineProjection> knowledgeLines(const std::vector<pathfinder
 
 bool containsPoisonKnowledge(const std::vector<pathfinder::knowledge::KnowledgeClaim>& claims) {
     for (const auto& claim : claims) {
-        if (shouldShowClaim(claim) && claim.predicate.effect_key == "poison") return true;
+        if (shouldShowClaim(claim) && isRiskEffect(claim.predicate.effect_key)) return true;
     }
     return false;
 }

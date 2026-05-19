@@ -76,7 +76,21 @@ static void effect_semantics_registry_validation() {
 
 static void p41_execution_enums_and_dto_validation() {
     assert(toString(EffectExecutionOpKind::ResolveThreat) == "resolve_threat");
+    assert(toString(EffectExecutionOpKind::ApplyStatusEffect) == "apply_status_effect");
+    assert(toString(EffectExecutionTargetKind::KnowledgeGraph) == "knowledge_graph");
+    assert(toString(WorldScopeKind::Region) == "region");
+    assert(toString(EffectOperationGroupKind::SideEffect) == "side_effect");
+    assert(toString(OperationFailurePolicy::ContinueWithWarning) == "continue_with_warning");
+    assert(toString(TemporalEffectKind::Periodic) == "periodic");
+    assert(toString(TargetSelectionKind::AllInScope) == "all_in_scope");
     assert(effectExecutionOpKindFromString("resolve_threat").is_ok());
+    assert(effectExecutionOpKindFromString("apply_status_effect").is_ok());
+    assert(effectExecutionTargetKindFromString("civilization").is_ok());
+    assert(worldScopeKindFromString("world_system").is_ok());
+    assert(effectOperationGroupKindFromString("risk").is_ok());
+    assert(operationFailurePolicyFromString("queue_for_retry").is_ok());
+    assert(temporalEffectKindFromString("delayed").is_ok());
+    assert(targetSelectionKindFromString("random_in_scope").is_ok());
     assert(effectExecutionOpKindFromString("bad_value").is_error());
     EffectExecutionOperation invalid;
     assert(invalid.validateBasic().is_error());
@@ -170,6 +184,125 @@ static void p41_agent_step_executor_blocks_without_torch() {
     std::cout << "p41_agent_step_executor_blocks_without_torch passed\n";
 }
 
+
+static WorldExecutionResult dryRunFutureSpec(EffectExecutionSpec spec_value) {
+    EffectExecutionSpecRegistry specs(false);
+    assert(specs.registerSpec(spec_value).is_ok());
+    WorldEffectExecutor executor;
+    pathfinder::condition::ConditionExpressionEvaluator evaluator;
+    WorldExecutionRequest req;
+    req.request_id = "p41.future." + spec_value.effect_key;
+    req.actor_key = "companion";
+    req.effect_key = spec_value.effect_key;
+    req.dry_run = true;
+    auto result = executor.execute(snapshot(), req, specs, evaluator);
+    assert(result.is_ok());
+    return result.value();
+}
+
+static EffectExecutionOperation futureOperation(std::string id, EffectExecutionOpKind op_kind, EffectExecutionTargetKind target_kind, EffectOperationGroupKind group_kind) {
+    EffectExecutionOperation operation;
+    operation.operation_id = std::move(id);
+    operation.op_kind = op_kind;
+    operation.target_kind = target_kind;
+    operation.group_kind = group_kind;
+    operation.failure_policy = OperationFailurePolicy::ContinueWithWarning;
+    operation.safe_summary_zh_cn = "长期效果 dry-run 校验。";
+    operation.trace_keys = {"p41.future:" + operation.operation_id};
+    return operation;
+}
+
+static EffectExecutionSpec futureSpec(std::string effect_key, std::vector<EffectExecutionOperation> operations) {
+    EffectExecutionSpec spec_value;
+    spec_value.spec_id = "spec." + effect_key;
+    spec_value.effect_key = std::move(effect_key);
+    spec_value.operations = std::move(operations);
+    spec_value.safe_summary_zh_cn = "长期世界效果 dry-run 通过。";
+    spec_value.source_config_id = "test.p41.future";
+    spec_value.unsupported_features = {"dry_run_only_until_world_systems_are_connected"};
+    return spec_value;
+}
+
+static void p41_magic_fireball_area_side_effect_dry_run() {
+    auto burn = futureOperation("burn_status", EffectExecutionOpKind::ApplyStatusEffect, EffectExecutionTargetKind::Region, EffectOperationGroupKind::Primary);
+    burn.world_scope.kind = WorldScopeKind::Region;
+    burn.world_scope.scope_key = "region.old_forest";
+    burn.target_selection.kind = TargetSelectionKind::AllInScope;
+    burn.target_selection.scope = burn.world_scope;
+    burn.target_selection.required_tags = {"flammable"};
+    burn.target_selection.max_targets = 12;
+    burn.world_rule_payload.rule_key = "regional_burning";
+    burn.world_rule_payload.safe_summary_zh_cn = "区域目标被附加燃烧状态。";
+    auto pressure = futureOperation("wildfire_pressure", EffectExecutionOpKind::ChangeSystemPressure, EffectExecutionTargetKind::WorldSystem, EffectOperationGroupKind::SideEffect);
+    pressure.world_scope.kind = WorldScopeKind::WorldSystem;
+    pressure.world_scope.scope_key = "system.ecology";
+    pressure.world_rule_payload.system_key = "ecology";
+    pressure.world_rule_payload.pressure_delta = 15.0;
+    auto result = dryRunFutureSpec(futureSpec("magic_fireball_area", {burn, pressure}));
+    assert(result.ok && !result.executed && result.changes.empty());
+    std::cout << "p41_magic_fireball_area_side_effect_dry_run passed\n";
+}
+
+static void p41_mechanical_replication_system_pressure_dry_run() {
+    auto replicate = futureOperation("replication_loop", EffectExecutionOpKind::StartPeriodicEffect, EffectExecutionTargetKind::WorldSystem, EffectOperationGroupKind::Scheduled);
+    replicate.temporal_policy.kind = TemporalEffectKind::Periodic;
+    replicate.temporal_policy.period_ticks = 6;
+    replicate.random_policy.enabled = true;
+    replicate.random_policy.random_stream_key = "stream.machine_replication";
+    replicate.random_policy.chance = 0.35;
+    replicate.random_policy.outcome_keys = {"replicate", "stall"};
+    replicate.world_rule_payload.system_key = "machine_swarm";
+    replicate.world_rule_payload.pressure_delta = 8.0;
+    auto result = dryRunFutureSpec(futureSpec("mechanical_replication_pressure", {replicate}));
+    assert(result.ok && !result.executed && result.changes.empty());
+    std::cout << "p41_mechanical_replication_system_pressure_dry_run passed\n";
+}
+
+static void p41_tribe_capability_unlock_dry_run() {
+    auto unlock = futureOperation("unlock_smelting", EffectExecutionOpKind::UnlockCapability, EffectExecutionTargetKind::Civilization, EffectOperationGroupKind::Primary);
+    unlock.world_scope.kind = WorldScopeKind::Civilization;
+    unlock.world_scope.scope_key = "civilization.river_tribe";
+    unlock.world_rule_payload.capability_key = "capability.smelting";
+    unlock.world_rule_payload.safe_summary_zh_cn = "族群解锁冶炼能力。";
+    auto result = dryRunFutureSpec(futureSpec("tribe_unlock_smelting", {unlock}));
+    assert(result.ok && !result.executed && result.changes.empty());
+    std::cout << "p41_tribe_capability_unlock_dry_run passed\n";
+}
+
+static void p41_diplomacy_agreement_dto_validation() {
+    auto agreement = futureOperation("create_trade_pact", EffectExecutionOpKind::CreateAgreement, EffectExecutionTargetKind::Agreement, EffectOperationGroupKind::Social);
+    agreement.relationship_payload.source_actor_key = "faction.river_tribe";
+    agreement.relationship_payload.target_actor_key = "faction.hill_tribe";
+    agreement.relationship_payload.relationship_key = "trade_trust";
+    agreement.relationship_payload.relationship_delta = 12.0;
+    agreement.relationship_payload.reputation_delta = 3.0;
+    agreement.relationship_payload.agreement_key = "agreement.trade_pact";
+    auto spec_value = futureSpec("diplomacy_trade_agreement", {agreement});
+    assert(spec_value.validateBasic().is_ok());
+    auto result = dryRunFutureSpec(spec_value);
+    assert(result.ok && !result.executed && result.changes.empty());
+    std::cout << "p41_diplomacy_agreement_dto_validation passed\n";
+}
+
+static void p41_plague_delayed_spread_dto_validation() {
+    auto spread = futureOperation("schedule_spread", EffectExecutionOpKind::ScheduleDelayedEffect, EffectExecutionTargetKind::Timeline, EffectOperationGroupKind::Scheduled);
+    spread.temporal_policy.kind = TemporalEffectKind::Delayed;
+    spread.temporal_policy.delay_ticks = 24;
+    spread.scheduled_effect.schedule_id = "schedule.plague.spread";
+    spread.scheduled_effect.effect_key = "plague_spread_tick";
+    spread.scheduled_effect.due_tick = 240;
+    spread.scheduled_effect.scope.kind = WorldScopeKind::Region;
+    spread.scheduled_effect.scope.scope_key = "region.delta";
+    auto spec_value = futureSpec("plague_delayed_spread", {spread});
+    spec_value.temporal_policy.kind = TemporalEffectKind::Delayed;
+    spec_value.temporal_policy.delay_ticks = 24;
+    spec_value.scheduled_effects = {spread.scheduled_effect};
+    assert(spec_value.validateBasic().is_ok());
+    auto result = dryRunFutureSpec(spec_value);
+    assert(result.ok && !result.executed && result.changes.empty());
+    std::cout << "p41_plague_delayed_spread_dto_validation passed\n";
+}
+
 static void goal_generation_hunger() {
     AgentNeedState needs;
     needs.actor_key = "companion";
@@ -245,7 +378,7 @@ static void cold_agent_prefers_fire_when_urgent() {
     assert(result.is_ok());
     assert(result.value().ok);
     assert(result.value().selected_plan->steps.front().effect_key == "ignite_fire");
-    assert(result.value().safe_explanation_zh_cn.find("最快缓解寒冷") != std::string::npos);
+    assert(result.value().safe_explanation_zh_cn.find("最快改善寒冷") != std::string::npos);
     std::cout << "cold_agent_prefers_fire_when_urgent passed\n";
 }
 
@@ -469,6 +602,11 @@ int main(int argc, char* argv[]) {
     else if (mode == "p41_execution_registry_validation") p41_execution_registry_validation();
     else if (mode == "p41_world_effect_executor_make_torch_atomic") p41_world_effect_executor_make_torch_atomic();
     else if (mode == "p41_agent_step_executor_blocks_without_torch") p41_agent_step_executor_blocks_without_torch();
+    else if (mode == "p41_magic_fireball_area_side_effect_dry_run") p41_magic_fireball_area_side_effect_dry_run();
+    else if (mode == "p41_mechanical_replication_system_pressure_dry_run") p41_mechanical_replication_system_pressure_dry_run();
+    else if (mode == "p41_tribe_capability_unlock_dry_run") p41_tribe_capability_unlock_dry_run();
+    else if (mode == "p41_diplomacy_agreement_dto_validation") p41_diplomacy_agreement_dto_validation();
+    else if (mode == "p41_plague_delayed_spread_dto_validation") p41_plague_delayed_spread_dto_validation();
     else if (mode == "goal_generation_hunger") goal_generation_hunger();
     else if (mode == "candidate_from_owned_knowledge_only") candidate_from_owned_knowledge_only();
     else if (mode == "hungry_agent_selects_known_safe_food") hungry_agent_selects_known_safe_food();
@@ -489,6 +627,11 @@ int main(int argc, char* argv[]) {
         p41_execution_registry_validation();
         p41_world_effect_executor_make_torch_atomic();
         p41_agent_step_executor_blocks_without_torch();
+        p41_magic_fireball_area_side_effect_dry_run();
+        p41_mechanical_replication_system_pressure_dry_run();
+        p41_tribe_capability_unlock_dry_run();
+        p41_diplomacy_agreement_dto_validation();
+        p41_plague_delayed_spread_dto_validation();
         goal_generation_hunger();
         candidate_from_owned_knowledge_only();
         hungry_agent_selects_known_safe_food();

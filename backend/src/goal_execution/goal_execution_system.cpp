@@ -93,12 +93,20 @@ std::string patternObjectKey(const pathfinder::reaction::ReactionObjectPattern& 
 }
 
 ActionDriverKind driverKindForStep(const AgentPlanStep& step) {
-    if (step.kind == PlanStepKind::BuildStructure) return ActionDriverKind::BuildStructure;
-    if (step.kind == PlanStepKind::RestoreTool || step.effect_key == "restore_sharpness") return ActionDriverKind::SharpenTool;
-    if (step.effect_key == "cut_wood") return ActionDriverKind::ChopWood;
-    if (step.effect_key == "repel_beast" || step.effect_key == "fire_is_dangerous") return ActionDriverKind::CounterThreat;
-    if (step.action_key == "eat" || step.effect_key == "restore_hunger") return ActionDriverKind::Eat;
+    const auto has_semantic = [&](pathfinder::agent_reasoning::EffectSemanticKind kind) {
+        return std::any_of(step.expected_semantics.begin(), step.expected_semantics.end(), [&](const auto& semantics) { return semantics.semantic_kind == kind; });
+    };
+    const auto targets_kind = [&](const std::string& target_kind) {
+        return std::any_of(step.expected_semantics.begin(), step.expected_semantics.end(), [&](const auto& semantics) {
+            return semantics.required_target_kind.has_value() && *semantics.required_target_kind == target_kind;
+        });
+    };
+    if (step.kind == PlanStepKind::BuildStructure || has_semantic(pathfinder::agent_reasoning::EffectSemanticKind::CapabilityDelta)) return ActionDriverKind::BuildStructure;
+    if (step.kind == PlanStepKind::RestoreTool || has_semantic(pathfinder::agent_reasoning::EffectSemanticKind::ObjectStateDelta)) return ActionDriverKind::SharpenTool;
+    if (has_semantic(pathfinder::agent_reasoning::EffectSemanticKind::ThreatDelta) || targets_kind("threat")) return ActionDriverKind::CounterThreat;
+    if (step.action_key == "eat") return ActionDriverKind::Eat;
     if (step.action_key == "move") return ActionDriverKind::MoveTo;
+    if (step.action_key == "chop") return ActionDriverKind::ChopWood;
     if (step.kind == PlanStepKind::PrepareObject) return ActionDriverKind::UseObject;
     return ActionDriverKind::Gather;
 }

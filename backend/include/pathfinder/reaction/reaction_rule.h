@@ -4,8 +4,19 @@
 #include "pathfinder/knowledge/knowledge_claim.h"
 #include "pathfinder/reaction/reaction_types.h"
 #include <optional>
+#include <string>
+#include <vector>
 
 namespace pathfinder::reaction {
+
+struct ReactionExecutionPrecondition {
+    std::string missing_domain;
+    std::string missing_key;
+    std::string required_value;
+    bool can_be_planned{false};
+
+    pathfinder::foundation::Result<void> validateBasic() const;
+};
 
 struct ReactionObjectPattern {
     ReactionObjectRole role{ReactionObjectRole::Unknown};
@@ -14,6 +25,7 @@ struct ReactionObjectPattern {
     std::vector<std::string> required_tag_keys;
     std::vector<std::string> forbidden_tag_keys;
     bool quantity_required{true};
+    std::vector<ReactionExecutionPrecondition> execution_preconditions;
 
     pathfinder::foundation::Result<void> validateBasic() const;
 };
@@ -44,6 +56,7 @@ struct ObjectReactionRule {
     std::string feedback_text;
     std::string knowledge_effect_key;
     std::string execution_effect_key;
+    std::vector<ReactionExecutionPrecondition> execution_preconditions;
     std::vector<std::string> safe_tags;
 
     pathfinder::foundation::Result<void> validateBasic() const;

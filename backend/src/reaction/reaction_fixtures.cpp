@@ -17,6 +17,15 @@ static ConditionExpressionRef condition(std::string key) {
     return ref;
 }
 
+static ReactionExecutionPrecondition executionPrecondition(std::string domain, std::string key, std::string required, bool can_plan) {
+    ReactionExecutionPrecondition value;
+    value.missing_domain = std::move(domain);
+    value.missing_key = std::move(key);
+    value.required_value = std::move(required);
+    value.can_be_planned = can_plan;
+    return value;
+}
+
 ReactionObjectRef fireSource(bool burning) {
     ReactionObjectRef object;
     object.role = ReactionObjectRole::Source;
@@ -74,6 +83,8 @@ ObjectReactionRule fireDryBranchToTorchRule() {
         ReactionObjectPattern{ReactionObjectRole::Source, ObjectDefinitionId("def_fire_source"), ObjectCategory::Hazard, {"fire_source"}, {}, true},
         ReactionObjectPattern{ReactionObjectRole::Material, std::nullopt, ObjectCategory::Material, {"combustible"}, {}, true}
     };
+    rule.object_patterns[0].execution_preconditions = {executionPrecondition("object.quantity", "camp_fire", "gte.1", true)};
+    rule.object_patterns[1].execution_preconditions = {executionPrecondition("object.quantity", "wood_processed", "gte.1", true)};
     rule.condition_refs = {
         condition("condition:source_state:eq:burning"),
         condition("condition:target_state:eq:dry"),
@@ -108,6 +119,8 @@ ObjectReactionRule waterExtinguishFireRule() {
         ReactionObjectPattern{ReactionObjectRole::Source, ObjectDefinitionId("def_fire_source"), ObjectCategory::Hazard, {"fire_source"}, {}, true},
         ReactionObjectPattern{ReactionObjectRole::Material, ObjectDefinitionId("def_water_portion"), ObjectCategory::Material, {"water_source"}, {}, true}
     };
+    rule.object_patterns[0].execution_preconditions = {executionPrecondition("object.quantity", "camp_fire", "gte.1", true)};
+    rule.object_patterns[1].execution_preconditions = {executionPrecondition("object.quantity", "water", "gte.1", false)};
     rule.condition_refs = {
         condition("condition:source_state:eq:burning"),
         condition("condition:target_tag:has:water_source")
@@ -138,6 +151,9 @@ ObjectReactionRule cutWoodWithAxeRule() {
         ReactionObjectPattern{ReactionObjectRole::Material, ObjectDefinitionId("def_raw_wood"), ObjectCategory::Material, {"wood_material"}, {}, true},
         ReactionObjectPattern{ReactionObjectRole::Tool, ObjectDefinitionId("def_axe"), ObjectCategory::Tool, {"cutting_tool"}, {}, true}
     };
+    rule.object_patterns[0].execution_preconditions = {executionPrecondition("object.quantity", "wood", "gte.1", false)};
+    rule.object_patterns[1].execution_preconditions = {executionPrecondition("object.quantity", "axe", "gte.1", false)};
+    rule.execution_preconditions = {executionPrecondition("object.state", "axe.sharpness", "gte.1", true)};
     rule.condition_refs = {
         condition("condition:source_state:eq:sharp")
     };
@@ -165,6 +181,8 @@ ObjectReactionRule sharpenAxeRule() {
         ReactionObjectPattern{ReactionObjectRole::Material, ObjectDefinitionId("def_whetstone"), ObjectCategory::Tool, {"sharpening_tool"}, {}, true},
         ReactionObjectPattern{ReactionObjectRole::Tool, ObjectDefinitionId("def_axe"), ObjectCategory::Tool, {"cutting_tool"}, {}, true}
     };
+    rule.object_patterns[0].execution_preconditions = {executionPrecondition("object.quantity", "whetstone", "gte.1", false)};
+    rule.object_patterns[1].execution_preconditions = {executionPrecondition("object.quantity", "axe", "gte.1", false)};
     rule.condition_refs = {
         condition("condition:target_tag:has:cutting_tool")
     };

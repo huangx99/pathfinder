@@ -23,49 +23,8 @@ PlanPrecondition precondition(std::string domain, std::string key, std::string r
     return item;
 }
 
-PlanPrecondition quantityPrecondition(const std::string& key, int required, bool can_plan) {
-    return precondition("object.quantity", key, "gte." + std::to_string(required), can_plan);
-}
-
-PlanPrecondition statePrecondition(const std::string& object_key, const std::string& state_key, int required, bool can_plan) {
-    return precondition("object.state", object_key + "." + state_key, "gte." + std::to_string(required), can_plan);
-}
-
-std::optional<PlanPrecondition> preconditionFromReactionPattern(const pathfinder::reaction::ReactionObjectPattern& pattern) {
-    if (pattern.role == ReactionObjectRole::Source) {
-        if (pattern.definition_id && pattern.definition_id->value() == "def_fire_source") return quantityPrecondition("camp_fire", 1, true);
-        for (const auto& tag : pattern.required_tag_keys) {
-            if (tag == "fire_source") return quantityPrecondition("camp_fire", 1, true);
-        }
-    }
-    if (pattern.role == ReactionObjectRole::Material) {
-        if (pattern.definition_id && pattern.definition_id->value() == "def_raw_wood") return quantityPrecondition("wood", 1, false);
-        if (pattern.definition_id && pattern.definition_id->value() == "def_whetstone") return quantityPrecondition("whetstone", 1, false);
-        for (const auto& tag : pattern.required_tag_keys) {
-            if (tag == "combustible" || tag == "branch_like") return quantityPrecondition("wood_processed", 1, true);
-            if (tag == "wood_material") return quantityPrecondition("wood", 1, false);
-            if (tag == "sharpening_tool") return quantityPrecondition("whetstone", 1, false);
-        }
-    }
-    if (pattern.role == ReactionObjectRole::Tool) {
-        if (pattern.definition_id && pattern.definition_id->value() == "def_axe") return quantityPrecondition("axe", 1, false);
-        for (const auto& tag : pattern.required_tag_keys) {
-            if (tag == "cutting_tool") return quantityPrecondition("axe", 1, false);
-        }
-    }
-    if (pattern.role == ReactionObjectRole::Target) {
-        for (const auto& tag : pattern.required_tag_keys) {
-            if (tag == "water_source") return quantityPrecondition("water", 1, false);
-        }
-    }
-    return std::nullopt;
-}
-
-std::optional<PlanPrecondition> preconditionFromReactionCondition(const pathfinder::condition::ConditionExpressionRef& ref) {
-    const auto& key = ref.inline_canonical_key;
-    if (key == "condition:source_state:eq:sharp" || key == "condition:target_state:eq:sharp") return statePrecondition("axe", "sharpness", 1, true);
-    if (key == "condition:source_state:eq:burning") return quantityPrecondition("camp_fire", 1, true);
-    return std::nullopt;
+PlanPrecondition preconditionFromReactionExecution(const pathfinder::reaction::ReactionExecutionPrecondition& value) {
+    return precondition(value.missing_domain, value.missing_key, value.required_value, value.can_be_planned);
 }
 
 bool reactionRuleSupportsEffect(const pathfinder::reaction::ObjectReactionRule& rule, const std::string& effect_key) {
@@ -99,12 +58,12 @@ Result<std::vector<PlanPrecondition>> ReactionPlanningAdapter::preconditionsForE
         if (valid.is_error()) return Result<std::vector<PlanPrecondition>>::fail(valid.errors());
         if (!reactionRuleSupportsEffect(rule, effect_key)) continue;
         for (const auto& pattern : rule.object_patterns) {
-            auto required = preconditionFromReactionPattern(pattern);
-            if (required) resolved.push_back(*required);
+            for (const auto& precondition_value : pattern.execution_preconditions) {
+                resolved.push_back(preconditionFromReactionExecution(precondition_value));
+            }
         }
-        for (const auto& condition_ref : rule.condition_refs) {
-            auto required = preconditionFromReactionCondition(condition_ref);
-            if (required) resolved.push_back(*required);
+        for (const auto& precondition_value : rule.execution_preconditions) {
+            resolved.push_back(preconditionFromReactionExecution(precondition_value));
         }
     }
     return Result<std::vector<PlanPrecondition>>::ok(dedupe(std::move(resolved)));

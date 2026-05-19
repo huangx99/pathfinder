@@ -177,6 +177,26 @@ std::string targetKey(const EffectExecutionOperation& operation, const WorldExec
     }
 }
 
+bool isExecutableOperationKind(EffectExecutionOpKind kind) {
+    switch (kind) {
+        case EffectExecutionOpKind::ConsumeObjectQuantity:
+        case EffectExecutionOpKind::AddObjectQuantity:
+        case EffectExecutionOpKind::SetObjectQuantity:
+        case EffectExecutionOpKind::AddObjectStateNumber:
+        case EffectExecutionOpKind::SetObjectStateNumber:
+        case EffectExecutionOpKind::AddObjectTag:
+        case EffectExecutionOpKind::RemoveObjectTag:
+        case EffectExecutionOpKind::ChangeActorNeed:
+        case EffectExecutionOpKind::ChangeThreatLevel:
+        case EffectExecutionOpKind::ResolveThreat:
+        case EffectExecutionOpKind::EmitWorldEvent:
+        case EffectExecutionOpKind::QueueFollowupGoal:
+            return true;
+        default:
+            return false;
+    }
+}
+
 WorldChange changeForOperation(const EffectExecutionOperation& operation, const WorldExecutionRequest& request, const std::string& prefix) {
     WorldChange change;
     change.change_id = prefix + operation.operation_id;
@@ -307,6 +327,22 @@ std::string toString(EffectExecutionOpKind kind) {
         PF_ENUM_TO_STRING(EffectExecutionOpKind::ResolveThreat, "resolve_threat");
         PF_ENUM_TO_STRING(EffectExecutionOpKind::EmitWorldEvent, "emit_world_event");
         PF_ENUM_TO_STRING(EffectExecutionOpKind::QueueFollowupGoal, "queue_followup_goal");
+        PF_ENUM_TO_STRING(EffectExecutionOpKind::ApplyStatusEffect, "apply_status_effect");
+        PF_ENUM_TO_STRING(EffectExecutionOpKind::RemoveStatusEffect, "remove_status_effect");
+        PF_ENUM_TO_STRING(EffectExecutionOpKind::ChangeRelationship, "change_relationship");
+        PF_ENUM_TO_STRING(EffectExecutionOpKind::CreateAgreement, "create_agreement");
+        PF_ENUM_TO_STRING(EffectExecutionOpKind::BreakAgreement, "break_agreement");
+        PF_ENUM_TO_STRING(EffectExecutionOpKind::ChangeReputation, "change_reputation");
+        PF_ENUM_TO_STRING(EffectExecutionOpKind::UnlockCapability, "unlock_capability");
+        PF_ENUM_TO_STRING(EffectExecutionOpKind::ChangePopulation, "change_population");
+        PF_ENUM_TO_STRING(EffectExecutionOpKind::ChangeSystemPressure, "change_system_pressure");
+        PF_ENUM_TO_STRING(EffectExecutionOpKind::ChangeWorldRule, "change_world_rule");
+        PF_ENUM_TO_STRING(EffectExecutionOpKind::PropagateKnowledge, "propagate_knowledge");
+        PF_ENUM_TO_STRING(EffectExecutionOpKind::CorruptKnowledge, "corrupt_knowledge");
+        PF_ENUM_TO_STRING(EffectExecutionOpKind::ChangeKnowledgeTrust, "change_knowledge_trust");
+        PF_ENUM_TO_STRING(EffectExecutionOpKind::ScheduleDelayedEffect, "schedule_delayed_effect");
+        PF_ENUM_TO_STRING(EffectExecutionOpKind::StartPeriodicEffect, "start_periodic_effect");
+        PF_ENUM_TO_STRING(EffectExecutionOpKind::StopPeriodicEffect, "stop_periodic_effect");
         PF_ENUM_TO_STRING(EffectExecutionOpKind::TestOnly, "test_only");
         PF_ENUM_TO_STRING(EffectExecutionOpKind::Unknown, "unknown");
     }
@@ -323,8 +359,97 @@ std::string toString(EffectExecutionTargetKind kind) {
         PF_ENUM_TO_STRING(EffectExecutionTargetKind::ThreatTarget, "threat_target");
         PF_ENUM_TO_STRING(EffectExecutionTargetKind::GroupOrTribe, "group_or_tribe");
         PF_ENUM_TO_STRING(EffectExecutionTargetKind::RuntimeKey, "runtime_key");
+        PF_ENUM_TO_STRING(EffectExecutionTargetKind::InventoryScope, "inventory_scope");
+        PF_ENUM_TO_STRING(EffectExecutionTargetKind::Region, "region");
+        PF_ENUM_TO_STRING(EffectExecutionTargetKind::WorldSystem, "world_system");
+        PF_ENUM_TO_STRING(EffectExecutionTargetKind::Faction, "faction");
+        PF_ENUM_TO_STRING(EffectExecutionTargetKind::Civilization, "civilization");
+        PF_ENUM_TO_STRING(EffectExecutionTargetKind::Megastructure, "megastructure");
+        PF_ENUM_TO_STRING(EffectExecutionTargetKind::KnowledgeGraph, "knowledge_graph");
+        PF_ENUM_TO_STRING(EffectExecutionTargetKind::Agreement, "agreement");
+        PF_ENUM_TO_STRING(EffectExecutionTargetKind::Timeline, "timeline");
         PF_ENUM_TO_STRING(EffectExecutionTargetKind::TestOnly, "test_only");
         PF_ENUM_TO_STRING(EffectExecutionTargetKind::Unknown, "unknown");
+    }
+    return "unknown";
+}
+
+std::string toString(WorldScopeKind kind) {
+    switch (kind) {
+        PF_ENUM_TO_STRING(WorldScopeKind::Actor, "actor");
+        PF_ENUM_TO_STRING(WorldScopeKind::Inventory, "inventory");
+        PF_ENUM_TO_STRING(WorldScopeKind::Object, "object");
+        PF_ENUM_TO_STRING(WorldScopeKind::Location, "location");
+        PF_ENUM_TO_STRING(WorldScopeKind::Region, "region");
+        PF_ENUM_TO_STRING(WorldScopeKind::Threat, "threat");
+        PF_ENUM_TO_STRING(WorldScopeKind::GroupOrTribe, "group_or_tribe");
+        PF_ENUM_TO_STRING(WorldScopeKind::Faction, "faction");
+        PF_ENUM_TO_STRING(WorldScopeKind::Civilization, "civilization");
+        PF_ENUM_TO_STRING(WorldScopeKind::WorldSystem, "world_system");
+        PF_ENUM_TO_STRING(WorldScopeKind::Megastructure, "megastructure");
+        PF_ENUM_TO_STRING(WorldScopeKind::KnowledgeGraph, "knowledge_graph");
+        PF_ENUM_TO_STRING(WorldScopeKind::Agreement, "agreement");
+        PF_ENUM_TO_STRING(WorldScopeKind::Timeline, "timeline");
+        PF_ENUM_TO_STRING(WorldScopeKind::TestOnly, "test_only");
+        PF_ENUM_TO_STRING(WorldScopeKind::Unknown, "unknown");
+    }
+    return "unknown";
+}
+
+std::string toString(EffectOperationGroupKind kind) {
+    switch (kind) {
+        PF_ENUM_TO_STRING(EffectOperationGroupKind::Primary, "primary");
+        PF_ENUM_TO_STRING(EffectOperationGroupKind::Cost, "cost");
+        PF_ENUM_TO_STRING(EffectOperationGroupKind::SideEffect, "side_effect");
+        PF_ENUM_TO_STRING(EffectOperationGroupKind::Risk, "risk");
+        PF_ENUM_TO_STRING(EffectOperationGroupKind::Trigger, "trigger");
+        PF_ENUM_TO_STRING(EffectOperationGroupKind::Knowledge, "knowledge");
+        PF_ENUM_TO_STRING(EffectOperationGroupKind::Social, "social");
+        PF_ENUM_TO_STRING(EffectOperationGroupKind::Systemic, "systemic");
+        PF_ENUM_TO_STRING(EffectOperationGroupKind::Scheduled, "scheduled");
+        PF_ENUM_TO_STRING(EffectOperationGroupKind::TestOnly, "test_only");
+        PF_ENUM_TO_STRING(EffectOperationGroupKind::Unknown, "unknown");
+    }
+    return "unknown";
+}
+
+std::string toString(OperationFailurePolicy policy) {
+    switch (policy) {
+        PF_ENUM_TO_STRING(OperationFailurePolicy::FailSpec, "fail_spec");
+        PF_ENUM_TO_STRING(OperationFailurePolicy::SkipOperation, "skip_operation");
+        PF_ENUM_TO_STRING(OperationFailurePolicy::ContinueWithWarning, "continue_with_warning");
+        PF_ENUM_TO_STRING(OperationFailurePolicy::QueueForRetry, "queue_for_retry");
+        PF_ENUM_TO_STRING(OperationFailurePolicy::TestOnly, "test_only");
+        PF_ENUM_TO_STRING(OperationFailurePolicy::Unknown, "unknown");
+    }
+    return "unknown";
+}
+
+std::string toString(TemporalEffectKind kind) {
+    switch (kind) {
+        PF_ENUM_TO_STRING(TemporalEffectKind::Instant, "instant");
+        PF_ENUM_TO_STRING(TemporalEffectKind::Delayed, "delayed");
+        PF_ENUM_TO_STRING(TemporalEffectKind::Duration, "duration");
+        PF_ENUM_TO_STRING(TemporalEffectKind::Periodic, "periodic");
+        PF_ENUM_TO_STRING(TemporalEffectKind::UntilConditionMet, "until_condition_met");
+        PF_ENUM_TO_STRING(TemporalEffectKind::TestOnly, "test_only");
+        PF_ENUM_TO_STRING(TemporalEffectKind::Unknown, "unknown");
+    }
+    return "unknown";
+}
+
+std::string toString(TargetSelectionKind kind) {
+    switch (kind) {
+        PF_ENUM_TO_STRING(TargetSelectionKind::ExplicitRequest, "explicit_request");
+        PF_ENUM_TO_STRING(TargetSelectionKind::ActorSelf, "actor_self");
+        PF_ENUM_TO_STRING(TargetSelectionKind::NearestMatching, "nearest_matching");
+        PF_ENUM_TO_STRING(TargetSelectionKind::AllInScope, "all_in_scope");
+        PF_ENUM_TO_STRING(TargetSelectionKind::RandomInScope, "random_in_scope");
+        PF_ENUM_TO_STRING(TargetSelectionKind::HighestThreat, "highest_threat");
+        PF_ENUM_TO_STRING(TargetSelectionKind::LowestNeed, "lowest_need");
+        PF_ENUM_TO_STRING(TargetSelectionKind::LinkedKnowledgeTarget, "linked_knowledge_target");
+        PF_ENUM_TO_STRING(TargetSelectionKind::TestOnly, "test_only");
+        PF_ENUM_TO_STRING(TargetSelectionKind::Unknown, "unknown");
     }
     return "unknown";
 }
@@ -375,43 +500,175 @@ std::string toString(AgentStepExecutionMode mode) {
 
 #undef PF_ENUM_TO_STRING
 
+template <typename EnumT>
+Result<EnumT> enumFromString(const std::string& value, const std::vector<std::pair<std::string, EnumT>>& values) {
+    for (const auto& [key, item] : values) if (value == key) return Result<EnumT>::ok(item);
+    return failValue<EnumT>("unknown enum string");
+}
+
 Result<EffectExecutionOpKind> effectExecutionOpKindFromString(const std::string& value) {
-    const std::vector<std::pair<std::string, EffectExecutionOpKind>> values = {{"consume_object_quantity", EffectExecutionOpKind::ConsumeObjectQuantity}, {"add_object_quantity", EffectExecutionOpKind::AddObjectQuantity}, {"set_object_quantity", EffectExecutionOpKind::SetObjectQuantity}, {"add_object_state_number", EffectExecutionOpKind::AddObjectStateNumber}, {"set_object_state_number", EffectExecutionOpKind::SetObjectStateNumber}, {"add_object_tag", EffectExecutionOpKind::AddObjectTag}, {"remove_object_tag", EffectExecutionOpKind::RemoveObjectTag}, {"change_actor_need", EffectExecutionOpKind::ChangeActorNeed}, {"change_threat_level", EffectExecutionOpKind::ChangeThreatLevel}, {"resolve_threat", EffectExecutionOpKind::ResolveThreat}, {"emit_world_event", EffectExecutionOpKind::EmitWorldEvent}, {"queue_followup_goal", EffectExecutionOpKind::QueueFollowupGoal}, {"test_only", EffectExecutionOpKind::TestOnly}};
-    for (const auto& [key, item] : values) if (value == key) return Result<EffectExecutionOpKind>::ok(item);
-    return failValue<EffectExecutionOpKind>("unknown enum string");
+    return enumFromString<EffectExecutionOpKind>(value, {
+        {"consume_object_quantity", EffectExecutionOpKind::ConsumeObjectQuantity}, {"add_object_quantity", EffectExecutionOpKind::AddObjectQuantity}, {"set_object_quantity", EffectExecutionOpKind::SetObjectQuantity},
+        {"add_object_state_number", EffectExecutionOpKind::AddObjectStateNumber}, {"set_object_state_number", EffectExecutionOpKind::SetObjectStateNumber}, {"add_object_tag", EffectExecutionOpKind::AddObjectTag},
+        {"remove_object_tag", EffectExecutionOpKind::RemoveObjectTag}, {"change_actor_need", EffectExecutionOpKind::ChangeActorNeed}, {"change_threat_level", EffectExecutionOpKind::ChangeThreatLevel},
+        {"resolve_threat", EffectExecutionOpKind::ResolveThreat}, {"emit_world_event", EffectExecutionOpKind::EmitWorldEvent}, {"queue_followup_goal", EffectExecutionOpKind::QueueFollowupGoal},
+        {"apply_status_effect", EffectExecutionOpKind::ApplyStatusEffect}, {"remove_status_effect", EffectExecutionOpKind::RemoveStatusEffect}, {"change_relationship", EffectExecutionOpKind::ChangeRelationship},
+        {"create_agreement", EffectExecutionOpKind::CreateAgreement}, {"break_agreement", EffectExecutionOpKind::BreakAgreement}, {"change_reputation", EffectExecutionOpKind::ChangeReputation},
+        {"unlock_capability", EffectExecutionOpKind::UnlockCapability}, {"change_population", EffectExecutionOpKind::ChangePopulation}, {"change_system_pressure", EffectExecutionOpKind::ChangeSystemPressure},
+        {"change_world_rule", EffectExecutionOpKind::ChangeWorldRule}, {"propagate_knowledge", EffectExecutionOpKind::PropagateKnowledge}, {"corrupt_knowledge", EffectExecutionOpKind::CorruptKnowledge},
+        {"change_knowledge_trust", EffectExecutionOpKind::ChangeKnowledgeTrust}, {"schedule_delayed_effect", EffectExecutionOpKind::ScheduleDelayedEffect}, {"start_periodic_effect", EffectExecutionOpKind::StartPeriodicEffect},
+        {"stop_periodic_effect", EffectExecutionOpKind::StopPeriodicEffect}, {"test_only", EffectExecutionOpKind::TestOnly}});
 }
 
 Result<EffectExecutionTargetKind> effectExecutionTargetKindFromString(const std::string& value) {
-    const std::vector<std::pair<std::string, EffectExecutionTargetKind>> values = {{"actor_self", EffectExecutionTargetKind::ActorSelf}, {"actor_target", EffectExecutionTargetKind::ActorTarget}, {"object_self", EffectExecutionTargetKind::ObjectSelf}, {"object_target", EffectExecutionTargetKind::ObjectTarget}, {"location", EffectExecutionTargetKind::Location}, {"threat_target", EffectExecutionTargetKind::ThreatTarget}, {"group_or_tribe", EffectExecutionTargetKind::GroupOrTribe}, {"runtime_key", EffectExecutionTargetKind::RuntimeKey}, {"test_only", EffectExecutionTargetKind::TestOnly}};
-    for (const auto& [key, item] : values) if (value == key) return Result<EffectExecutionTargetKind>::ok(item);
-    return failValue<EffectExecutionTargetKind>("unknown enum string");
+    return enumFromString<EffectExecutionTargetKind>(value, {
+        {"actor_self", EffectExecutionTargetKind::ActorSelf}, {"actor_target", EffectExecutionTargetKind::ActorTarget}, {"object_self", EffectExecutionTargetKind::ObjectSelf},
+        {"object_target", EffectExecutionTargetKind::ObjectTarget}, {"location", EffectExecutionTargetKind::Location}, {"threat_target", EffectExecutionTargetKind::ThreatTarget},
+        {"group_or_tribe", EffectExecutionTargetKind::GroupOrTribe}, {"runtime_key", EffectExecutionTargetKind::RuntimeKey}, {"inventory_scope", EffectExecutionTargetKind::InventoryScope},
+        {"region", EffectExecutionTargetKind::Region}, {"world_system", EffectExecutionTargetKind::WorldSystem}, {"faction", EffectExecutionTargetKind::Faction},
+        {"civilization", EffectExecutionTargetKind::Civilization}, {"megastructure", EffectExecutionTargetKind::Megastructure}, {"knowledge_graph", EffectExecutionTargetKind::KnowledgeGraph},
+        {"agreement", EffectExecutionTargetKind::Agreement}, {"timeline", EffectExecutionTargetKind::Timeline}, {"test_only", EffectExecutionTargetKind::TestOnly}});
 }
 
 Result<ExecutionValueSourceKind> executionValueSourceKindFromString(const std::string& value) {
-    const std::vector<std::pair<std::string, ExecutionValueSourceKind>> values = {{"constant", ExecutionValueSourceKind::Constant}, {"request_object_key", ExecutionValueSourceKind::RequestObjectKey}, {"request_target_key", ExecutionValueSourceKind::RequestTargetKey}, {"request_actor_key", ExecutionValueSourceKind::RequestActorKey}, {"effect_output_key", ExecutionValueSourceKind::EffectOutputKey}, {"runtime_expression", ExecutionValueSourceKind::RuntimeExpression}, {"test_only", ExecutionValueSourceKind::TestOnly}};
-    for (const auto& [key, item] : values) if (value == key) return Result<ExecutionValueSourceKind>::ok(item);
-    return failValue<ExecutionValueSourceKind>("unknown enum string");
+    return enumFromString<ExecutionValueSourceKind>(value, {{"constant", ExecutionValueSourceKind::Constant}, {"request_object_key", ExecutionValueSourceKind::RequestObjectKey}, {"request_target_key", ExecutionValueSourceKind::RequestTargetKey}, {"request_actor_key", ExecutionValueSourceKind::RequestActorKey}, {"effect_output_key", ExecutionValueSourceKind::EffectOutputKey}, {"runtime_expression", ExecutionValueSourceKind::RuntimeExpression}, {"test_only", ExecutionValueSourceKind::TestOnly}});
 }
 
 Result<ExecutionFailureKind> executionFailureKindFromString(const std::string& value) {
-    const std::vector<std::pair<std::string, ExecutionFailureKind>> values = {{"spec_not_found", ExecutionFailureKind::SpecNotFound}, {"condition_not_met", ExecutionFailureKind::ConditionNotMet}, {"missing_object", ExecutionFailureKind::MissingObject}, {"missing_target", ExecutionFailureKind::MissingTarget}, {"insufficient_quantity", ExecutionFailureKind::InsufficientQuantity}, {"state_not_mutable", ExecutionFailureKind::StateNotMutable}, {"forbidden_by_safety", ExecutionFailureKind::ForbiddenBySafety}, {"invalid_operation", ExecutionFailureKind::InvalidOperation}, {"expression_failed", ExecutionFailureKind::ExpressionFailed}, {"partial_execution_rejected", ExecutionFailureKind::PartialExecutionRejected}, {"test_only", ExecutionFailureKind::TestOnly}};
-    for (const auto& [key, item] : values) if (value == key) return Result<ExecutionFailureKind>::ok(item);
-    return failValue<ExecutionFailureKind>("unknown enum string");
+    return enumFromString<ExecutionFailureKind>(value, {{"spec_not_found", ExecutionFailureKind::SpecNotFound}, {"condition_not_met", ExecutionFailureKind::ConditionNotMet}, {"missing_object", ExecutionFailureKind::MissingObject}, {"missing_target", ExecutionFailureKind::MissingTarget}, {"insufficient_quantity", ExecutionFailureKind::InsufficientQuantity}, {"state_not_mutable", ExecutionFailureKind::StateNotMutable}, {"forbidden_by_safety", ExecutionFailureKind::ForbiddenBySafety}, {"invalid_operation", ExecutionFailureKind::InvalidOperation}, {"expression_failed", ExecutionFailureKind::ExpressionFailed}, {"partial_execution_rejected", ExecutionFailureKind::PartialExecutionRejected}, {"test_only", ExecutionFailureKind::TestOnly}});
 }
 
 Result<AgentStepExecutionMode> agentStepExecutionModeFromString(const std::string& value) {
-    const std::vector<std::pair<std::string, AgentStepExecutionMode>> values = {{"dry_run", AgentStepExecutionMode::DryRun}, {"execute_one_step", AgentStepExecutionMode::ExecuteOneStep}, {"execute_until_blocked", AgentStepExecutionMode::ExecuteUntilBlocked}, {"execute_until_goal_resolved", AgentStepExecutionMode::ExecuteUntilGoalResolved}, {"test_only", AgentStepExecutionMode::TestOnly}};
-    for (const auto& [key, item] : values) if (value == key) return Result<AgentStepExecutionMode>::ok(item);
-    return failValue<AgentStepExecutionMode>("unknown enum string");
+    return enumFromString<AgentStepExecutionMode>(value, {{"dry_run", AgentStepExecutionMode::DryRun}, {"execute_one_step", AgentStepExecutionMode::ExecuteOneStep}, {"execute_until_blocked", AgentStepExecutionMode::ExecuteUntilBlocked}, {"execute_until_goal_resolved", AgentStepExecutionMode::ExecuteUntilGoalResolved}, {"test_only", AgentStepExecutionMode::TestOnly}});
+}
+
+Result<WorldScopeKind> worldScopeKindFromString(const std::string& value) {
+    return enumFromString<WorldScopeKind>(value, {{"actor", WorldScopeKind::Actor}, {"inventory", WorldScopeKind::Inventory}, {"object", WorldScopeKind::Object}, {"location", WorldScopeKind::Location}, {"region", WorldScopeKind::Region}, {"threat", WorldScopeKind::Threat}, {"group_or_tribe", WorldScopeKind::GroupOrTribe}, {"faction", WorldScopeKind::Faction}, {"civilization", WorldScopeKind::Civilization}, {"world_system", WorldScopeKind::WorldSystem}, {"megastructure", WorldScopeKind::Megastructure}, {"knowledge_graph", WorldScopeKind::KnowledgeGraph}, {"agreement", WorldScopeKind::Agreement}, {"timeline", WorldScopeKind::Timeline}, {"test_only", WorldScopeKind::TestOnly}});
+}
+
+Result<EffectOperationGroupKind> effectOperationGroupKindFromString(const std::string& value) {
+    return enumFromString<EffectOperationGroupKind>(value, {{"primary", EffectOperationGroupKind::Primary}, {"cost", EffectOperationGroupKind::Cost}, {"side_effect", EffectOperationGroupKind::SideEffect}, {"risk", EffectOperationGroupKind::Risk}, {"trigger", EffectOperationGroupKind::Trigger}, {"knowledge", EffectOperationGroupKind::Knowledge}, {"social", EffectOperationGroupKind::Social}, {"systemic", EffectOperationGroupKind::Systemic}, {"scheduled", EffectOperationGroupKind::Scheduled}, {"test_only", EffectOperationGroupKind::TestOnly}});
+}
+
+Result<OperationFailurePolicy> operationFailurePolicyFromString(const std::string& value) {
+    return enumFromString<OperationFailurePolicy>(value, {{"fail_spec", OperationFailurePolicy::FailSpec}, {"skip_operation", OperationFailurePolicy::SkipOperation}, {"continue_with_warning", OperationFailurePolicy::ContinueWithWarning}, {"queue_for_retry", OperationFailurePolicy::QueueForRetry}, {"test_only", OperationFailurePolicy::TestOnly}});
+}
+
+Result<TemporalEffectKind> temporalEffectKindFromString(const std::string& value) {
+    return enumFromString<TemporalEffectKind>(value, {{"instant", TemporalEffectKind::Instant}, {"delayed", TemporalEffectKind::Delayed}, {"duration", TemporalEffectKind::Duration}, {"periodic", TemporalEffectKind::Periodic}, {"until_condition_met", TemporalEffectKind::UntilConditionMet}, {"test_only", TemporalEffectKind::TestOnly}});
+}
+
+Result<TargetSelectionKind> targetSelectionKindFromString(const std::string& value) {
+    return enumFromString<TargetSelectionKind>(value, {{"explicit_request", TargetSelectionKind::ExplicitRequest}, {"actor_self", TargetSelectionKind::ActorSelf}, {"nearest_matching", TargetSelectionKind::NearestMatching}, {"all_in_scope", TargetSelectionKind::AllInScope}, {"random_in_scope", TargetSelectionKind::RandomInScope}, {"highest_threat", TargetSelectionKind::HighestThreat}, {"lowest_need", TargetSelectionKind::LowestNeed}, {"linked_knowledge_target", TargetSelectionKind::LinkedKnowledgeTarget}, {"test_only", TargetSelectionKind::TestOnly}});
+}
+
+bool WorldScopeRef::empty() const {
+    return kind == WorldScopeKind::Unknown && scope_key.empty() && parent_scope_key.empty() && safe_tags.empty();
+}
+
+Result<void> WorldScopeRef::validateBasic() const {
+    if (empty()) return Result<void>::ok();
+    if (kind == WorldScopeKind::Unknown) return fail("world scope kind unknown");
+    if (forbiddenText(scope_key) || forbiddenText(parent_scope_key) || forbiddenText(safe_tags)) return fail("world scope contains forbidden text");
+    return Result<void>::ok();
+}
+
+Result<void> TemporalEffectPolicy::validateBasic() const {
+    if (kind == TemporalEffectKind::Unknown) return fail("temporal effect kind unknown");
+    if (kind == TemporalEffectKind::Instant && (delay_ticks != 0 || duration_ticks != 0 || period_ticks != 0)) return fail("instant temporal effect has tick values");
+    if (kind == TemporalEffectKind::Delayed && delay_ticks == 0) return fail("delayed temporal effect missing delay");
+    if (kind == TemporalEffectKind::Duration && duration_ticks == 0) return fail("duration temporal effect missing duration");
+    if (kind == TemporalEffectKind::Periodic && period_ticks == 0) return fail("periodic temporal effect missing period");
+    if (kind == TemporalEffectKind::UntilConditionMet && until_condition_key.empty()) return fail("temporal effect missing until condition");
+    if (forbiddenText(until_condition_key)) return fail("temporal effect contains forbidden text");
+    return Result<void>::ok();
+}
+
+Result<void> TargetSelectionSpec::validateBasic() const {
+    if (kind == TargetSelectionKind::Unknown) return fail("target selection kind unknown");
+    if (max_targets == 0) return fail("target selection max targets zero");
+    auto scope_valid = scope.validateBasic();
+    if (scope_valid.is_error()) return scope_valid;
+    if (forbiddenText(explicit_target_key) || forbiddenText(required_tags)) return fail("target selection contains forbidden text");
+    return Result<void>::ok();
+}
+
+bool KnowledgeEffectPayload::empty() const {
+    return knowledge_key.empty() && subject_key.empty() && relation_key.empty() && trust_delta == 0.0 && propagation_tags.empty();
+}
+
+Result<void> KnowledgeEffectPayload::validateBasic() const {
+    if (empty()) return Result<void>::ok();
+    if (!std::isfinite(trust_delta)) return fail("knowledge payload trust delta invalid");
+    if (forbiddenText(knowledge_key) || forbiddenText(subject_key) || forbiddenText(relation_key) || forbiddenText(propagation_tags)) return fail("knowledge payload contains forbidden text");
+    return Result<void>::ok();
+}
+
+bool RelationshipEffectPayload::empty() const {
+    return source_actor_key.empty() && target_actor_key.empty() && relationship_key.empty() && relationship_delta == 0.0 && reputation_delta == 0.0 && agreement_key.empty();
+}
+
+Result<void> RelationshipEffectPayload::validateBasic() const {
+    if (empty()) return Result<void>::ok();
+    if (!std::isfinite(relationship_delta) || !std::isfinite(reputation_delta)) return fail("relationship payload delta invalid");
+    if (forbiddenText(source_actor_key) || forbiddenText(target_actor_key) || forbiddenText(relationship_key) || forbiddenText(agreement_key)) return fail("relationship payload contains forbidden text");
+    return Result<void>::ok();
+}
+
+bool WorldRuleEffectPayload::empty() const {
+    return rule_key.empty() && system_key.empty() && pressure_delta == 0.0 && capability_key.empty() && safe_summary_zh_cn.empty();
+}
+
+Result<void> WorldRuleEffectPayload::validateBasic() const {
+    if (empty()) return Result<void>::ok();
+    if (!std::isfinite(pressure_delta)) return fail("world rule payload pressure invalid");
+    if (forbiddenText(rule_key) || forbiddenText(system_key) || forbiddenText(capability_key) || forbiddenText(safe_summary_zh_cn)) return fail("world rule payload contains forbidden text");
+    return Result<void>::ok();
+}
+
+Result<void> RandomExecutionPolicy::validateBasic() const {
+    if (!std::isfinite(chance) || chance < 0.0 || chance > 1.0) return fail("random execution chance invalid");
+    if (enabled && random_stream_key.empty()) return fail("random execution stream key empty");
+    if (forbiddenText(random_stream_key) || forbiddenText(outcome_keys)) return fail("random execution contains forbidden text");
+    return Result<void>::ok();
+}
+
+bool ScheduledEffectRef::empty() const {
+    return schedule_id.empty() && effect_key.empty() && scope.empty() && due_tick == 0 && repeat_period_ticks == 0;
+}
+
+Result<void> ScheduledEffectRef::validateBasic() const {
+    if (empty()) return Result<void>::ok();
+    if (schedule_id.empty() || effect_key.empty()) return fail("scheduled effect required field empty");
+    auto scope_valid = scope.validateBasic();
+    if (scope_valid.is_error()) return scope_valid;
+    if (forbiddenText(schedule_id) || forbiddenText(effect_key)) return fail("scheduled effect contains forbidden text");
+    return Result<void>::ok();
 }
 
 Result<void> EffectExecutionOperation::validateBasic() const {
     if (operation_id.empty() || safe_summary_zh_cn.empty()) return fail("execution operation required field empty");
-    if (op_kind == EffectExecutionOpKind::Unknown || target_kind == EffectExecutionTargetKind::Unknown || key_source == ExecutionValueSourceKind::Unknown) return fail("execution operation enum unknown");
+    if (op_kind == EffectExecutionOpKind::Unknown || target_kind == EffectExecutionTargetKind::Unknown || key_source == ExecutionValueSourceKind::Unknown || group_kind == EffectOperationGroupKind::Unknown || failure_policy == OperationFailurePolicy::Unknown) return fail("execution operation enum unknown");
     if (forbiddenText(operation_id) || forbiddenText(runtime_key) || forbiddenText(effect_output_key) || forbiddenText(state_key) || forbiddenText(safe_summary_zh_cn) || forbiddenText(trace_keys)) return fail("execution operation contains forbidden text");
     if (!std::isfinite(number_value)) return fail("execution operation number invalid");
     if ((op_kind == EffectExecutionOpKind::ConsumeObjectQuantity || op_kind == EffectExecutionOpKind::AddObjectQuantity) && quantity_value == 0) return fail("execution operation quantity zero");
     if ((op_kind == EffectExecutionOpKind::AddObjectStateNumber || op_kind == EffectExecutionOpKind::SetObjectStateNumber || op_kind == EffectExecutionOpKind::ChangeActorNeed) && state_key.empty()) return fail("execution operation state key empty");
+    auto scope_valid = world_scope.validateBasic();
+    if (scope_valid.is_error()) return scope_valid;
+    auto target_valid = target_selection.validateBasic();
+    if (target_valid.is_error()) return target_valid;
+    auto temporal_valid = temporal_policy.validateBasic();
+    if (temporal_valid.is_error()) return temporal_valid;
+    auto knowledge_valid = knowledge_payload.validateBasic();
+    if (knowledge_valid.is_error()) return knowledge_valid;
+    auto relationship_valid = relationship_payload.validateBasic();
+    if (relationship_valid.is_error()) return relationship_valid;
+    auto rule_valid = world_rule_payload.validateBasic();
+    if (rule_valid.is_error()) return rule_valid;
+    auto random_valid = random_policy.validateBasic();
+    if (random_valid.is_error()) return random_valid;
+    auto scheduled_valid = scheduled_effect.validateBasic();
+    if (scheduled_valid.is_error()) return scheduled_valid;
     return Result<void>::ok();
 }
 
@@ -419,7 +676,17 @@ Result<void> EffectExecutionSpec::validateBasic() const {
     if (spec_id.empty() || effect_key.empty() || safe_summary_zh_cn.empty() || source_config_id.empty() || version.empty()) return fail("execution spec required field empty");
     if (!isSnakeKey(effect_key)) return fail("execution spec effect key invalid");
     if (operations.empty()) return fail("execution spec operations empty");
-    if (forbiddenText(spec_id) || forbiddenText(effect_key) || forbiddenText(safe_summary_zh_cn) || forbiddenText(source_config_id) || forbiddenText(version) || forbiddenText(trace_keys)) return fail("execution spec contains forbidden text");
+    if (forbiddenText(spec_id) || forbiddenText(effect_key) || forbiddenText(safe_summary_zh_cn) || forbiddenText(source_config_id) || forbiddenText(version) || forbiddenText(trace_keys) || forbiddenText(unsupported_features)) return fail("execution spec contains forbidden text");
+    auto scope_valid = default_scope.validateBasic();
+    if (scope_valid.is_error()) return scope_valid;
+    auto temporal_valid = temporal_policy.validateBasic();
+    if (temporal_valid.is_error()) return temporal_valid;
+    auto random_valid = random_policy.validateBasic();
+    if (random_valid.is_error()) return random_valid;
+    for (const auto& scheduled : scheduled_effects) {
+        auto valid = scheduled.validateBasic();
+        if (valid.is_error()) return valid;
+    }
     for (const auto& ref : condition_refs) {
         auto valid = ref.validateBasic();
         if (valid.is_error()) return valid;
@@ -613,6 +880,10 @@ Result<WorldExecutionResult> WorldEffectExecutor::execute(
     for (const auto& operation : spec_value.operations) {
         const auto failure = validateOperationAgainstSnapshot(operation, request, snapshot);
         if (failure != ExecutionFailureKind::Unknown) return Result<WorldExecutionResult>::ok(failedExecution(failure, summaryForFailure(failure), operation.trace_keys));
+        if (!isExecutableOperationKind(operation.op_kind)) {
+            if (!request.dry_run) return Result<WorldExecutionResult>::ok(failedExecution(ExecutionFailureKind::InvalidOperation, "这个长期效果目前只支持 dry-run 验证，尚未接入真实世界结算。", operation.trace_keys));
+            continue;
+        }
         if (!request.dry_run) changes.push_back(changeForOperation(operation, request, prefix));
     }
     WorldExecutionResult result;

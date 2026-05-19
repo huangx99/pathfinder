@@ -28,6 +28,16 @@ static Result<void> validateId(const pathfinder::foundation::ObjectDefinitionId&
     return Result<void>::ok();
 }
 
+Result<void> ReactionExecutionPrecondition::validateBasic() const {
+    auto domain_valid = validateKey(missing_domain, "ReactionExecutionPrecondition missing_domain");
+    if (domain_valid.is_error()) return domain_valid;
+    auto key_valid = validateKey(missing_key, "ReactionExecutionPrecondition missing_key");
+    if (key_valid.is_error()) return key_valid;
+    auto required_valid = validateKey(required_value, "ReactionExecutionPrecondition required_value");
+    if (required_valid.is_error()) return required_valid;
+    return Result<void>::ok();
+}
+
 Result<void> ReactionObjectPattern::validateBasic() const {
     if (role == ReactionObjectRole::Unknown || role == ReactionObjectRole::TestOnly || role == ReactionObjectRole::Product) {
         return Result<void>::fail(makeError(ErrorCode::validation_enum_unknown, "ReactionObjectPattern role invalid"));
@@ -50,6 +60,10 @@ Result<void> ReactionObjectPattern::validateBasic() const {
         if (isDynamicStateLikeKey(tag)) {
             return Result<void>::fail(makeError(ErrorCode::validation_failed, "ReactionObjectPattern forbidden_tag_keys cannot contain dynamic state semantics"));
         }
+    }
+    for (const auto& precondition : execution_preconditions) {
+        auto valid = precondition.validateBasic();
+        if (valid.is_error()) return valid;
     }
     return Result<void>::ok();
 }
@@ -116,6 +130,12 @@ Result<void> ObjectReactionRule::validateBasic() const {
     }
     auto knowledge_valid = validateKey(knowledge_effect_key, "ObjectReactionRule knowledge_effect_key", false);
     if (knowledge_valid.is_error()) return knowledge_valid;
+    auto execution_valid = validateKey(execution_effect_key, "ObjectReactionRule execution_effect_key", false);
+    if (execution_valid.is_error()) return execution_valid;
+    for (const auto& precondition : execution_preconditions) {
+        auto valid = precondition.validateBasic();
+        if (valid.is_error()) return valid;
+    }
     if (containsReactionForbiddenKey(safe_tags)) {
         return Result<void>::fail(makeError(ErrorCode::validation_failed, "ObjectReactionRule safe_tags forbidden"));
     }
