@@ -83,8 +83,9 @@ ReasoningProjectionMapper
 ## 核心测试
 
 ```bash
-cmake --build build/backend --target pathfinder_tests_agent_reasoning pathfinder_tests_h5_playable pathfinder_tests_world_interaction -j2
-ctest --test-dir build/backend -R "agent_reasoning|world_interaction|h5_playable" --output-on-failure
+cmake -S backend -B backend/build
+cmake --build backend/build --target pathfinder_tests_agent_reasoning pathfinder_tests_world_interaction -j2
+ctest --test-dir backend/build -R "agent_reasoning|world_interaction" --output-on-failure
 ```
 
 ## 最小验收案例
@@ -96,4 +97,15 @@ ctest --test-dir build/backend -R "agent_reasoning|world_interaction|h5_playable
 房子容量不足时，能规划 build_house，并链式推出 cut_wood、restore_sharpness。
 野兽威胁高时，能通过 repel_beast 语义选择火把反制。
 循环依赖和搜索超限必须有诊断。
+```
+
+
+## 本次实现摘要
+
+```text
+新增 pathfinder_agent_reasoning target。
+新增 reasoning_types / effect_semantics / agent_reasoner。
+AgentAutonomyService companion 分支已调用 AgentReasoner。
+新增 P39 单元测试覆盖语义表、目标生成、主观知识、食物、毒物、寒冷、生火、建房链、斧头打磨、火把驱兽、循环、超限、安全投影。
+新增 doc/review/P39 自审与邮件报告。
 ```

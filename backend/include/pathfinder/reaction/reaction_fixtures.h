@@ -11,6 +11,8 @@ ReactionObjectRef waterPortion();
 
 ObjectReactionRule fireDryBranchToTorchRule();
 ObjectReactionRule waterExtinguishFireRule();
+ObjectReactionRule cutWoodWithAxeRule();
+ObjectReactionRule sharpenAxeRule();
 
 ReactionInputSet fireBranchInput(const ReactionObjectRef& branch);
 ReactionInputSet waterFireInput();

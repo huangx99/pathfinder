@@ -129,6 +129,58 @@ ObjectReactionRule waterExtinguishFireRule() {
     return rule;
 }
 
+ObjectReactionRule cutWoodWithAxeRule() {
+    ObjectReactionRule rule;
+    rule.rule_key = "cut_wood_with_axe";
+    rule.action_kind = ReactionActionKind::Use;
+    rule.object_patterns = {
+        ReactionObjectPattern{ReactionObjectRole::Material, ObjectDefinitionId("def_raw_wood"), ObjectCategory::Material, {"wood_material"}, {}, true},
+        ReactionObjectPattern{ReactionObjectRole::Tool, ObjectDefinitionId("def_axe"), ObjectCategory::Tool, {"cutting_tool"}, {}, true}
+    };
+    rule.condition_refs = {
+        condition("condition:source_state:eq:sharp")
+    };
+    ReactionOutputTemplate product;
+    product.output_kind = ReactionOutputKind::ProduceObject;
+    product.target_role = ReactionObjectRole::Product;
+    product.product_definition_id = ObjectDefinitionId("def_wood_processed");
+    product.quantity_delta = 1;
+    rule.output_templates = {product};
+    rule.priority = 80;
+    rule.conflict_policy = ReactionConflictPolicy::HighestPriorityOnly;
+    rule.feedback_key = "reaction.cut_wood";
+    rule.feedback_text = "斧头把木头处理成可用材料。";
+    rule.knowledge_effect_key = "cut_wood";
+    rule.safe_tags = {"material_processing", "tool_use"};
+    return rule;
+}
+
+ObjectReactionRule sharpenAxeRule() {
+    ObjectReactionRule rule;
+    rule.rule_key = "sharpen_axe";
+    rule.action_kind = ReactionActionKind::Use;
+    rule.object_patterns = {
+        ReactionObjectPattern{ReactionObjectRole::Material, ObjectDefinitionId("def_whetstone"), ObjectCategory::Tool, {"sharpening_tool"}, {}, true},
+        ReactionObjectPattern{ReactionObjectRole::Tool, ObjectDefinitionId("def_axe"), ObjectCategory::Tool, {"cutting_tool"}, {}, true}
+    };
+    rule.condition_refs = {
+        condition("condition:target_tag:has:cutting_tool")
+    };
+    ReactionOutputTemplate sharpen;
+    sharpen.output_kind = ReactionOutputKind::ResourceDelta;
+    sharpen.target_role = ReactionObjectRole::Tool;
+    sharpen.resource_key = "sharpness";
+    sharpen.resource_delta = 3.0;
+    rule.output_templates = {sharpen};
+    rule.priority = 70;
+    rule.conflict_policy = ReactionConflictPolicy::HighestPriorityOnly;
+    rule.feedback_key = "reaction.sharpen_axe";
+    rule.feedback_text = "斧头被重新打磨锋利。";
+    rule.knowledge_effect_key = "restore_sharpness";
+    rule.safe_tags = {"tool_maintenance"};
+    return rule;
+}
+
 ReactionInputSet fireBranchInput(const ReactionObjectRef& branch) {
     ReactionInputSet input;
     input.input_key = "input_fire_branch";
@@ -152,7 +204,7 @@ ReactionInputSet waterFireInput() {
 }
 
 std::vector<ObjectReactionRule> coreP28Rules() {
-    return {fireDryBranchToTorchRule(), waterExtinguishFireRule()};
+    return {fireDryBranchToTorchRule(), waterExtinguishFireRule(), cutWoodWithAxeRule(), sharpenAxeRule()};
 }
 
 } // namespace pathfinder::reaction::fixtures

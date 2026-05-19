@@ -141,6 +141,10 @@ Result<void> WorldActorRuntimeState::validateBasic() const {
     if (display_name_zh_cn.empty()) return fail("world actor display empty");
     if (trust < 0.0 || trust > 1.0) return fail("world actor trust out of range");
     if (containsForbiddenText(display_name_zh_cn) || containsForbiddenText(known_effect_keys)) return fail("world actor contains forbidden text");
+    for (const auto& claim : known_claims) {
+        auto valid = claim.validateBasic();
+        if (valid.is_error()) return valid;
+    }
     return Result<void>::ok();
 }
 

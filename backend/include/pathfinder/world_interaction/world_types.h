@@ -2,6 +2,7 @@
 
 #include "pathfinder/foundation/result.h"
 #include "pathfinder/h5_dialog/dialog_types.h"
+#include "pathfinder/knowledge/knowledge_claim.h"
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -109,6 +110,7 @@ struct WorldActorRuntimeState {
     bool can_act{true};
     double trust{0.0};
     std::vector<std::string> known_effect_keys;
+    std::vector<pathfinder::knowledge::KnowledgeClaim> known_claims;
     std::vector<std::string> observed_object_keys;
     std::vector<std::string> held_object_keys;
 

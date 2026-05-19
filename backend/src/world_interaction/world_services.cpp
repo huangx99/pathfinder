@@ -1,4 +1,5 @@
 #include "pathfinder/world_interaction/world_services.h"
+#include "pathfinder/agent_reasoning/agent_reasoner.h"
 #include "pathfinder/foundation/error.h"
 #include <algorithm>
 #include <cmath>
@@ -87,6 +88,21 @@ const WorldThreatRuntimeState* findThreat(const WorldSnapshot& snapshot, const s
 bool actorKnowsEffect(const WorldActorRuntimeState& actor, const std::string& effect_key) {
     return std::find(actor.known_effect_keys.begin(), actor.known_effect_keys.end(), effect_key) != actor.known_effect_keys.end();
 }
+
+std::vector<pathfinder::knowledge::KnowledgeClaim> claimsFromActorKnowledge(
+    const WorldActorRuntimeState& actor,
+    const AgentAutonomyRequest& request) {
+    std::vector<pathfinder::knowledge::KnowledgeClaim> claims;
+    for (auto claim : actor.known_claims) {
+        if (!request.target_threat_key.empty() && claim.predicate.effect_key == request.required_knowledge_effect_key &&
+            claim.subject.related_subject_ids.empty()) {
+            claim.subject.related_subject_ids.push_back(request.target_threat_key);
+        }
+        claims.push_back(std::move(claim));
+    }
+    return claims;
+}
+
 
 
 std::string statusSummaryForObject(const WorldObjectInstance& object) {
@@ -209,7 +225,8 @@ Result<WorldSnapshot> WorldSnapshotAdapter::fromDialogSession(
     pioneer.actor_key = "pioneer";
     pioneer.display_name_zh_cn = "先驱者";
     pioneer.trust = 1.0;
-    for (const auto& claim : state.actor_claims) {
+    pioneer.known_claims = state.actor_claims;
+    for (const auto& claim : pioneer.known_claims) {
         if (!claim.predicate.effect_key.empty()) pioneer.known_effect_keys.push_back(claim.predicate.effect_key);
     }
     snapshot.actors_by_key[pioneer.actor_key] = pioneer;
@@ -218,7 +235,8 @@ Result<WorldSnapshot> WorldSnapshotAdapter::fromDialogSession(
     companion.actor_key = "companion";
     companion.display_name_zh_cn = "同伴";
     companion.trust = 0.8;
-    for (const auto& claim : state.recipient_claims) {
+    companion.known_claims = state.recipient_claims;
+    for (const auto& claim : companion.known_claims) {
         if (!claim.predicate.effect_key.empty()) companion.known_effect_keys.push_back(claim.predicate.effect_key);
     }
     snapshot.actors_by_key[companion.actor_key] = companion;
@@ -516,20 +534,9 @@ Result<AgentAutonomyResult> AgentAutonomyService::tryAct(
     const auto* threat = findThreat(snapshot, request.target_threat_key.empty() ? "beast_shadow" : request.target_threat_key);
 
     if (request.agent_actor_key == "companion") {
-        const auto* torch = findObject(snapshot, "torch");
         if (!threat || threat->level < 50.0 || threat->resolved) {
             result.skip_reason = InteractionFailureKind::ThreatNotActive;
             result.summary_zh_cn = "同伴暂时没有发现需要立刻处理的危险。";
-            return Result<AgentAutonomyResult>::ok(result);
-        }
-        if (!torch || torch->quantity <= 0) {
-            result.skip_reason = InteractionFailureKind::ToolUnavailable;
-            result.summary_zh_cn = "同伴知道火有用，但现在没有可用火把。";
-            return Result<AgentAutonomyResult>::ok(result);
-        }
-        if (!actorKnowsEffect(actor, "repel_beast") && !actorKnowsEffect(actor, "make_torch")) {
-            result.skip_reason = InteractionFailureKind::KnowledgeNotKnown;
-            result.summary_zh_cn = "同伴还不知道怎样用火把处理危险。";
             return Result<AgentAutonomyResult>::ok(result);
         }
         if (actor.trust < 0.5) {
@@ -537,19 +544,27 @@ Result<AgentAutonomyResult> AgentAutonomyService::tryAct(
             result.summary_zh_cn = "同伴还不够信任你，没能立刻协助。";
             return Result<AgentAutonomyResult>::ok(result);
         }
-        result.action_kind = AgentAutonomyActionKind::HoldTorch;
-        result.executed = true;
-        result.used_object_key = "torch";
-        result.skip_reason.reset();
-        result.summary_zh_cn = "同伴想起你教过的火把经验，举起火光协助守住营地。野兽被迫退开。";
-        auto world_change = change("world.agent.companion.hold_torch." + std::to_string(snapshot.turn_index), WorldChangeKind::AgentActionExecuted, result.summary_zh_cn);
-        world_change.target_actor_key = "companion";
-        world_change.target_threat_key = "beast_shadow";
-        result.changes.push_back(world_change);
-        auto threat_change = change("world.agent.companion.resolve_threat." + std::to_string(snapshot.turn_index), WorldChangeKind::ThreatResolved, "同伴协助后，靠近的野兽退回树林。");
-        threat_change.target_threat_key = "beast_shadow";
-        result.changes.push_back(threat_change);
-        return Result<AgentAutonomyResult>::ok(std::move(result));
+
+        pathfinder::agent_reasoning::ReasoningRequest reasoning_request;
+        reasoning_request.request_id = request.request_key.empty() ? "autonomy.companion" : request.request_key;
+        reasoning_request.actor_key = request.agent_actor_key;
+        reasoning_request.world_snapshot = snapshot;
+        reasoning_request.agent_knowledge = claimsFromActorKnowledge(actor, request);
+        reasoning_request.need_state.actor_key = request.agent_actor_key;
+        reasoning_request.need_state.fear = std::clamp(threat->level, 0.0, 100.0);
+        reasoning_request.trigger_key = request.trigger_key.empty() ? "agent_autonomy" : request.trigger_key;
+
+        pathfinder::agent_reasoning::AgentReasoner reasoner;
+        auto reasoning = reasoner.reason(reasoning_request);
+        if (reasoning.is_ok() && reasoning.value().selected_plan) {
+            pathfinder::agent_reasoning::AgentPlanExecutorAdapter adapter;
+            auto planned = adapter.toAutonomyResult(*reasoning.value().selected_plan, snapshot);
+            if (planned.is_ok()) return planned;
+        }
+
+        result.skip_reason = InteractionFailureKind::KnowledgeNotKnown;
+        result.summary_zh_cn = reasoning.is_ok() ? reasoning.value().safe_explanation_zh_cn : "同伴还不能根据已知经验形成可执行计划。";
+        return Result<AgentAutonomyResult>::ok(result);
     }
 
     if (request.agent_actor_key == "beast_shadow") {

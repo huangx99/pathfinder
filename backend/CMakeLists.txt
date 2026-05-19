@@ -677,9 +677,42 @@ target_link_libraries(pathfinder_agent_debug_cli_exe PRIVATE
 )
 
 
+# World Interaction types (P38 shared DTOs)
+add_library(pathfinder_world_interaction_types STATIC
+    src/world_interaction/world_types.cpp
+)
+
+target_include_directories(pathfinder_world_interaction_types PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(pathfinder_world_interaction_types PUBLIC
+    pathfinder_foundation
+    pathfinder_knowledge
+)
+
+# Agent Reasoning library (P39)
+add_library(pathfinder_agent_reasoning STATIC
+    src/agent_reasoning/reasoning_types.cpp
+    src/agent_reasoning/effect_semantics.cpp
+    src/agent_reasoning/reaction_planning_adapter.cpp
+    src/agent_reasoning/agent_reasoner.cpp
+)
+
+target_include_directories(pathfinder_agent_reasoning PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(pathfinder_agent_reasoning PUBLIC
+    pathfinder_foundation
+    pathfinder_condition
+    pathfinder_knowledge
+    pathfinder_reaction
+    pathfinder_world_interaction_types
+)
+
 # World Interaction library (P38)
 add_library(pathfinder_world_interaction STATIC
-    src/world_interaction/world_types.cpp
     src/world_interaction/world_services.cpp
 )
 
@@ -689,6 +722,8 @@ target_include_directories(pathfinder_world_interaction PUBLIC
 
 target_link_libraries(pathfinder_world_interaction PUBLIC
     pathfinder_foundation
+    pathfinder_world_interaction_types
+    pathfinder_agent_reasoning
 )
 
 # H5 Dialog library (P22)
