@@ -65,6 +65,8 @@ frontend/h5_playable/style.css
 禁止外界事件无感知也打断 Agent。
 禁止把内部 score 暴露给玩家。
 禁止跳过 P38 WorldChangeApplier。
+禁止 Driver 内部手写材料数量判断。
+禁止 P40 绕过 P28/P28.5 反应系统生成材料。
 ```
 
 ## 核心模块
@@ -78,6 +80,9 @@ InternalBlockerResolver
 InterruptSystem
 InterruptPriorityEvaluator
 ExecutionResumeValidator
+MaterialRequirementEvaluator
+MaterialReservationManager
+ReactionMaterialResolver
 DriverCommandAdapter
 ExecutionProjectionMapper
 ```
@@ -99,6 +104,9 @@ ResumeDecision：紧急目标完成后恢复/重规划/取消。
 建房目标 -> 伐木 -> 狼出现 -> 暂停伐木 -> 处理狼 -> 恢复伐木。
 狼出现必须由 InterruptSystem 处理，不能写进 ChopWoodDriver。
 DriverCommand 必须适配 P38 结算，不能直接改世界。
+材料数量必须通过 MaterialRequirementEvaluator 计算，不能在 Driver 内手写 wood >= N。
+缺材料必须通过 ReactionMaterialResolver 连接 P28/P28.5 反应产出链。
+材料预定和材料消耗必须分离，目标取消必须释放 reservation。
 H5 只显示安全中文执行摘要，不显示内部栈和分数。
 ```
 
