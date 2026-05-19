@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cmath>
 #include <set>
+#include <unordered_map>
 
 namespace pathfinder::agent_reasoning {
 
@@ -62,8 +63,11 @@ std::string displayForObject(const WorldSnapshot& snapshot, const std::string& k
 
 int quantityOf(const WorldSnapshot& snapshot, const std::string& key) {
     auto it = snapshot.objects_by_key.find(key);
-    if (it == snapshot.objects_by_key.end()) return 0;
-    return it->second.quantity;
+    int quantity = it == snapshot.objects_by_key.end() ? 0 : it->second.quantity;
+    for (const auto& [_, actor] : snapshot.actors_by_key) {
+        quantity += static_cast<int>(std::count(actor.held_object_keys.begin(), actor.held_object_keys.end(), key));
+    }
+    return quantity;
 }
 
 double numericStateOf(const WorldSnapshot& snapshot, const std::string& object_key, const std::string& state_key) {
@@ -106,6 +110,20 @@ std::vector<std::string> safeFactsFromSnapshot(const WorldSnapshot& snapshot) {
         }
         for (const auto& tag : object.state_tags) {
             facts.push_back("object.tag." + key + "." + tag);
+        }
+    }
+    std::unordered_map<std::string, int> held_quantities;
+    for (const auto& [_, actor] : snapshot.actors_by_key) {
+        for (const auto& held_object_key : actor.held_object_keys) {
+            ++held_quantities[held_object_key];
+        }
+    }
+    for (const auto& [held_object_key, held_quantity] : held_quantities) {
+        for (int threshold = 1; threshold <= 6; ++threshold) {
+            if (held_quantity >= threshold) {
+                const auto fact = safeFactForQuantity(held_object_key, threshold);
+                if (std::find(facts.begin(), facts.end(), fact) == facts.end()) facts.push_back(fact);
+            }
         }
     }
     for (const auto& [key, threat] : snapshot.threats_by_key) {
@@ -516,9 +534,9 @@ Result<std::vector<AgentGoal>> AgentGoalGenerator::generateGoals(const GoalGener
         add_goal(AgentGoalKind::ReduceCold, input.need_state.cold, -40.0, {"need:cold"});
         add_goal(AgentGoalKind::IncreaseWarmth, input.need_state.cold, 40.0, {"need:cold", "weather:cold"});
     }
-    if (input.need_state.fear >= 60.0) add_goal(AgentGoalKind::ReduceThreat, input.need_state.fear, -50.0, {"need:fear"});
+    if (input.need_state.fear >= 25.0) add_goal(AgentGoalKind::ReduceThreat, input.need_state.fear, -50.0, {"need:fear"});
     for (const auto& [key, threat] : input.world_snapshot.threats_by_key) {
-        if (threat.active && !threat.resolved && threat.level >= 50.0) add_goal(AgentGoalKind::ReduceThreat, threat.level, -100.0, {"threat:" + key}, key);
+        if (threat.active && !threat.resolved && threat.level >= 25.0) add_goal(AgentGoalKind::ReduceThreat, threat.level, -100.0, {"threat:" + key}, key);
     }
     auto tribe = input.world_snapshot.objects_by_key.find("tribe_status");
     if (tribe != input.world_snapshot.objects_by_key.end()) {

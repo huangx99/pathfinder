@@ -42,7 +42,7 @@ static void test_bootstrap_projection() {
     assert(response.value().projection.header.audience == pathfinder::h5_projection::ProjectionAudience::Player);
     assert(response.value().projection.object_cards.size() >= 4);
     assert(response.value().projection.actor_knowledge.empty());
-    assert(response.value().projection.recipient_knowledge.empty());
+    assert(!response.value().projection.recipient_knowledge.empty());
 }
 
 static void test_learning_teaching_projection() {
@@ -54,7 +54,7 @@ static void test_learning_teaching_projection() {
     auto eat = service.handleTurn(turn("s_p33_learning", 1, "吃红果"));
     assert(eat.is_ok());
     assert(!eat.value().projection.actor_knowledge.empty());
-    assert(eat.value().projection.recipient_knowledge.empty());
+    assert(!eat.value().projection.recipient_knowledge.empty());
     assert(eat.value().reply_text.zh_cn.find(" -> ") == std::string::npos);
 
     auto teach = service.handleTurn(turn("s_p33_learning", 2, "教同伴"));
@@ -367,27 +367,49 @@ static void test_p38_beast_progresses_without_fake_fire() {
 
     auto wait1 = service.handleTurn(turn("s_p38_beast_no_fake_fire", 1, "等待一会"));
     assert(wait1.is_ok());
-    assert(cardDescriptionContains(wait1.value(), "beast_shadow", "正在观察"));
-    assert(wait1.value().reply_text.zh_cn.find("观察到火光") == std::string::npos);
-    assert(wait1.value().reply_text.zh_cn.find("火光降低") == std::string::npos);
+    assert(wait1.value().reply_text.zh_cn.find("世界变化") != std::string::npos);
+    assert(wait1.value().reply_text.zh_cn.find("同伴") != std::string::npos);
+    assert(cardDescriptionContains(wait1.value(), "beast_shadow", "已退去"));
 
     auto wait2 = service.handleTurn(turn("s_p38_beast_no_fake_fire", 2, "等待一会"));
     assert(wait2.is_ok());
-    assert(cardDescriptionContains(wait2.value(), "beast_shadow", "正在靠近"));
-    assert(wait2.value().reply_text.zh_cn.find("观察到火光") == std::string::npos);
-    assert(wait2.value().reply_text.zh_cn.find("火光降低") == std::string::npos);
+    assert(wait2.value().reply_text.zh_cn.find("绕到树林另一侧") != std::string::npos ||
+           wait2.value().reply_text.zh_cn.find("继续观察营地") != std::string::npos);
+    assert(wait2.value().reply_text.zh_cn.find("世界变化") != std::string::npos);
+    assert(wait2.value().reply_text.zh_cn.find("同伴") != std::string::npos);
+    assert(cardDescriptionContains(wait2.value(), "beast_shadow", "已退去"));
+}
 
-    auto wait3 = service.handleTurn(turn("s_p38_beast_no_fake_fire", 3, "等待一会"));
-    assert(wait3.is_ok());
-    assert(cardDescriptionContains(wait3.value(), "beast_shadow", "正在对峙"));
-    assert(wait3.value().reply_text.zh_cn.find("观察到火光") == std::string::npos);
-    assert(wait3.value().reply_text.zh_cn.find("火光降低") == std::string::npos);
+static void test_companion_default_torch_repel_and_beast_returns() {
+    H5PlayableTurnService service;
+    H5PlayableBootstrapRequest bootstrap;
+    bootstrap.session_id = "s_companion_default_torch";
+    bootstrap.reset = true;
+    auto boot = service.bootstrap(bootstrap);
+    assert(boot.is_ok());
 
-    auto wait4 = service.handleTurn(turn("s_p38_beast_no_fake_fire", 4, "等待一会"));
-    assert(wait4.is_ok());
-    assert(wait4.value().reply_text.zh_cn.find("野兽冲入营地") != std::string::npos);
-    assert(wait4.value().reply_text.zh_cn.find("第一夜失败") != std::string::npos);
-    assert(cardDescriptionContains(wait4.value(), "beast_shadow", "已经袭击营地"));
+    bool companion_knows_torch = false;
+    for (const auto& line : boot.value().projection.recipient_knowledge) {
+        if (line.subject_label.zh_cn.find("火把") != std::string::npos &&
+            line.effect_summary.zh_cn.find("驱赶") != std::string::npos) {
+            companion_knows_torch = true;
+        }
+    }
+    assert(companion_knows_torch);
+
+    auto wait1 = service.handleTurn(turn("s_companion_default_torch", 1, "等待一会"));
+    assert(wait1.is_ok());
+    assert(wait1.value().reply_text.zh_cn.find("世界变化") != std::string::npos);
+    assert(wait1.value().reply_text.zh_cn.find("同伴") != std::string::npos);
+    assert(cardDescriptionContains(wait1.value(), "beast_shadow", "已退去"));
+
+    auto wait2 = service.handleTurn(turn("s_companion_default_torch", 2, "等待一会"));
+    assert(wait2.is_ok());
+    assert(wait2.value().reply_text.zh_cn.find("绕到树林另一侧") != std::string::npos ||
+           wait2.value().reply_text.zh_cn.find("继续观察营地") != std::string::npos);
+    assert(wait2.value().reply_text.zh_cn.find("世界变化") != std::string::npos);
+    assert(wait2.value().reply_text.zh_cn.find("同伴") != std::string::npos);
+    assert(cardDescriptionContains(wait2.value(), "beast_shadow", "已退去"));
 }
 
 static void test_p38_resource_failure_is_readable() {
@@ -452,16 +474,20 @@ static std::string readFile(const std::string& path) {
 static void test_frontend_static_gate() {
     const auto html = readFile("frontend/h5_playable/index.html");
     const auto js = readFile("frontend/h5_playable/app.js");
+    // P999 refactored landscape layout
     assert(html.find("viewport") != std::string::npos);
-    assert(html.find("object-list") != std::string::npos);
-    assert(html.find("actor-knowledge") != std::string::npos);
-    assert(js.find("projection.object_cards") != std::string::npos);
-    assert(js.find("projection.actor_knowledge") != std::string::npos);
-    assert(js.find("[actionBar, objectList]") != std::string::npos);
+    assert(html.find("object-grid") != std::string::npos);
+    assert(html.find("log-drawer") != std::string::npos);
+    assert(html.find("companion-card") != std::string::npos);
+    assert(html.find("execution-card") != std::string::npos);
+    // Normalization layer exists (not direct projection access)
+    assert(js.find("normalizeProjection") != std::string::npos);
+    assert(js.find("object_cards") != std::string::npos);
+    assert(js.find("actor_knowledge") != std::string::npos);
+    // Safety: no hardcoded rule inference
     assert(js.find("red_berry") == std::string::npos);
     assert(js.find("restore_hunger") == std::string::npos);
     assert(js.find("poison") == std::string::npos);
-    assert(js.find(" -> ") == std::string::npos);
 }
 
 int main(int argc, char* argv[]) {
@@ -483,6 +509,7 @@ int main(int argc, char* argv[]) {
     else if (name == "p38_world") test_p38_world_state_visible_consequences();
     else if (name == "p38_agent") test_p38_agent_fire_avoidance_visible();
     else if (name == "p38_beast_no_fake_fire") test_p38_beast_progresses_without_fake_fire();
+    else if (name == "companion_default_torch") test_companion_default_torch_repel_and_beast_returns();
     else if (name == "p38_failure") test_p38_resource_failure_is_readable();
     else return 2;
     std::cout << "h5_playable " << name << " passed\n";

@@ -235,6 +235,7 @@ Result<WorldSnapshot> WorldSnapshotAdapter::fromDialogSession(
     companion.actor_key = "companion";
     companion.display_name_zh_cn = "同伴";
     companion.trust = 0.8;
+    companion.held_object_keys.push_back("torch");
     companion.known_claims = state.recipient_claims;
     for (const auto& claim : companion.known_claims) {
         if (!claim.predicate.effect_key.empty()) companion.known_effect_keys.push_back(claim.predicate.effect_key);
@@ -297,6 +298,7 @@ Result<void> WorldSnapshotAdapter::writeBackToDialogSession(
         removeTag(runtime.tag_states, "avoiding_fire");
         removeTag(runtime.tag_states, "failed");
         removeTag(runtime.tag_states, "attacked");
+        removeTag(runtime.tag_states, "resolved");
         if (threat_it->second.phase == ThreatEventPhase::Dormant) addTag(runtime.tag_states, "dormant");
         if (threat_it->second.phase == ThreatEventPhase::Foreshadowing) addTag(runtime.tag_states, "foreshadowing");
         if (threat_it->second.phase == ThreatEventPhase::Approaching) addTag(runtime.tag_states, "approaching");
@@ -482,9 +484,12 @@ Result<WorldSnapshot> WorldChangeApplier::apply(
                 threat.phase = ThreatEventPhase::Failed;
             } else if (world_change.numeric_set_value.has_value()) {
                 threat.level = std::clamp(*world_change.numeric_set_value, 0.0, 100.0);
+                if (threat.level > 0.0) threat.resolved = false;
+                threat.active = threat.level > 0.0;
                 threat.phase = phaseFromThreatLevel(threat.level, threat.resolved);
             } else if (world_change.numeric_delta.has_value()) {
                 threat.level = std::clamp(threat.level + *world_change.numeric_delta, 0.0, 100.0);
+                if (threat.level > 0.0) threat.resolved = false;
                 threat.active = threat.level > 0.0;
                 threat.phase = phaseFromThreatLevel(threat.level, threat.resolved);
             }
@@ -494,6 +499,7 @@ Result<WorldSnapshot> WorldChangeApplier::apply(
                 object_it->second.numeric_states["threat_level"] = threat.level;
                 for (const auto& tag : world_change.tag_add) addTag(object_it->second.state_tags, tag);
                 for (const auto& tag : world_change.tag_remove) removeTag(object_it->second.state_tags, tag);
+                if (!threat.resolved) removeTag(object_it->second.state_tags, "resolved");
                 if (threat.resolved) addTag(object_it->second.state_tags, "resolved");
                 if (threat.phase == ThreatEventPhase::Mitigated) addTag(object_it->second.state_tags, "avoiding_fire");
                 if (threat.phase == ThreatEventPhase::Failed) {
@@ -534,7 +540,7 @@ Result<AgentAutonomyResult> AgentAutonomyService::tryAct(
     const auto* threat = findThreat(snapshot, request.target_threat_key.empty() ? "beast_shadow" : request.target_threat_key);
 
     if (request.agent_actor_key == "companion") {
-        if (!threat || threat->level < 50.0 || threat->resolved) {
+        if (!threat || threat->level < 25.0 || threat->resolved) {
             result.skip_reason = InteractionFailureKind::ThreatNotActive;
             result.summary_zh_cn = "同伴暂时没有发现需要立刻处理的危险。";
             return Result<AgentAutonomyResult>::ok(result);
@@ -570,7 +576,10 @@ Result<AgentAutonomyResult> AgentAutonomyService::tryAct(
     if (request.agent_actor_key == "beast_shadow") {
         const auto* camp_fire = findObject(snapshot, "camp_fire");
         const auto* torch = findObject(snapshot, "torch");
-        const bool fire_visible = (camp_fire && camp_fire->quantity > 0) || (torch && torch->quantity > 0) ||
+        const auto actor_holds_torch = std::any_of(snapshot.actors_by_key.begin(), snapshot.actors_by_key.end(), [](const auto& entry) {
+            return std::find(entry.second.held_object_keys.begin(), entry.second.held_object_keys.end(), "torch") != entry.second.held_object_keys.end();
+        });
+        const bool fire_visible = (camp_fire && camp_fire->quantity > 0) || (torch && torch->quantity > 0) || actor_holds_torch ||
             std::find(request.observed_object_keys.begin(), request.observed_object_keys.end(), "fire") != request.observed_object_keys.end();
         const bool knows_fire = actorKnowsEffect(actor, "fire_is_dangerous") ||
             (threat && std::find(threat->instinct_effect_keys.begin(), threat->instinct_effect_keys.end(), "fire_is_dangerous") != threat->instinct_effect_keys.end());
@@ -624,7 +633,14 @@ Result<std::vector<WorldChange>> ThreatEventBridge::progressThreats(
     const ThreatProgressInput& input) const {
     auto threat = findThreat(snapshot, input.threat_key);
     if (!threat) return failChanges("threat not found");
-    if (threat->resolved) return Result<std::vector<WorldChange>>::ok({});
+    if (threat->resolved) {
+        auto world_change = change("world.threat.return." + std::to_string(snapshot.turn_index), WorldChangeKind::ThreatLevelChanged, "野兽没有彻底离开，它绕到树林另一侧继续观察营地。");
+        world_change.target_threat_key = input.threat_key;
+        world_change.numeric_set_value = 25.0;
+        world_change.tag_remove.push_back("resolved");
+        world_change.tag_add.push_back("foreshadowing");
+        return Result<std::vector<WorldChange>>::ok({world_change});
+    }
     auto new_level = std::clamp(threat->level + input.level_delta, 0.0, 100.0);
     std::string summary;
     if (new_level >= 75.0) summary = "野兽已经逼近营地边缘，火光或协助行动会变得很重要。";

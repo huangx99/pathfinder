@@ -161,6 +161,21 @@ std::string joinDisplayNames(const std::vector<pathfinder::h5_dialog::DialogScen
     return joined;
 }
 
+bool hasDefaultCompanionTorchKnowledge(const pathfinder::h5_dialog::DialogSessionState& state) {
+    return std::any_of(
+        state.recipient_claims.begin(),
+        state.recipient_claims.end(),
+        [](const pathfinder::knowledge::KnowledgeClaim& claim) {
+            return claim.subject.subject_id == "torch" &&
+                   claim.predicate.action_key == "use" &&
+                   claim.predicate.effect_key == "repel_beast" &&
+                   std::find(
+                       claim.subject.related_subject_ids.begin(),
+                       claim.subject.related_subject_ids.end(),
+                       "beast_shadow") != claim.subject.related_subject_ids.end();
+        });
+}
+
 std::string objectSystemHint(const pathfinder::h5_dialog::DialogScenario& scenario) {
     size_t object_count = 0;
     size_t action_count = 0;
@@ -561,6 +576,12 @@ Result<H5ProjectionSourceBundle> H5PlayableProjectionMapper::buildSourceBundle(
     const auto visible_names = joinDisplayNames(scenario.objects);
     if (!visible_names.empty()) {
         bundle.scene_summary.push_back(text("scene.visible_objects", SafeTextKind::Hint, "你能看见：" + visible_names + "。"));
+    }
+    if (hasDefaultCompanionTorchKnowledge(session_state)) {
+        bundle.scene_summary.push_back(text(
+            "scene.companion.default_torch",
+            SafeTextKind::Hint,
+            "同伴开局携带一个火把，并知道火把可以驱赶靠近的野兽；等待时如果危险靠近，他会尝试自己使用。"));
     }
     bundle.scene_summary.push_back(text("scene.config_driven_objects", SafeTextKind::Hint, objectSystemHint(scenario)));
 

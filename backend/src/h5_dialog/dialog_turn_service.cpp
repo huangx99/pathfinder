@@ -416,20 +416,6 @@ Result<DialogTurnServiceResult> DialogTurnService::handleDetailed(const DialogRe
                     auto after_threat_r = applier.apply(snapshot, all_changes);
                     if (after_threat_r.is_ok()) {
                         snapshot = after_threat_r.value();
-                        pathfinder::world_interaction::AgentAutonomyRequest beast_request;
-                        beast_request.request_key = "wait.beast_autonomy";
-                        beast_request.agent_actor_key = "beast_shadow";
-                        beast_request.trigger_key = "threat_progress";
-                        beast_request.target_threat_key = "beast_shadow";
-                        beast_request.required_knowledge_effect_key = "fire_is_dangerous";
-                        auto beast_result_r = agent_service.tryAct(snapshot, beast_request);
-                        if (beast_result_r.is_ok()) {
-                            auto beast_result = beast_result_r.value();
-                            if (beast_result.executed) {
-                                agent_results.push_back(beast_result);
-                                all_changes.insert(all_changes.end(), beast_result.changes.begin(), beast_result.changes.end());
-                            }
-                        }
                         pathfinder::world_interaction::AgentAutonomyRequest companion_request;
                         companion_request.request_key = "wait.companion_autonomy";
                         companion_request.agent_actor_key = "companion";
@@ -442,6 +428,20 @@ Result<DialogTurnServiceResult> DialogTurnService::handleDetailed(const DialogRe
                             if (companion_result.executed) {
                                 agent_results.push_back(companion_result);
                                 all_changes.insert(all_changes.end(), companion_result.changes.begin(), companion_result.changes.end());
+                            }
+                        }
+                        pathfinder::world_interaction::AgentAutonomyRequest beast_request;
+                        beast_request.request_key = "wait.beast_autonomy";
+                        beast_request.agent_actor_key = "beast_shadow";
+                        beast_request.trigger_key = "threat_progress";
+                        beast_request.target_threat_key = "beast_shadow";
+                        beast_request.required_knowledge_effect_key = "fire_is_dangerous";
+                        auto beast_result_r = agent_service.tryAct(snapshot, beast_request);
+                        if (beast_result_r.is_ok()) {
+                            auto beast_result = beast_result_r.value();
+                            if (beast_result.executed) {
+                                agent_results.push_back(beast_result);
+                                all_changes.insert(all_changes.end(), beast_result.changes.begin(), beast_result.changes.end());
                             }
                         }
                         auto final_snapshot_r = applier.apply(snapshot, all_changes);
