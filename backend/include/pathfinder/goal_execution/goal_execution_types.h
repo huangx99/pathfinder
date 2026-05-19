@@ -181,6 +181,7 @@ struct DriverExecutionState {
     std::string driver_state_id;
     ActionDriverKind driver_kind{ActionDriverKind::Unknown};
     std::string action_key;
+    std::optional<std::string> effect_key;
     std::optional<std::string> object_key;
     std::optional<std::string> target_key;
     std::optional<std::string> current_location_key;
@@ -189,6 +190,7 @@ struct DriverExecutionState {
     uint32_t remaining_ticks{1};
     uint32_t attempt_count{0};
     std::vector<std::string> local_memory_keys;
+    std::vector<pathfinder::agent_reasoning::PlanPrecondition> preconditions;
     MaterialRequirementSet material_requirements;
 };
 

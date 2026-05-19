@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cassert>
 #include <iostream>
+#include <utility>
 
 using namespace pathfinder::agent_reasoning;
 using namespace pathfinder::foundation;
@@ -54,6 +55,17 @@ static KnowledgeClaim claim(std::string effect_key) {
     return value;
 }
 
+static PlanPrecondition precondition(std::string domain, std::string key, std::string required, bool can_plan = false) {
+    PlanPrecondition value;
+    value.condition_id = "condition." + domain + "." + key;
+    value.condition_expression = "condition:test:eq:" + domain + "." + key + "." + required;
+    value.missing_domain = std::move(domain);
+    value.missing_key = std::move(key);
+    value.required_value = std::move(required);
+    value.can_be_planned = can_plan;
+    return value;
+}
+
 static ExecutionContext context(ActionDriverKind kind = ActionDriverKind::ChopWood) {
     ExecutionContext ctx;
     ctx.context_id = "execution.companion";
@@ -73,8 +85,22 @@ static ExecutionContext context(ActionDriverKind kind = ActionDriverKind::ChopWo
     DriverExecutionState state;
     state.driver_state_id = "driver.chop";
     state.driver_kind = kind;
-    state.action_key = kind == ActionDriverKind::BuildStructure ? "build_house" : "cut_wood";
-    state.object_key = kind == ActionDriverKind::CounterThreat ? "torch" : "axe";
+    state.action_key = "use";
+    if (kind == ActionDriverKind::BuildStructure) {
+        state.effect_key = "build_house";
+    } else if (kind == ActionDriverKind::CounterThreat) {
+        state.effect_key = "repel_beast";
+        state.object_key = "torch";
+        state.preconditions = {precondition("object.quantity", "torch", "gte.1")};
+    } else {
+        state.effect_key = "cut_wood";
+        state.object_key = "axe";
+        state.preconditions = {
+            precondition("object.quantity", "wood", "gte.1"),
+            precondition("object.quantity", "axe", "gte.1"),
+            precondition("object.state", "axe.sharpness", "gte.1", true)
+        };
+    }
     state.target_key = kind == ActionDriverKind::CounterThreat ? std::optional<std::string>("wolf") : std::optional<std::string>("wood");
     state.current_location_key = "forest";
     state.required_location_key = "forest";

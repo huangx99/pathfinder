@@ -166,14 +166,18 @@ std::string joinDisplayNames(const std::vector<pathfinder::h5_dialog::DialogScen
     return joined;
 }
 
-bool hasDefaultCompanionTorchKnowledge(const pathfinder::h5_dialog::DialogSessionState& state) {
+bool isThreatTargetEffect(const std::string& effect_key) {
+    pathfinder::agent_reasoning::EffectSemanticsRegistry registry;
+    auto semantics = registry.findByEffectKey(effect_key);
+    return semantics.is_ok() && semantics.value().required_target_kind && *semantics.value().required_target_kind == "threat";
+}
+
+bool hasDefaultCompanionThreatCounterKnowledge(const pathfinder::h5_dialog::DialogSessionState& state) {
     return std::any_of(
         state.recipient_claims.begin(),
         state.recipient_claims.end(),
         [](const pathfinder::knowledge::KnowledgeClaim& claim) {
-            return claim.subject.subject_id == "torch" &&
-                   claim.predicate.action_key == "use" &&
-                   claim.predicate.effect_key == "repel_beast" &&
+            return claim.predicate.action_key == "use" && isThreatTargetEffect(claim.predicate.effect_key) &&
                    std::find(
                        claim.subject.related_subject_ids.begin(),
                        claim.subject.related_subject_ids.end(),
@@ -605,7 +609,7 @@ Result<H5ProjectionSourceBundle> H5PlayableProjectionMapper::buildSourceBundle(
     if (!visible_names.empty()) {
         bundle.scene_summary.push_back(text("scene.visible_objects", SafeTextKind::Hint, "你能看见：" + visible_names + "。"));
     }
-    if (hasDefaultCompanionTorchKnowledge(session_state)) {
+    if (hasDefaultCompanionThreatCounterKnowledge(session_state)) {
         bundle.scene_summary.push_back(text(
             "scene.companion.default_torch_knowledge",
             SafeTextKind::Hint,

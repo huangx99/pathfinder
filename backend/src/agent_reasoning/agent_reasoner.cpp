@@ -247,6 +247,7 @@ AgentPlanStep stepFromCandidate(const ActionCandidate& candidate, const WorldSna
     step.action_key = candidate.action_key;
     step.effect_key = candidate.effect_key;
     step.expected_semantics = {candidate.semantics};
+    step.preconditions = requiredPreconditionsFor(candidate);
     step.estimated_ticks = candidate.semantics.time_cost;
     step.risk_score = candidate.semantics.risk_score;
     step.explanation_zh_cn = explanationForStep(candidate, snapshot);

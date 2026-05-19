@@ -83,6 +83,8 @@ ObjectReactionRule fireDryBranchToTorchRule() {
         ReactionObjectPattern{ReactionObjectRole::Source, ObjectDefinitionId("def_fire_source"), ObjectCategory::Hazard, {"fire_source"}, {}, true},
         ReactionObjectPattern{ReactionObjectRole::Material, std::nullopt, ObjectCategory::Material, {"combustible"}, {}, true}
     };
+    rule.object_patterns[0].execution_object_key = "camp_fire";
+    rule.object_patterns[1].execution_object_key = "wood_processed";
     rule.object_patterns[0].execution_preconditions = {executionPrecondition("object.quantity", "camp_fire", "gte.1", true)};
     rule.object_patterns[1].execution_preconditions = {executionPrecondition("object.quantity", "wood_processed", "gte.1", true)};
     rule.condition_refs = {
@@ -94,6 +96,7 @@ ObjectReactionRule fireDryBranchToTorchRule() {
     transform.output_kind = ReactionOutputKind::TransformObject;
     transform.target_role = ReactionObjectRole::Material;
     transform.product_definition_id = ObjectDefinitionId("def_torch");
+    transform.execution_output_key = "torch";
     transform.knowledge_key = "transforms_into_torch";
     ReactionOutputTemplate fuel;
     fuel.output_kind = ReactionOutputKind::ResourceDelta;
@@ -119,6 +122,8 @@ ObjectReactionRule waterExtinguishFireRule() {
         ReactionObjectPattern{ReactionObjectRole::Source, ObjectDefinitionId("def_fire_source"), ObjectCategory::Hazard, {"fire_source"}, {}, true},
         ReactionObjectPattern{ReactionObjectRole::Material, ObjectDefinitionId("def_water_portion"), ObjectCategory::Material, {"water_source"}, {}, true}
     };
+    rule.object_patterns[0].execution_object_key = "camp_fire";
+    rule.object_patterns[1].execution_object_key = "water";
     rule.object_patterns[0].execution_preconditions = {executionPrecondition("object.quantity", "camp_fire", "gte.1", true)};
     rule.object_patterns[1].execution_preconditions = {executionPrecondition("object.quantity", "water", "gte.1", false)};
     rule.condition_refs = {
@@ -151,6 +156,8 @@ ObjectReactionRule cutWoodWithAxeRule() {
         ReactionObjectPattern{ReactionObjectRole::Material, ObjectDefinitionId("def_raw_wood"), ObjectCategory::Material, {"wood_material"}, {}, true},
         ReactionObjectPattern{ReactionObjectRole::Tool, ObjectDefinitionId("def_axe"), ObjectCategory::Tool, {"cutting_tool"}, {}, true}
     };
+    rule.object_patterns[0].execution_object_key = "wood";
+    rule.object_patterns[1].execution_object_key = "axe";
     rule.object_patterns[0].execution_preconditions = {executionPrecondition("object.quantity", "wood", "gte.1", false)};
     rule.object_patterns[1].execution_preconditions = {executionPrecondition("object.quantity", "axe", "gte.1", false)};
     rule.execution_preconditions = {executionPrecondition("object.state", "axe.sharpness", "gte.1", true)};
@@ -161,6 +168,7 @@ ObjectReactionRule cutWoodWithAxeRule() {
     product.output_kind = ReactionOutputKind::ProduceObject;
     product.target_role = ReactionObjectRole::Product;
     product.product_definition_id = ObjectDefinitionId("def_wood_processed");
+    product.execution_output_key = "wood_processed";
     product.quantity_delta = 1;
     rule.output_templates = {product};
     rule.priority = 80;
@@ -181,6 +189,8 @@ ObjectReactionRule sharpenAxeRule() {
         ReactionObjectPattern{ReactionObjectRole::Material, ObjectDefinitionId("def_whetstone"), ObjectCategory::Tool, {"sharpening_tool"}, {}, true},
         ReactionObjectPattern{ReactionObjectRole::Tool, ObjectDefinitionId("def_axe"), ObjectCategory::Tool, {"cutting_tool"}, {}, true}
     };
+    rule.object_patterns[0].execution_object_key = "whetstone";
+    rule.object_patterns[1].execution_object_key = "axe";
     rule.object_patterns[0].execution_preconditions = {executionPrecondition("object.quantity", "whetstone", "gte.1", false)};
     rule.object_patterns[1].execution_preconditions = {executionPrecondition("object.quantity", "axe", "gte.1", false)};
     rule.condition_refs = {
@@ -191,6 +201,7 @@ ObjectReactionRule sharpenAxeRule() {
     sharpen.target_role = ReactionObjectRole::Tool;
     sharpen.resource_key = "sharpness";
     sharpen.resource_delta = 3.0;
+    sharpen.execution_output_key = "axe";
     rule.output_templates = {sharpen};
     rule.priority = 70;
     rule.conflict_policy = ReactionConflictPolicy::HighestPriorityOnly;

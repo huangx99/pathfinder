@@ -1,4 +1,5 @@
 #include "pathfinder/h5_dialog/dialog_session.h"
+#include "pathfinder/agent_reasoning/effect_semantics.h"
 #include "pathfinder/h5_dialog/dialog_scenario.h"
 #include "pathfinder/knowledge/knowledge_claim.h"
 #include <algorithm>
@@ -46,14 +47,18 @@ pathfinder::knowledge::KnowledgeClaim defaultCompanionTorchKnowledge(
     return claim;
 }
 
-bool hasDefaultCompanionTorchKnowledge(const DialogSessionState& state) {
+bool isThreatTargetEffect(const std::string& effect_key) {
+    pathfinder::agent_reasoning::EffectSemanticsRegistry registry;
+    auto semantics = registry.findByEffectKey(effect_key);
+    return semantics.is_ok() && semantics.value().required_target_kind && *semantics.value().required_target_kind == "threat";
+}
+
+bool hasDefaultCompanionThreatCounterKnowledge(const DialogSessionState& state) {
     return std::any_of(
         state.recipient_claims.begin(),
         state.recipient_claims.end(),
         [](const pathfinder::knowledge::KnowledgeClaim& claim) {
-            return claim.subject.subject_id == "torch" &&
-                   claim.predicate.action_key == "use" &&
-                   claim.predicate.effect_key == "repel_beast" &&
+            return claim.predicate.action_key == "use" && isThreatTargetEffect(claim.predicate.effect_key) &&
                    std::find(
                        claim.subject.related_subject_ids.begin(),
                        claim.subject.related_subject_ids.end(),
@@ -62,7 +67,7 @@ bool hasDefaultCompanionTorchKnowledge(const DialogSessionState& state) {
 }
 
 void ensureSessionDefaults(DialogSessionState& state) {
-    if (!hasDefaultCompanionTorchKnowledge(state)) {
+    if (!hasDefaultCompanionThreatCounterKnowledge(state)) {
         state.recipient_claims.push_back(defaultCompanionTorchKnowledge(state.session_id, state.recipient.knowledge_owner));
         state.debug_keys.push_back("migration.default_companion_torch_knowledge");
     }

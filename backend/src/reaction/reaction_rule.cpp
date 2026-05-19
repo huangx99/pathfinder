@@ -48,7 +48,7 @@ Result<void> ReactionObjectPattern::validateBasic() const {
     if (category && *category == pathfinder::object::ObjectCategory::Unknown) {
         return Result<void>::fail(makeError(ErrorCode::validation_enum_unknown, "ReactionObjectPattern category invalid"));
     }
-    if (containsReactionForbiddenKey(required_tag_keys) || containsReactionForbiddenKey(forbidden_tag_keys)) {
+    if (containsReactionForbiddenKey(required_tag_keys) || containsReactionForbiddenKey(forbidden_tag_keys) || containsReactionForbiddenKey(execution_object_key)) {
         return Result<void>::fail(makeError(ErrorCode::validation_failed, "ReactionObjectPattern tag key forbidden"));
     }
     for (const auto& tag : required_tag_keys) {
@@ -88,6 +88,8 @@ Result<void> ReactionOutputTemplate::validateBasic() const {
     if (state_valid.is_error()) return state_valid;
     auto resource_valid = validateKey(resource_key, "ReactionOutputTemplate resource_key", false);
     if (resource_valid.is_error()) return resource_valid;
+    auto output_key_valid = validateKey(execution_output_key, "ReactionOutputTemplate execution_output_key", false);
+    if (output_key_valid.is_error()) return output_key_valid;
     auto feedback_valid = validateKey(feedback_key, "ReactionOutputTemplate feedback_key", false);
     if (feedback_valid.is_error()) return feedback_valid;
     auto knowledge_valid = validateKey(knowledge_key, "ReactionOutputTemplate knowledge_key", false);

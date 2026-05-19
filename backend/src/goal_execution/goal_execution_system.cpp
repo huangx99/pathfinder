@@ -67,30 +67,31 @@ double numericState(const WorldObjectInstance* object, const std::string& key) {
     return it == object->numeric_states.end() ? 0.0 : it->second;
 }
 
-// TODO(P41-config-catalog): This is a P40 minimum bridge for P28 fixture definitions.
-// Replace it with catalog/config-backed object definition lookup before large-scale content expansion.
-std::string productKey(const std::string& definition_id) {
-    if (definition_id == "def_torch") return "torch";
-    if (definition_id == "def_wood_processed") return "wood_processed";
-    if (definition_id == "def_fire_source") return "camp_fire";
-    if (definition_id == "def_raw_wood") return "wood";
-    if (definition_id == "def_axe") return "axe";
-    if (definition_id == "def_whetstone") return "whetstone";
-    return definition_id;
+std::optional<std::string> quantityPreconditionKey(const pathfinder::reaction::ReactionObjectPattern& pattern) {
+    for (const auto& precondition : pattern.execution_preconditions) {
+        if (precondition.missing_domain == "object.quantity" && !precondition.missing_key.empty()) return precondition.missing_key;
+    }
+    return std::nullopt;
 }
 
-// TODO(P41-config-catalog): This maps P28 fixture input patterns for the P40 bridge only.
-// New content should eventually resolve required objects from reaction/object config packs, not this hardcoded list.
-std::string patternObjectKey(const pathfinder::reaction::ReactionObjectPattern& pattern) {
-    if (pattern.definition_id) return productKey(pattern.definition_id->value());
-    if (contains(pattern.required_tag_keys, "fire_source")) return "camp_fire";
-    if (contains(pattern.required_tag_keys, "branch_like") || contains(pattern.required_tag_keys, "combustible")) return "wood_processed";
-    if (contains(pattern.required_tag_keys, "wood_material")) return "wood";
-    if (contains(pattern.required_tag_keys, "cutting_tool")) return "axe";
-    if (contains(pattern.required_tag_keys, "sharpening_tool")) return "whetstone";
-    if (contains(pattern.required_tag_keys, "water_source")) return "water";
-    return "unknown_material";
+std::string reactionPatternExecutionKey(const pathfinder::reaction::ReactionObjectPattern& pattern) {
+    if (!pattern.execution_object_key.empty()) return pattern.execution_object_key;
+    auto quantity_key = quantityPreconditionKey(pattern);
+    return quantity_key.value_or("");
 }
+
+int requiredQuantityFromPrecondition(const pathfinder::agent_reasoning::PlanPrecondition& precondition) {
+    const std::string prefix = "gte.";
+    if (precondition.required_value.rfind(prefix, 0) == 0) return std::max(1, std::stoi(precondition.required_value.substr(prefix.size())));
+    return 1;
+}
+
+std::pair<std::string, std::string> objectStateKey(const std::string& key) {
+    const auto pos = key.rfind('.');
+    if (pos == std::string::npos) return {key, ""};
+    return {key.substr(0, pos), key.substr(pos + 1)};
+}
+
 
 ActionDriverKind driverKindForStep(const AgentPlanStep& step) {
     const auto has_semantic = [&](pathfinder::agent_reasoning::EffectSemanticKind kind) {
@@ -125,6 +126,41 @@ InternalBlocker blocker(InternalBlockerKind kind, const DriverTickInput& input, 
     return value;
 }
 
+DriverCheckResult checkConfiguredPreconditions(const DriverTickInput& input) {
+    DriverCheckResult check;
+    for (const auto& precondition : input.driver_state.preconditions) {
+        if (precondition.missing_domain == "object.quantity") {
+            const auto required = requiredQuantityFromPrecondition(precondition);
+            if (quantityOf(input.world_snapshot, precondition.missing_key) < required) {
+                check.ok = false;
+                check.blockers.push_back(blocker(InternalBlockerKind::MissingObject, input, precondition.missing_key, precondition.required_value, "缺少执行动作需要的对象。", AgentGoalKind::AcquireObject));
+            }
+        } else if (precondition.missing_domain == "object.state") {
+            const auto [object_key, state_key] = objectStateKey(precondition.missing_key);
+            const auto required = requiredQuantityFromPrecondition(precondition);
+            if (numericState(findObject(input.world_snapshot, object_key), state_key) < static_cast<double>(required)) {
+                check.ok = false;
+                check.blockers.push_back(blocker(InternalBlockerKind::ToolStateInsufficient, input, object_key, precondition.required_value, "工具或对象状态不足，需要先维护。", AgentGoalKind::RestoreToolState));
+            }
+        }
+    }
+    if (input.driver_state.preconditions.empty() && input.driver_state.object_key && quantityOf(input.world_snapshot, *input.driver_state.object_key) <= 0) {
+        check.ok = false;
+        check.blockers.push_back(blocker(InternalBlockerKind::MissingObject, input, *input.driver_state.object_key, "gte.1", "缺少执行动作需要的对象。", AgentGoalKind::AcquireObject));
+    }
+    return check;
+}
+
+
+std::string commandActionKey(const DriverExecutionState& state, const std::string& fallback) {
+    return state.action_key.empty() ? fallback : state.action_key;
+}
+
+std::string commandEffectKey(const DriverExecutionState& state, const std::string& fallback) {
+    if (state.effect_key && !state.effect_key->empty()) return *state.effect_key;
+    return state.action_key.empty() ? fallback : state.action_key;
+}
+
 DriverCommand command(const DriverTickInput& input, ActionDriverKind kind, std::string action_key, std::string effect_key, std::string summary) {
     DriverCommand value;
     value.command_id = "command." + input.driver_state.driver_state_id + "." + effect_key;
@@ -150,19 +186,14 @@ DriverTickResult runningSummary(std::string summary) {
 
 class BasicDriver final : public ActionDriver {
 public:
-    BasicDriver(ActionDriverKind kind, std::string action_key, std::string effect_key, std::string summary)
-        : kind_(kind), action_key_(std::move(action_key)), effect_key_(std::move(effect_key)), summary_(std::move(summary)) {}
+    BasicDriver(ActionDriverKind kind, std::string action_key, std::string summary)
+        : kind_(kind), action_key_(std::move(action_key)), summary_(std::move(summary)) {}
 
     ActionDriverKind kind() const override { return kind_; }
     bool canHandle(const DriverCommand& value) const override { return value.driver_kind == kind_; }
 
     Result<DriverCheckResult> checkPreconditions(const DriverTickInput& input) const override {
-        DriverCheckResult check;
-        if (input.driver_state.object_key && quantityOf(input.world_snapshot, *input.driver_state.object_key) <= 0) {
-            check.ok = false;
-            check.blockers.push_back(blocker(InternalBlockerKind::MissingObject, input, *input.driver_state.object_key, "1", "缺少执行动作需要的对象。", AgentGoalKind::AcquireObject));
-        }
-        return Result<DriverCheckResult>::ok(check);
+        return Result<DriverCheckResult>::ok(checkConfiguredPreconditions(input));
     }
 
     Result<DriverTickResult> tick(const DriverTickInput& input) const override {
@@ -177,14 +208,15 @@ public:
             return Result<DriverTickResult>::ok(result);
         }
         auto result = runningSummary(summary_);
-        result.commands.push_back(command(input, kind_, action_key_, effect_key_, summary_));
+        const auto action_key = commandActionKey(input.driver_state, action_key_);
+        const auto effect_key = commandEffectKey(input.driver_state, action_key);
+        result.commands.push_back(command(input, kind_, action_key, effect_key, summary_));
         return Result<DriverTickResult>::ok(result);
     }
 
 private:
     ActionDriverKind kind_;
     std::string action_key_;
-    std::string effect_key_;
     std::string summary_;
 };
 
@@ -194,29 +226,10 @@ public:
     bool canHandle(const DriverCommand& value) const override { return value.driver_kind == ActionDriverKind::ChopWood; }
 
     Result<DriverCheckResult> checkPreconditions(const DriverTickInput& input) const override {
-        DriverCheckResult check;
+        auto check = checkConfiguredPreconditions(input);
         if (input.driver_state.required_location_key && input.driver_state.current_location_key && *input.driver_state.required_location_key != *input.driver_state.current_location_key) {
             check.ok = false;
-            check.blockers.push_back(blocker(InternalBlockerKind::LocationMismatch, input, *input.driver_state.required_location_key, "same_location", "伐木地点不对，需要先移动。", AgentGoalKind::AcquireObject));
-        }
-        MaterialRequirementSet set;
-        set.set_id = "requirements.chop_wood";
-        set.owner_step_id = input.driver_state.driver_state_id;
-        set.requirements.push_back(MaterialRequirement{"req.axe", "axe", 1});
-        set.requirements.push_back(MaterialRequirement{"req.wood", "wood", 1});
-        MaterialRequirementEvaluator evaluator;
-        auto evaluated = evaluator.evaluate({input.world_snapshot, input.execution_context.reserved_resources, set});
-        if (evaluated.is_error()) return Result<DriverCheckResult>::fail(evaluated.errors());
-        if (!evaluated.value().satisfied) {
-            auto blockers = evaluator.toBlockers(evaluated.value(), input.actor_key, input.driver_state.driver_state_id);
-            if (blockers.is_error()) return Result<DriverCheckResult>::fail(blockers.errors());
-            check.ok = false;
-            check.blockers.insert(check.blockers.end(), blockers.value().begin(), blockers.value().end());
-        }
-        const auto* axe = findObject(input.world_snapshot, "axe");
-        if (numericState(axe, "sharpness") <= 0.0) {
-            check.ok = false;
-            check.blockers.push_back(blocker(InternalBlockerKind::ToolStateInsufficient, input, "axe", "sharpness>0", "斧头变钝，需要先打磨。", AgentGoalKind::RestoreToolState));
+            check.blockers.push_back(blocker(InternalBlockerKind::LocationMismatch, input, *input.driver_state.required_location_key, "same_location", "执行地点不对，需要先移动。", AgentGoalKind::AcquireObject));
         }
         return Result<DriverCheckResult>::ok(check);
     }
@@ -233,7 +246,7 @@ public:
             return Result<DriverTickResult>::ok(result);
         }
         auto result = runningSummary("同伴正在伐木，为后续目标准备木材。");
-        result.commands.push_back(command(input, ActionDriverKind::ChopWood, "use", "cut_wood", "同伴挥动斧头砍木头。"));
+        result.commands.push_back(command(input, ActionDriverKind::ChopWood, commandActionKey(input.driver_state, "use"), commandEffectKey(input.driver_state, "use"), "同伴挥动工具处理材料。"));
         return Result<DriverTickResult>::ok(result);
     }
 };
@@ -244,22 +257,7 @@ public:
     bool canHandle(const DriverCommand& value) const override { return value.driver_kind == ActionDriverKind::SharpenTool; }
 
     Result<DriverCheckResult> checkPreconditions(const DriverTickInput& input) const override {
-        DriverCheckResult check;
-        MaterialRequirementSet set;
-        set.set_id = "requirements.sharpen_tool";
-        set.owner_step_id = input.driver_state.driver_state_id;
-        set.requirements.push_back(MaterialRequirement{"req.axe", "axe", 1});
-        set.requirements.push_back(MaterialRequirement{"req.whetstone", "whetstone", 1});
-        MaterialRequirementEvaluator evaluator;
-        auto evaluated = evaluator.evaluate({input.world_snapshot, input.execution_context.reserved_resources, set});
-        if (evaluated.is_error()) return Result<DriverCheckResult>::fail(evaluated.errors());
-        if (!evaluated.value().satisfied) {
-            auto blockers = evaluator.toBlockers(evaluated.value(), input.actor_key, input.driver_state.driver_state_id);
-            if (blockers.is_error()) return Result<DriverCheckResult>::fail(blockers.errors());
-            check.ok = false;
-            check.blockers = blockers.value();
-        }
-        return Result<DriverCheckResult>::ok(check);
+        return Result<DriverCheckResult>::ok(checkConfiguredPreconditions(input));
     }
 
     Result<DriverTickResult> tick(const DriverTickInput& input) const override {
@@ -273,8 +271,8 @@ public:
             result.safe_summary_zh_cn = "打磨工具缺少材料。";
             return Result<DriverTickResult>::ok(result);
         }
-        auto result = runningSummary("同伴正在打磨斧头。");
-        result.commands.push_back(command(input, ActionDriverKind::SharpenTool, "use", "restore_sharpness", "同伴用磨石打磨斧头。"));
+        auto result = runningSummary("同伴正在维护工具状态。");
+        result.commands.push_back(command(input, ActionDriverKind::SharpenTool, commandActionKey(input.driver_state, "use"), commandEffectKey(input.driver_state, "use"), "同伴提交工具维护结算请求。"));
         return Result<DriverTickResult>::ok(result);
     }
 };
@@ -317,7 +315,7 @@ public:
             return Result<DriverTickResult>::ok(result);
         }
         auto result = runningSummary("同伴正在按材料需求推进建造。");
-        result.commands.push_back(command(input, ActionDriverKind::BuildStructure, "use", input.driver_state.action_key.empty() ? "build_structure" : input.driver_state.action_key, "同伴提交建造结算请求。"));
+        result.commands.push_back(command(input, ActionDriverKind::BuildStructure, commandActionKey(input.driver_state, "use"), commandEffectKey(input.driver_state, "build_structure"), "同伴提交建造结算请求。"));
         return Result<DriverTickResult>::ok(result);
     }
 };
@@ -329,7 +327,7 @@ public:
     Result<DriverCheckResult> checkPreconditions(const DriverTickInput&) const override { return Result<DriverCheckResult>::ok({}); }
     Result<DriverTickResult> tick(const DriverTickInput& input) const override {
         auto result = runningSummary("同伴正在移动到目标地点。完整寻路会由后续地图系统接入。");
-        result.commands.push_back(command(input, ActionDriverKind::MoveTo, "move", "move_to", "同伴请求移动到目标地点。"));
+        result.commands.push_back(command(input, ActionDriverKind::MoveTo, commandActionKey(input.driver_state, "move"), commandEffectKey(input.driver_state, "move"), "同伴请求移动到目标地点。"));
         return Result<DriverTickResult>::ok(result);
     }
 };
@@ -339,22 +337,9 @@ public:
     ActionDriverKind kind() const override { return ActionDriverKind::CounterThreat; }
     bool canHandle(const DriverCommand& value) const override { return value.driver_kind == ActionDriverKind::CounterThreat; }
     Result<DriverCheckResult> checkPreconditions(const DriverTickInput& input) const override {
-        DriverCheckResult check;
-        MaterialRequirementSet set;
-        set.set_id = "requirements.counter_threat";
-        set.owner_step_id = input.driver_state.driver_state_id;
-        set.requirements.push_back(MaterialRequirement{"req.torch", "torch", 1});
-        MaterialRequirementEvaluator evaluator;
-        auto evaluated = evaluator.evaluate({input.world_snapshot, input.execution_context.reserved_resources, set});
-        if (evaluated.is_error()) return Result<DriverCheckResult>::fail(evaluated.errors());
-        if (!evaluated.value().satisfied) {
-            auto blockers = evaluator.toBlockers(evaluated.value(), input.actor_key, input.driver_state.driver_state_id);
-            if (blockers.is_error()) return Result<DriverCheckResult>::fail(blockers.errors());
-            check.ok = false;
-            check.blockers = blockers.value();
-        }
-        return Result<DriverCheckResult>::ok(check);
+        return Result<DriverCheckResult>::ok(checkConfiguredPreconditions(input));
     }
+
     Result<DriverTickResult> tick(const DriverTickInput& input) const override {
         auto check = checkPreconditions(input);
         if (check.is_error()) return Result<DriverTickResult>::fail(check.errors());
@@ -367,7 +352,7 @@ public:
             return Result<DriverTickResult>::ok(result);
         }
         auto result = runningSummary("同伴暂停原任务，正在处理靠近的威胁。");
-        result.commands.push_back(command(input, ActionDriverKind::CounterThreat, "use", "repel_beast", "同伴准备用火把驱赶野兽。"));
+        result.commands.push_back(command(input, ActionDriverKind::CounterThreat, commandActionKey(input.driver_state, "use"), commandEffectKey(input.driver_state, "use"), "同伴提交威胁处理结算请求。"));
         return Result<DriverTickResult>::ok(result);
     }
 };
@@ -476,11 +461,11 @@ Result<void> ActionDriverRegistry::validateAll() const {
 }
 
 Result<void> ActionDriverRegistry::registerDefaultDrivers() {
-    auto eat = registerDriver(std::make_unique<BasicDriver>(ActionDriverKind::Eat, "eat", "restore_hunger", "同伴正在吃东西。"));
+    auto eat = registerDriver(std::make_unique<BasicDriver>(ActionDriverKind::Eat, "eat", "同伴正在吃东西。"));
     if (eat.is_error()) return eat;
-    auto gather = registerDriver(std::make_unique<BasicDriver>(ActionDriverKind::Gather, "gather", "gather_object", "同伴正在采集资源。"));
+    auto gather = registerDriver(std::make_unique<BasicDriver>(ActionDriverKind::Gather, "gather", "同伴正在采集资源。"));
     if (gather.is_error()) return gather;
-    auto use = registerDriver(std::make_unique<BasicDriver>(ActionDriverKind::UseObject, "use", "use_object", "同伴正在使用物品。"));
+    auto use = registerDriver(std::make_unique<BasicDriver>(ActionDriverKind::UseObject, "use", "同伴正在使用物品。"));
     if (use.is_error()) return use;
     auto chop = registerDriver(std::make_unique<ChopWoodDriver>());
     if (chop.is_error()) return chop;
@@ -587,17 +572,19 @@ Result<std::vector<ReactionMaterialLink>> ReactionMaterialResolver::findProducer
     std::vector<ReactionMaterialLink> links;
     for (const auto& rule : rules) {
         for (const auto& output : rule.output_templates) {
-            std::string output_key;
-            if ((output.output_kind == ReactionOutputKind::ProduceObject || output.output_kind == ReactionOutputKind::TransformObject) && !output.product_definition_id.empty()) output_key = productKey(output.product_definition_id.value());
-            if (output.output_kind == ReactionOutputKind::ResourceDelta && output.resource_key == "sharpness" && output.resource_delta > 0.0) output_key = "axe";
-            if (output_key != requirement.object_key && requirement.source_effect_key.value_or("") != rule.knowledge_effect_key) continue;
+            std::string output_key = output.execution_output_key;
+            if (output_key.empty() && requirement.source_effect_key.value_or("") == rule.knowledge_effect_key) output_key = requirement.object_key;
+            if (output_key.empty() || output_key != requirement.object_key) continue;
             ReactionMaterialLink link;
             link.link_id = "reaction_material." + requirement.requirement_id + "." + rule.rule_key;
             link.requirement_id = requirement.requirement_id;
             link.reaction_rule_id = rule.rule_key;
             link.output_object_key = output_key.empty() ? requirement.object_key : output_key;
             link.expected_output_quantity = std::max(1, output.quantity_delta);
-            for (const auto& pattern : rule.object_patterns) link.input_object_keys.push_back(patternObjectKey(pattern));
+            for (const auto& pattern : rule.object_patterns) {
+                auto input_key = reactionPatternExecutionKey(pattern);
+                if (!input_key.empty()) link.input_object_keys.push_back(std::move(input_key));
+            }
             for (const auto& condition : rule.condition_refs) {
                 if (!link.condition_expression.empty()) link.condition_expression += ";";
                 link.condition_expression += condition.inline_canonical_key;
@@ -772,8 +759,16 @@ Result<ExecutionResult> GoalExecutionSystem::tick(const ExecutionTickRequest& re
             DriverExecutionState state;
             state.driver_state_id = "driver.counter_threat." + preempt->interrupt_id;
             state.driver_kind = ActionDriverKind::CounterThreat;
-            state.action_key = "repel_beast";
-            state.object_key = "torch";
+            state.action_key = "use";
+            auto claim = std::find_if(result.updated_context.known_claims.begin(), result.updated_context.known_claims.end(), [&](const auto& value) {
+                return value.projection_flags.usable_by_ai && value.predicate.action_key == state.action_key &&
+                       preempt->inserted_goal_request->target_key &&
+                       std::find(value.subject.related_subject_ids.begin(), value.subject.related_subject_ids.end(), *preempt->inserted_goal_request->target_key) != value.subject.related_subject_ids.end();
+            });
+            if (claim != result.updated_context.known_claims.end()) {
+                state.object_key = claim->subject.subject_id;
+                state.effect_key = claim->predicate.effect_key;
+            }
             state.target_key = preempt->inserted_goal_request->target_key;
             result.updated_context.active_driver_state = state;
         }
@@ -879,13 +874,21 @@ DriverExecutionState driverStateFromPlanStep(const AgentPlanStep& step) {
     DriverExecutionState state;
     state.driver_state_id = "driver_state." + step.step_id;
     state.driver_kind = driverKindForStep(step);
-    state.action_key = step.effect_key.empty() ? step.action_key : step.effect_key;
+    state.action_key = step.action_key;
+    if (!step.effect_key.empty()) state.effect_key = step.effect_key;
     if (!step.object_key.empty()) state.object_key = step.object_key;
     state.target_key = step.target_key;
+    state.preconditions = step.preconditions;
     state.remaining_ticks = std::max<uint32_t>(1, step.estimated_ticks);
-    if (state.driver_kind == ActionDriverKind::BuildStructure) {
-        state.material_requirements.set_id = "requirements." + step.step_id;
-        state.material_requirements.owner_step_id = step.step_id;
+    state.material_requirements.set_id = "requirements." + step.step_id;
+    state.material_requirements.owner_step_id = step.step_id;
+    for (const auto& precondition : step.preconditions) {
+        if (precondition.missing_domain != "object.quantity") continue;
+        MaterialRequirement requirement;
+        requirement.requirement_id = "req." + precondition.missing_key;
+        requirement.object_key = precondition.missing_key;
+        requirement.required_quantity = requiredQuantityFromPrecondition(precondition);
+        state.material_requirements.requirements.push_back(std::move(requirement));
     }
     return state;
 }

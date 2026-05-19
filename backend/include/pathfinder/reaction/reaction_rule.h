@@ -25,6 +25,7 @@ struct ReactionObjectPattern {
     std::vector<std::string> required_tag_keys;
     std::vector<std::string> forbidden_tag_keys;
     bool quantity_required{true};
+    std::string execution_object_key;
     std::vector<ReactionExecutionPrecondition> execution_preconditions;
 
     pathfinder::foundation::Result<void> validateBasic() const;
@@ -38,6 +39,7 @@ struct ReactionOutputTemplate {
     std::string resource_key;
     double resource_delta{0.0};
     int quantity_delta{0};
+    std::string execution_output_key;
     std::string feedback_key;
     std::string knowledge_key;
 
