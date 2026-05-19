@@ -1,8 +1,10 @@
 #include "pathfinder/h5_playable/playable_projection_mapper.h"
+#include "pathfinder/world_interaction/world_services.h"
 #include "pathfinder/condition/condition_summary.h"
 #include "pathfinder/h5_dialog/dialog_scenario.h"
 #include <algorithm>
 #include <sstream>
+#include <string>
 #include <vector>
 
 namespace pathfinder::h5_playable {
@@ -34,6 +36,11 @@ std::string objectNameFromKey(const std::string& key) {
     if (key == "axe") return "斧头";
     if (key == "wood") return "木头";
     if (key == "whetstone") return "磨石";
+    if (key == "dry_grass") return "干草";
+    if (key == "fire_seed") return "火种";
+    if (key == "camp_fire") return "火堆";
+    if (key == "torch") return "火把";
+    if (key == "beast_shadow") return "靠近的野兽";
     if (key == "companion") return "同伴";
     if (key == "pioneer") return "先驱者";
     return key;
@@ -67,7 +74,75 @@ std::string effectName(const std::string& effect_key) {
     if (effect_key == "cut_wood") return "可以砍开木头";
     if (effect_key == "tool_dull") return "工具已经变钝";
     if (effect_key == "restore_sharpness") return "可以恢复工具锋利度";
+    if (effect_key == "ignite_fire") return "可以点燃火源";
+    if (effect_key == "make_torch") return "可以制作火把";
+    if (effect_key == "repel_beast") return "可以驱赶靠近的危险";
     return effect_key;
+}
+
+const pathfinder::h5_dialog::DialogObjectRuntimeState* runtimeForObject(
+    const pathfinder::h5_dialog::DialogSessionState& state,
+    const std::string& object_key) {
+    auto it = state.object_runtime_states.find(object_key);
+    if (it == state.object_runtime_states.end()) return nullptr;
+    return &it->second;
+}
+
+double runtimeNumber(const pathfinder::h5_dialog::DialogSessionState& state,
+                     const std::string& object_key,
+                     const std::string& key) {
+    const auto* runtime = runtimeForObject(state, object_key);
+    if (!runtime) return 0.0;
+    auto it = runtime->numeric_states.find(key);
+    if (it == runtime->numeric_states.end()) return 0.0;
+    return it->second;
+}
+
+bool runtimeHasTag(const pathfinder::h5_dialog::DialogSessionState& state,
+                   const std::string& object_key,
+                   const std::string& tag) {
+    const auto* runtime = runtimeForObject(state, object_key);
+    return runtime && std::find(runtime->tag_states.begin(), runtime->tag_states.end(), tag) != runtime->tag_states.end();
+}
+
+std::string objectRuntimeStatus(const pathfinder::h5_dialog::DialogSessionState& state,
+                                const std::string& object_key) {
+    std::vector<std::string> parts;
+    auto addQuantity = [&](const std::string& label) {
+        parts.push_back(label + std::to_string(static_cast<int>(runtimeNumber(state, object_key, "quantity"))));
+    };
+
+    if (object_key == "red_berry" || object_key == "decayed_red_berry" || object_key == "bitter_leaf" || object_key == "dry_grass") {
+        addQuantity("剩余：");
+        if (runtimeHasTag(state, object_key, "depleted")) parts.push_back("已耗尽");
+    } else if (object_key == "wood") {
+        addQuantity("未处理木头：");
+        const auto processed = static_cast<int>(runtimeNumber(state, object_key, "processed"));
+        if (processed > 0) parts.push_back("已处理木材：" + std::to_string(processed));
+        if (runtimeHasTag(state, object_key, "depleted")) parts.push_back("原木已耗尽");
+    } else if (object_key == "axe") {
+        parts.push_back("锋利度：" + std::to_string(static_cast<int>(runtimeNumber(state, object_key, "sharpness"))));
+    } else if (object_key == "torch") {
+        const auto quantity = static_cast<int>(runtimeNumber(state, object_key, "quantity"));
+        parts.push_back(quantity > 0 ? "可用火把：" + std::to_string(quantity) : "尚未制作");
+    } else if (object_key == "camp_fire") {
+        parts.push_back(runtimeNumber(state, object_key, "quantity") > 0.0 ? "状态：已点燃" : "状态：未点燃");
+    } else if (object_key == "beast_shadow") {
+        const auto threat = runtimeNumber(state, object_key, "threat_level");
+        if (runtimeHasTag(state, object_key, "resolved")) parts.push_back("状态：已退去");
+        else if (threat >= 75.0) parts.push_back("状态：正在对峙");
+        else if (threat >= 50.0) parts.push_back("状态：正在靠近");
+        else if (threat >= 25.0) parts.push_back("状态：正在观察");
+        else parts.push_back("状态：潜伏未近身");
+        if (runtimeNumber(state, object_key, "knows_fire_danger") > 0.0) parts.push_back("野生 Agent：会本能避开火");
+    }
+
+    std::string joined;
+    for (size_t i = 0; i < parts.size(); ++i) {
+        if (i > 0) joined += "；";
+        joined += parts[i];
+    }
+    return joined;
 }
 
 std::string joinDisplayNames(const std::vector<pathfinder::h5_dialog::DialogScenarioObject>& objects) {
@@ -189,11 +264,29 @@ ActionProjection globalAction(const std::string& key, ActionAffordanceKind affor
     return projection;
 }
 
+ConditionSummaryProjection disabledReason(const std::string& key, const std::string& summary) {
+    ConditionSummaryProjection reason;
+    reason.condition_key = key;
+    reason.summary_text = text(key + ".summary", SafeTextKind::Hint, summary);
+    reason.blocking = true;
+    return reason;
+}
+
+bool feedbackAvailable(const pathfinder::h5_dialog::DialogSessionState& state,
+                       const pathfinder::h5_dialog::DialogFeedbackTemplate& feedback) {
+    if (feedback.effect_key == "make_torch") return runtimeNumber(state, "wood", "processed") > 0.0;
+    if (feedback.effect_key == "repel_beast") return runtimeNumber(state, "torch", "quantity") > 0.0;
+    return true;
+}
+
 std::string targetedActionInputText(const pathfinder::h5_dialog::DialogScenarioObject& source,
                                   const pathfinder::h5_dialog::DialogScenarioObject& target,
                                   const pathfinder::h5_dialog::DialogFeedbackTemplate& feedback) {
     if (feedback.effect_key == "cut_wood") return "用" + source.display_name + "砍" + target.display_name;
     if (feedback.effect_key == "restore_sharpness") return "用" + source.display_name + "打磨" + target.display_name;
+    if (feedback.effect_key == "ignite_fire") return "用" + source.display_name + "点燃" + target.display_name;
+    if (feedback.effect_key == "make_torch") return "制作火把";
+    if (feedback.effect_key == "repel_beast") return "用" + source.display_name + "驱赶" + target.display_name;
     if (feedback.action == pathfinder::h5_dialog::DialogActionKind::Use) return "用" + source.display_name + "作用于" + target.display_name;
     return actionName(pathfinder::h5_dialog::toString(feedback.action)) + source.display_name + "到" + target.display_name;
 }
@@ -208,16 +301,51 @@ const pathfinder::h5_dialog::DialogScenarioObject* findObjectByKey(
 }
 
 ActionProjection targetedActionFromFeedback(const pathfinder::h5_dialog::DialogScenario& scenario,
+                                            const pathfinder::h5_dialog::DialogSessionState& state,
                                             const pathfinder::h5_dialog::DialogFeedbackTemplate& feedback) {
     const auto* source = findObjectByKey(scenario, feedback.object_key);
     const auto* target = findObjectByKey(scenario, feedback.target_object_key);
     const auto input = source && target ? targetedActionInputText(*source, *target, feedback) : feedback.feedback_key;
     auto projection = globalAction("playable.action.targeted." + feedback.feedback_key, ActionAffordanceKind::TryUse, input, input);
     projection.target_object_refs = {feedback.object_key, feedback.target_object_key};
+    if (!feedbackAvailable(state, feedback)) {
+        projection.enabled = false;
+        projection.disabled_reason = disabledReason("condition.not_ready." + feedback.feedback_key, "还缺少前置材料或状态，先完成准备步骤。");
+    }
     return projection;
 }
 
-std::vector<ActionProjection> targetedActions(const pathfinder::h5_dialog::DialogScenario& scenario) {
+std::vector<ActionProjection> targetedActionsForObject(const pathfinder::h5_dialog::DialogScenario& scenario,
+                                                       const pathfinder::h5_dialog::DialogSessionState& state,
+                                                       const std::string& object_key,
+                                                       pathfinder::h5_dialog::DialogActionKind action) {
+    std::vector<ActionProjection> actions;
+    std::vector<std::string> seen;
+    for (const auto& feedback : scenario.feedbacks) {
+        if (feedback.object_key != object_key || feedback.action != action || feedback.target_object_key.empty()) continue;
+        const auto key = feedback.object_key + "|" + feedback.target_object_key + "|" + pathfinder::h5_dialog::toString(feedback.action);
+        if (std::find(seen.begin(), seen.end(), key) != seen.end()) continue;
+        seen.push_back(key);
+        actions.push_back(targetedActionFromFeedback(scenario, state, feedback));
+    }
+    return actions;
+}
+
+bool hasDirectFeedback(const pathfinder::h5_dialog::DialogScenario& scenario,
+                       const std::string& object_key,
+                       pathfinder::h5_dialog::DialogActionKind action) {
+    for (const auto& feedback : scenario.feedbacks) {
+        if (feedback.object_key == object_key &&
+            feedback.action == action &&
+            feedback.target_object_key.empty()) {
+            return true;
+        }
+    }
+    return false;
+}
+
+std::vector<ActionProjection> targetedActions(const pathfinder::h5_dialog::DialogScenario& scenario,
+                                             const pathfinder::h5_dialog::DialogSessionState& state) {
     std::vector<ActionProjection> actions;
     std::vector<std::string> seen;
     for (const auto& feedback : scenario.feedbacks) {
@@ -225,7 +353,7 @@ std::vector<ActionProjection> targetedActions(const pathfinder::h5_dialog::Dialo
         const auto key = feedback.object_key + "|" + feedback.target_object_key + "|" + pathfinder::h5_dialog::toString(feedback.action);
         if (std::find(seen.begin(), seen.end(), key) != seen.end()) continue;
         seen.push_back(key);
-        actions.push_back(targetedActionFromFeedback(scenario, feedback));
+        actions.push_back(targetedActionFromFeedback(scenario, state, feedback));
     }
     return actions;
 }
@@ -264,16 +392,45 @@ std::vector<StatusBadgeProjection> badgesForObject(const std::string& object_key
     return badges;
 }
 
-ObjectCardProjection objectCard(const pathfinder::h5_dialog::DialogScenarioObject& object, const std::vector<pathfinder::knowledge::KnowledgeClaim>& claims) {
+ObjectCardProjection objectCard(const pathfinder::h5_dialog::DialogScenario& scenario,
+                                const pathfinder::h5_dialog::DialogScenarioObject& object,
+                                const pathfinder::h5_dialog::DialogSessionState& state,
+                                const pathfinder::world_interaction::WorldObjectProjectionPatch* world_patch,
+                                const std::vector<pathfinder::knowledge::KnowledgeClaim>& claims) {
     ObjectCardProjection card;
     card.object_ref_key = object.object_key;
     card.display_name = text("object." + object.object_key + ".name", SafeTextKind::DisplayName, object.display_name);
-    card.description = text("object." + object.object_key + ".description", SafeTextKind::Description, object.player_description);
+    auto description = object.player_description;
+    const auto status = world_patch && !world_patch->status_summary_zh_cn.empty() ? world_patch->status_summary_zh_cn : objectRuntimeStatus(state, object.object_key);
+    if (!status.empty()) description += "\n当前状态：" + status + "。";
+    card.description = text("object." + object.object_key + ".description", SafeTextKind::Description, description);
     card.visibility_key = pathfinder::h5_dialog::toString(object.visibility);
     card.safe_tags = object.safe_tags;
+    if (world_patch) {
+        for (const auto& tag : world_patch->safe_tags) {
+            if (std::find(card.safe_tags.begin(), card.safe_tags.end(), tag) == card.safe_tags.end()) card.safe_tags.push_back(tag);
+        }
+    } else {
+        const auto* runtime = runtimeForObject(state, object.object_key);
+        if (runtime) {
+            for (const auto& tag : runtime->tag_states) {
+                if (std::find(card.safe_tags.begin(), card.safe_tags.end(), tag) == card.safe_tags.end()) card.safe_tags.push_back(tag);
+            }
+        }
+    }
     card.knowledge_badges = badgesForObject(object.object_key, claims);
     for (auto action : object.allowed_actions) {
-        card.actions.push_back(objectAction(object, action));
+        if (hasDirectFeedback(scenario, object.object_key, action)) {
+            auto direct_action = objectAction(object, action);
+            if ((action == pathfinder::h5_dialog::DialogActionKind::Eat || object.object_key == "torch") &&
+                runtimeNumber(state, object.object_key, "quantity") <= 0.0) {
+                direct_action.enabled = false;
+                direct_action.disabled_reason = disabledReason("condition.resource_depleted." + object.object_key, "这个对象现在没有可用数量。");
+            }
+            card.actions.push_back(direct_action);
+        }
+        auto targeted = targetedActionsForObject(scenario, state, object.object_key, action);
+        card.actions.insert(card.actions.end(), targeted.begin(), targeted.end());
     }
     return card;
 }
@@ -384,6 +541,17 @@ Result<H5ProjectionSourceBundle> H5PlayableProjectionMapper::buildSourceBundle(
     if (scenario_result.is_error()) return Result<H5ProjectionSourceBundle>::fail(scenario_result.errors());
     const auto scenario = scenario_result.value();
 
+    pathfinder::world_interaction::WorldProjectionPatch world_patch;
+    {
+        pathfinder::world_interaction::WorldSnapshotAdapter adapter;
+        pathfinder::world_interaction::WorldProjectionMapper mapper;
+        auto snapshot_result = adapter.fromDialogSession(scenario, session_state);
+        if (snapshot_result.is_ok()) {
+            auto patch_result = mapper.buildPatch(snapshot_result.value(), {}, {});
+            if (patch_result.is_ok()) world_patch = patch_result.value();
+        }
+    }
+
     H5ProjectionSourceBundle bundle;
     bundle.scene_title = text("scene.p22_minimal.title", SafeTextKind::DisplayName, "林地边缘");
     bundle.scene_summary.push_back(text("scene.p22_minimal.welcome", SafeTextKind::Description, scenario.welcome_text));
@@ -399,12 +567,19 @@ Result<H5ProjectionSourceBundle> H5PlayableProjectionMapper::buildSourceBundle(
     for (const auto& object : scenario.objects) {
         if (object.visibility == pathfinder::h5_dialog::DialogObjectVisibility::Visible ||
             object.visibility == pathfinder::h5_dialog::DialogObjectVisibility::Mentioned) {
-            bundle.object_cards.push_back(objectCard(object, session_state.actor_claims));
+            const pathfinder::world_interaction::WorldObjectProjectionPatch* object_patch = nullptr;
+            for (const auto& patch : world_patch.object_patches) {
+                if (patch.object_key == object.object_key) {
+                    object_patch = &patch;
+                    break;
+                }
+            }
+            bundle.object_cards.push_back(objectCard(scenario, object, session_state, object_patch, session_state.actor_claims));
         }
     }
 
     bundle.action_bar = globalActions();
-    const auto target_actions = targetedActions(scenario);
+    const auto target_actions = targetedActions(scenario, session_state);
     bundle.action_bar.insert(bundle.action_bar.begin() + 1, target_actions.begin(), target_actions.end());
     bundle.actor_knowledge = knowledgeLines(session_state.actor_claims, "actor", "你");
     bundle.recipient_knowledge = knowledgeLines(session_state.recipient_claims, "recipient", "同伴");

@@ -85,6 +85,56 @@ DialogScenario buildDefaultScenario() {
     whetstone.safe_tags = {"tool", "maintenance"};
     scenario.objects.push_back(whetstone);
 
+    // dry grass
+    DialogScenarioObject dry_grass;
+    dry_grass.object_key = "dry_grass";
+    dry_grass.display_name = "干草";
+    dry_grass.player_description = "一团干燥的草，似乎很容易被点燃。";
+    dry_grass.visibility = DialogObjectVisibility::Visible;
+    dry_grass.allowed_actions = {DialogActionKind::Use};
+    dry_grass.safe_tags = {"fuel", "dry"};
+    scenario.objects.push_back(dry_grass);
+
+    // fire seed
+    DialogScenarioObject fire_seed;
+    fire_seed.object_key = "fire_seed";
+    fire_seed.display_name = "火种";
+    fire_seed.player_description = "一点微弱的火星，需要合适的材料才能变成火源。";
+    fire_seed.visibility = DialogObjectVisibility::Visible;
+    fire_seed.allowed_actions = {DialogActionKind::Use};
+    fire_seed.safe_tags = {"ignition", "fire"};
+    scenario.objects.push_back(fire_seed);
+
+    // torch
+    DialogScenarioObject torch;
+    torch.object_key = "torch";
+    torch.display_name = "火把";
+    torch.player_description = "需要先理解材料和火源的用途，才能可靠地使用它。";
+    torch.visibility = DialogObjectVisibility::Mentioned;
+    torch.allowed_actions = {DialogActionKind::Use};
+    torch.safe_tags = {"tool", "light_source", "generated_item"};
+    scenario.objects.push_back(torch);
+
+    // camp fire
+    DialogScenarioObject camp_fire;
+    camp_fire.object_key = "camp_fire";
+    camp_fire.display_name = "火堆";
+    camp_fire.player_description = "一处被点燃的火源，能带来光和热，也会影响靠近的野兽。";
+    camp_fire.visibility = DialogObjectVisibility::Mentioned;
+    camp_fire.allowed_actions = {};
+    camp_fire.safe_tags = {"fire", "light_source", "generated_item"};
+    scenario.objects.push_back(camp_fire);
+
+    // beast shadow
+    DialogScenarioObject beast;
+    beast.object_key = "beast_shadow";
+    beast.display_name = "靠近的野兽";
+    beast.player_description = "树林里靠近的影子。它不是可以采集的物品，而是夜晚危险的征兆。";
+    beast.visibility = DialogObjectVisibility::Mentioned;
+    beast.allowed_actions = {DialogActionKind::Use};
+    beast.safe_tags = {"threat", "creature"};
+    scenario.objects.push_back(beast);
+
     // Feedbacks
     DialogFeedbackTemplate fb1;
     fb1.feedback_key = "red_berry_eat";
@@ -185,8 +235,55 @@ DialogScenario buildDefaultScenario() {
     fb7.risk_delta = 0.0;
     scenario.feedbacks.push_back(fb7);
 
+    DialogFeedbackTemplate fb8;
+    fb8.feedback_key = "fire_seed_ignite_dry_grass";
+    fb8.object_key = "fire_seed";
+    fb8.target_object_key = "dry_grass";
+    fb8.action = DialogActionKind::Use;
+    fb8.effect_key = "ignite_fire";
+    fb8.outcome_signals = {
+        pathfinder::cognition::CognitionOutcomeSignal::ToolActivated,
+        pathfinder::cognition::CognitionOutcomeSignal::NeedImproved
+    };
+    fb8.utility_delta = 0.5;
+    fb8.risk_delta = 0.1;
+    fb8.reason_keys.push_back("story_reaction_fire_source");
+    scenario.feedbacks.push_back(fb8);
+
+    DialogFeedbackTemplate fb9;
+    fb9.feedback_key = "wood_make_torch";
+    fb9.object_key = "wood";
+    fb9.target_object_key = "fire_seed";
+    fb9.action = DialogActionKind::Use;
+    fb9.effect_key = "make_torch";
+    fb9.state_conditions.push_back(DialogStateCondition{"wood", "processed", "gt", 0.0, ""});
+    fb9.outcome_signals = {
+        pathfinder::cognition::CognitionOutcomeSignal::ToolActivated,
+        pathfinder::cognition::CognitionOutcomeSignal::NeedImproved
+    };
+    fb9.utility_delta = 0.6;
+    fb9.risk_delta = 0.1;
+    fb9.reason_keys.push_back("story_reaction_torch");
+    scenario.feedbacks.push_back(fb9);
+
+    DialogFeedbackTemplate fb10;
+    fb10.feedback_key = "torch_repel_beast";
+    fb10.object_key = "torch";
+    fb10.target_object_key = "beast_shadow";
+    fb10.action = DialogActionKind::Use;
+    fb10.effect_key = "repel_beast";
+    fb10.state_conditions.push_back(DialogStateCondition{"torch", "quantity", "gt", 0.0, ""});
+    fb10.outcome_signals = {
+        pathfinder::cognition::CognitionOutcomeSignal::ToolActivated,
+        pathfinder::cognition::CognitionOutcomeSignal::NeedImproved
+    };
+    fb10.utility_delta = 0.8;
+    fb10.risk_delta = 0.0;
+    fb10.reason_keys.push_back("story_danger_countermeasure");
+    scenario.feedbacks.push_back(fb10);
+
     scenario.quick_action_input_texts = {
-        "观察", "吃红果", "等待一会", "使用斧头", "使用磨石", "教同伴", "查看知识", "查看同伴", "吃腐烂红果", "帮助", "重开"
+        "观察", "吃红果", "等待一会", "用斧头砍木头", "用磨石打磨斧头", "用火种点燃干草", "制作火把", "用火把驱赶野兽", "教同伴", "查看知识", "查看同伴", "吃腐烂红果", "帮助", "重开"
     };
 
     return scenario;

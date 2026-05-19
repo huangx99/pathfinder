@@ -42,6 +42,20 @@ static void test_action_object_pairing() {
     assert(inspect_companion.is_ok());
     assert(inspect_companion.value().kind == DialogIntentKind::InspectRecipientKnowledge);
 
+    auto use_beast = parser.parse("使用靠近的野兽");
+    assert(use_beast.is_ok());
+    assert(use_beast.value().kind == DialogIntentKind::TryUse);
+    assert(use_beast.value().action == DialogActionKind::Use);
+    assert(use_beast.value().object_key == "beast_shadow");
+    assert(use_beast.value().target_object_key.empty());
+
+    auto repel_beast = parser.parse("用火把驱赶野兽");
+    assert(repel_beast.is_ok());
+    assert(repel_beast.value().kind == DialogIntentKind::TryUse);
+    assert(repel_beast.value().action == DialogActionKind::Use);
+    assert(repel_beast.value().object_key == "torch");
+    assert(repel_beast.value().target_object_key == "beast_shadow");
+
     std::cout << "action_object_pairing passed" << std::endl;
 }
 

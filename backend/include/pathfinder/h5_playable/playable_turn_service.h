@@ -3,6 +3,7 @@
 #include "pathfinder/h5_dialog/dialog_turn_service.h"
 #include "pathfinder/h5_playable/playable_projection_mapper.h"
 #include "pathfinder/h5_playable/playable_types.h"
+#include "pathfinder/story/story_system.h"
 
 namespace pathfinder::h5_playable {
 
@@ -15,12 +16,16 @@ private:
     pathfinder::h5_dialog::DialogTurnService dialog_service_;
     H5PlayableProjectionMapper mapper_;
     pathfinder::h5_projection::H5ProjectionComposer composer_;
+    pathfinder::story::StoryScenarioRegistry story_registry_;
+    pathfinder::story::StoryRuntimeFactory story_factory_;
+    pathfinder::story::StoryProgressionService story_progression_;
+    pathfinder::story::StoryProjectionAdapter story_projection_;
 
     pathfinder::foundation::Result<H5PlayableResponse> buildResponse(
         const pathfinder::h5_dialog::DialogResponseDto& dialog_response,
         const pathfinder::h5_dialog::DialogSessionState& session_state,
         PlayableFeedbackTone tone,
-        const std::string& request_key) const;
+        const std::string& request_key);
 };
 
 } // namespace pathfinder::h5_playable

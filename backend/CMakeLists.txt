@@ -676,6 +676,21 @@ target_link_libraries(pathfinder_agent_debug_cli_exe PRIVATE
     pathfinder_agent_debug_cli_lib
 )
 
+
+# World Interaction library (P38)
+add_library(pathfinder_world_interaction STATIC
+    src/world_interaction/world_types.cpp
+    src/world_interaction/world_services.cpp
+)
+
+target_include_directories(pathfinder_world_interaction PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(pathfinder_world_interaction PUBLIC
+    pathfinder_foundation
+)
+
 # H5 Dialog library (P22)
 add_library(pathfinder_h5_dialog STATIC
     src/h5_dialog/dialog_types.cpp
@@ -695,6 +710,7 @@ target_include_directories(pathfinder_h5_dialog PUBLIC
 
 target_link_libraries(pathfinder_h5_dialog PUBLIC
     pathfinder_foundation
+    pathfinder_world_interaction
     pathfinder_condition
     pathfinder_cognition
     pathfinder_memory
@@ -718,6 +734,22 @@ target_link_libraries(pathfinder_h5_projection PUBLIC
     pathfinder_replay_diagnostics
 )
 
+
+# Story library (P37)
+add_library(pathfinder_story STATIC
+    src/story/story_types.cpp
+    src/story/story_system.cpp
+)
+
+target_include_directories(pathfinder_story PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(pathfinder_story PUBLIC
+    pathfinder_foundation
+    pathfinder_h5_projection
+)
+
 # H5 Playable shell library (P33)
 add_library(pathfinder_h5_playable STATIC
     src/h5_playable/playable_types.cpp
@@ -733,8 +765,10 @@ target_include_directories(pathfinder_h5_playable PUBLIC
 
 target_link_libraries(pathfinder_h5_playable PUBLIC
     pathfinder_foundation
+    pathfinder_world_interaction
     pathfinder_h5_dialog
     pathfinder_h5_projection
+    pathfinder_story
     pathfinder_condition
     pathfinder_knowledge
 )

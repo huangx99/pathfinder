@@ -1,4 +1,5 @@
 #include "pathfinder/h5_dialog/dialog_turn_service.h"
+#include "pathfinder/world_interaction/world_services.h"
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
@@ -170,6 +171,58 @@ void applyStateMutations(DialogSessionState& state, const DialogScenario& scenar
     }
 }
 
+void clearWorldEvents(DialogSessionState& state) {
+    state.debug_keys.erase(std::remove_if(state.debug_keys.begin(), state.debug_keys.end(), [](const std::string& key) {
+        return key.rfind("world.event:", 0) == 0 || key.rfind("agent.event:", 0) == 0;
+    }), state.debug_keys.end());
+}
+
+std::string reasonKeyForFailure(pathfinder::world_interaction::InteractionFailureKind kind) {
+    using pathfinder::world_interaction::InteractionFailureKind;
+    switch (kind) {
+        case InteractionFailureKind::InsufficientQuantity: return "resource_depleted";
+        case InteractionFailureKind::ConditionNotMet: return "condition_not_met";
+        case InteractionFailureKind::ToolUnavailable: return "missing_required_material";
+        case InteractionFailureKind::MissingObject: return "object_not_visible";
+        case InteractionFailureKind::MissingTarget: return "condition_not_met";
+        case InteractionFailureKind::TargetMismatch: return "condition_not_met";
+        case InteractionFailureKind::KnowledgeNotKnown: return "condition_not_met";
+        case InteractionFailureKind::ThreatNotActive: return "condition_not_met";
+        case InteractionFailureKind::CompanionCannotAct: return "condition_not_met";
+        case InteractionFailureKind::ForbiddenByAudience: return "action_not_allowed";
+        case InteractionFailureKind::Unknown:
+        case InteractionFailureKind::TestOnly: return "condition_not_met";
+    }
+    return "condition_not_met";
+}
+
+void appendWorldPatchToResponse(DialogResponseDto& response, const pathfinder::world_interaction::WorldProjectionPatch& patch) {
+    if (patch.player_feedback_lines_zh_cn.empty() && patch.scene_summary_zh_cn.empty()) return;
+    for (const auto& line : patch.scene_summary_zh_cn) response.state_summary_lines.push_back(line);
+
+    std::string block = "世界变化：\n";
+    for (const auto& line : patch.player_feedback_lines_zh_cn) {
+        block += line + "\n";
+    }
+
+    const auto actor_marker = response.reply_text.find("你现在知道：");
+    const auto recipient_marker = response.reply_text.find("同伴现在知道：");
+    size_t insert_at = std::string::npos;
+    if (actor_marker != std::string::npos && recipient_marker != std::string::npos) {
+        insert_at = std::min(actor_marker, recipient_marker);
+    } else if (actor_marker != std::string::npos) {
+        insert_at = actor_marker;
+    } else if (recipient_marker != std::string::npos) {
+        insert_at = recipient_marker;
+    }
+    if (insert_at == std::string::npos) {
+        if (!response.reply_text.empty() && response.reply_text.back() != '\n') response.reply_text += "\n";
+        response.reply_text += block;
+    } else {
+        response.reply_text.insert(insert_at, block);
+    }
+}
+
 Result<DialogFeedbackTemplate> findMatchingFeedback(const DialogScenario& scenario,
                                                     const DialogSessionState& state,
                                                     const std::string& object_key,
@@ -178,7 +231,8 @@ Result<DialogFeedbackTemplate> findMatchingFeedback(const DialogScenario& scenar
     std::optional<DialogFeedbackTemplate> fallback;
     for (const auto& feedback : scenario.feedbacks) {
         if (feedback.object_key != object_key || feedback.action != action) continue;
-        if (!feedback.target_object_key.empty() && !target_object_key.empty() && feedback.target_object_key != target_object_key) continue;
+        if (!feedback.target_object_key.empty() && feedback.target_object_key != target_object_key) continue;
+        if (feedback.target_object_key.empty() && !target_object_key.empty()) continue;
         if (feedback.state_conditions.empty()) {
             if (!fallback.has_value()) fallback = feedback;
             continue;
@@ -274,6 +328,10 @@ Result<DialogSessionState> DialogTurnService::loadOrCreateSessionSnapshot(const 
     return session_store_->loadOrCreate(session_id);
 }
 
+Result<void> DialogTurnService::saveSessionSnapshot(const DialogSessionState& state) {
+    return session_store_->save(state);
+}
+
 Result<void> DialogTurnService::resetSession(const std::string& session_id) {
     return session_store_->reset(session_id);
 }
@@ -308,6 +366,7 @@ Result<DialogTurnServiceResult> DialogTurnService::handleDetailed(const DialogRe
     auto state = session_r.value();
     state.turn_index++;
     state.current_tick = pathfinder::foundation::Tick(state.current_tick.value() + 1);
+    clearWorldEvents(state);
 
     auto intent_r = intent_parser_.parse(request.input_text);
     if (intent_r.is_error()) {
@@ -335,7 +394,68 @@ Result<DialogTurnServiceResult> DialogTurnService::handleDetailed(const DialogRe
 
     if (intent.kind == DialogIntentKind::Wait) {
         state.current_tick = pathfinder::foundation::Tick(state.current_tick.value() + kWaitAdvanceTicks);
+        auto scenario_r = scenario_catalog_.defaultScenario();
+        pathfinder::world_interaction::WorldProjectionPatch patch;
+        if (scenario_r.is_ok()) {
+            auto scenario = scenario_r.value();
+            pathfinder::world_interaction::WorldSnapshotAdapter adapter;
+            pathfinder::world_interaction::ThreatEventBridge threat_bridge;
+            pathfinder::world_interaction::WorldChangeApplier applier;
+            pathfinder::world_interaction::AgentAutonomyService agent_service;
+            pathfinder::world_interaction::WorldProjectionMapper world_projection;
+            auto snapshot_r = adapter.fromDialogSession(scenario, state);
+            if (snapshot_r.is_ok()) {
+                auto snapshot = snapshot_r.value();
+                pathfinder::world_interaction::ThreatProgressInput progress;
+                progress.elapsed_ticks = kWaitAdvanceTicks;
+                auto threat_changes_r = threat_bridge.progressThreats(snapshot, progress);
+                std::vector<pathfinder::world_interaction::WorldChange> all_changes;
+                std::vector<pathfinder::world_interaction::AgentAutonomyResult> agent_results;
+                if (threat_changes_r.is_ok()) {
+                    all_changes = threat_changes_r.value();
+                    auto after_threat_r = applier.apply(snapshot, all_changes);
+                    if (after_threat_r.is_ok()) {
+                        snapshot = after_threat_r.value();
+                        pathfinder::world_interaction::AgentAutonomyRequest beast_request;
+                        beast_request.request_key = "wait.beast_autonomy";
+                        beast_request.agent_actor_key = "beast_shadow";
+                        beast_request.trigger_key = "threat_progress";
+                        beast_request.target_threat_key = "beast_shadow";
+                        beast_request.required_knowledge_effect_key = "fire_is_dangerous";
+                        auto beast_result_r = agent_service.tryAct(snapshot, beast_request);
+                        if (beast_result_r.is_ok()) {
+                            auto beast_result = beast_result_r.value();
+                            if (beast_result.executed) {
+                                agent_results.push_back(beast_result);
+                                all_changes.insert(all_changes.end(), beast_result.changes.begin(), beast_result.changes.end());
+                            }
+                        }
+                        pathfinder::world_interaction::AgentAutonomyRequest companion_request;
+                        companion_request.request_key = "wait.companion_autonomy";
+                        companion_request.agent_actor_key = "companion";
+                        companion_request.trigger_key = "threat_progress";
+                        companion_request.target_threat_key = "beast_shadow";
+                        companion_request.required_knowledge_effect_key = "repel_beast";
+                        auto companion_result_r = agent_service.tryAct(snapshot, companion_request);
+                        if (companion_result_r.is_ok()) {
+                            auto companion_result = companion_result_r.value();
+                            if (companion_result.executed) {
+                                agent_results.push_back(companion_result);
+                                all_changes.insert(all_changes.end(), companion_result.changes.begin(), companion_result.changes.end());
+                            }
+                        }
+                        auto final_snapshot_r = applier.apply(snapshot, all_changes);
+                        if (final_snapshot_r.is_ok()) {
+                            adapter.writeBackToDialogSession(final_snapshot_r.value(), state);
+                            auto patch_r = world_projection.buildPatch(final_snapshot_r.value(), all_changes, agent_results);
+                            if (patch_r.is_ok()) patch = patch_r.value();
+                        }
+                    }
+                }
+            }
+        }
         auto response = buildWaitResponse(state);
+        appendWorldPatchToResponse(response, patch);
         session_store_->save(state);
         return wrap(response, state);
     }
@@ -433,13 +553,86 @@ Result<DialogTurnServiceResult> DialogTurnService::handleDetailed(const DialogRe
     } else {
         auto fb_r = findMatchingFeedback(scenario, state, intent.object_key, intent.target_object_key, intent.action);
         if (fb_r.is_error()) {
-            return rejected(state, intent, "feedback_not_found");
+            return rejected(state, intent, "condition_not_met");
         }
         feedback = fb_r.value();
         if (intent.target_object_key.empty() && !feedback.target_object_key.empty()) {
             intent.target_object_key = feedback.target_object_key;
         }
         attachCausalContext(state, scenario, feedback);
+    }
+
+    pathfinder::world_interaction::WorldProjectionPatch world_patch;
+    if (intent.kind != DialogIntentKind::TeachRecipient) {
+        pathfinder::world_interaction::WorldSnapshotAdapter world_adapter;
+        pathfinder::world_interaction::WorldInteractionService world_service;
+        pathfinder::world_interaction::WorldChangeApplier world_applier;
+        pathfinder::world_interaction::AgentAutonomyService agent_service;
+        pathfinder::world_interaction::WorldProjectionMapper world_projection;
+
+        auto snapshot_r = world_adapter.fromDialogSession(scenario, state);
+        if (snapshot_r.is_error()) return rejected(state, intent, "world_snapshot_failed");
+        auto snapshot = snapshot_r.value();
+
+        pathfinder::world_interaction::WorldInteractionInput world_input;
+        world_input.interaction_id = "dialog." + state.session_id + "." + std::to_string(state.turn_index);
+        world_input.actor_key = "pioneer";
+        world_input.object_key = feedback.object_key;
+        world_input.target_object_key = feedback.target_object_key;
+        world_input.action = feedback.action;
+        world_input.effect_key = feedback.effect_key;
+        world_input.feedback_key = feedback.feedback_key;
+        world_input.reason_keys = feedback.reason_keys;
+        auto world_result_r = world_service.resolve(snapshot, world_input, pathfinder::world_interaction::InteractionResolveOptions{});
+        if (world_result_r.is_error()) return rejected(state, intent, "world_interaction_failed");
+        auto world_result = world_result_r.value();
+        if (!world_result.ok) {
+            return rejected(state, intent, reasonKeyForFailure(world_result.failure_kind.value_or(pathfinder::world_interaction::InteractionFailureKind::ConditionNotMet)));
+        }
+
+        std::vector<pathfinder::world_interaction::WorldChange> all_changes = world_result.changes;
+        std::vector<pathfinder::world_interaction::AgentAutonomyResult> agent_results;
+        auto after_player_r = world_applier.apply(snapshot, all_changes);
+        if (after_player_r.is_error()) return rejected(state, intent, "world_apply_failed");
+        auto after_player = after_player_r.value();
+
+        pathfinder::world_interaction::AgentAutonomyRequest beast_request;
+        beast_request.request_key = "action.beast_autonomy";
+        beast_request.agent_actor_key = "beast_shadow";
+        beast_request.trigger_key = "player_action";
+        beast_request.target_threat_key = "beast_shadow";
+        beast_request.required_knowledge_effect_key = "fire_is_dangerous";
+        auto beast_result_r = agent_service.tryAct(after_player, beast_request);
+        if (beast_result_r.is_ok()) {
+            auto beast_result = beast_result_r.value();
+            if (beast_result.executed) {
+                agent_results.push_back(beast_result);
+                all_changes.insert(all_changes.end(), beast_result.changes.begin(), beast_result.changes.end());
+            }
+        }
+
+        pathfinder::world_interaction::AgentAutonomyRequest companion_request;
+        companion_request.request_key = "action.companion_autonomy";
+        companion_request.agent_actor_key = "companion";
+        companion_request.trigger_key = "player_action";
+        companion_request.target_threat_key = "beast_shadow";
+        companion_request.required_knowledge_effect_key = "repel_beast";
+        auto companion_result_r = agent_service.tryAct(after_player, companion_request);
+        if (companion_result_r.is_ok()) {
+            auto companion_result = companion_result_r.value();
+            if (companion_result.executed) {
+                agent_results.push_back(companion_result);
+                all_changes.insert(all_changes.end(), companion_result.changes.begin(), companion_result.changes.end());
+            }
+        }
+
+        auto final_snapshot_r = world_applier.apply(snapshot, all_changes);
+        if (final_snapshot_r.is_error()) return rejected(state, intent, "world_apply_failed");
+        auto final_snapshot = final_snapshot_r.value();
+        auto write_r = world_adapter.writeBackToDialogSession(final_snapshot, state);
+        if (write_r.is_error()) return rejected(state, intent, "world_apply_failed");
+        auto patch_r = world_projection.buildPatch(final_snapshot, all_changes, agent_results);
+        if (patch_r.is_ok()) world_patch = patch_r.value();
     }
 
     auto input_r = learning_adapter_.buildLearningInput(state, intent, feedback);
@@ -489,7 +682,6 @@ Result<DialogTurnServiceResult> DialogTurnService::handleDetailed(const DialogRe
     }
 
     if (intent.kind != DialogIntentKind::TeachRecipient) {
-        applyStateMutations(state, scenario, feedback);
         recordCausalExposure(state, scenario, feedback);
     }
 
@@ -503,8 +695,11 @@ Result<DialogTurnServiceResult> DialogTurnService::handleDetailed(const DialogRe
         return rejected(state, intent, "presenter_failed");
     }
 
+    auto response_value = response.value();
+    appendWorldPatchToResponse(response_value, world_patch);
+
     session_store_->save(state);
-    return wrap(response.value(), state);
+    return wrap(response_value, state);
 }
 
 } // namespace pathfinder::h5_dialog

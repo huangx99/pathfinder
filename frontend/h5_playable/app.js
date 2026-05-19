@@ -18,6 +18,7 @@
   let sessionId = localStorage.getItem('pf_playable_session_id') || createSessionId();
   let clientTurn = 0;
   let pending = false;
+  let activeBusyKey = '';
   localStorage.setItem('pf_playable_session_id', sessionId);
 
   function createSessionId() {
@@ -61,6 +62,7 @@
   async function bootstrap(reset) {
     if (pending) return;
     pending = true;
+    activeBusyKey = reset ? 'reset' : 'bootstrap';
     setBusy(true);
     try {
       const data = await postForm('/api/playable/bootstrap', {
@@ -77,6 +79,7 @@
       appendFeedback('连接后端失败，请确认服务是否运行在 1999 端口。', 'warning');
     } finally {
       pending = false;
+      activeBusyKey = '';
       setBusy(false);
     }
   }
@@ -86,6 +89,7 @@
     const command = (inputText || '').trim();
     if (!command && !action) return;
     pending = true;
+    activeBusyKey = action ? (action.action_key || action.input_text || command) : 'command';
     setBusy(true);
     clientTurn += 1;
     try {
@@ -107,6 +111,7 @@
       appendFeedback('请求失败：' + error.message, 'warning');
     } finally {
       pending = false;
+      activeBusyKey = '';
       setBusy(false);
       commandInput.value = '';
     }
@@ -114,10 +119,13 @@
 
   function setBusy(value) {
     commandInput.disabled = value;
-    resetButton.disabled = value;
+    resetButton.disabled = value && activeBusyKey === 'reset';
+    resetButton.classList.toggle('is-busy', value && activeBusyKey === 'reset');
     [actionBar, objectList].forEach((container) => {
       container.querySelectorAll('button').forEach((button) => {
-        button.disabled = value || button.dataset.enabled !== 'true';
+        const isActive = value && button.dataset.busyKey === activeBusyKey;
+        button.disabled = button.dataset.enabled !== 'true' || isActive;
+        button.classList.toggle('is-busy', isActive);
       });
     });
   }
@@ -195,7 +203,23 @@
       sharp: '当前状态：锋利',
       dull: '当前状态：变钝',
       decayed: '当前状态：腐坏',
-      fresh: '当前状态：新鲜'
+      fresh: '当前状态：新鲜',
+      fuel: '可作为燃料',
+      dry: '干燥易燃',
+      ignition: '可点火',
+      fire: '火源',
+      light_source: '光源',
+      generated_item: '可制作/生成',
+      depleted: '已耗尽',
+      threat: '危险征兆',
+      creature: '生物',
+      dormant: '暂未靠近',
+      foreshadowing: '正在观察',
+      approaching: '正在靠近',
+      confronting: '正在对峙',
+      avoiding_fire: '正在避火',
+      resolved: '暂时退去',
+      agent_wildlife: '野生 Agent'
     };
     tags.forEach((tag) => {
       if (tag === 'red' || tag === 'green') return;
@@ -214,7 +238,10 @@
     button.type = 'button';
     button.textContent = textOf(action.label, '行动');
     button.dataset.enabled = action.enabled ? 'true' : 'false';
-    button.disabled = !action.enabled || pending;
+    button.dataset.busyKey = action.action_key || action.input_text || textOf(action.label, '行动');
+    const isActive = pending && button.dataset.busyKey === activeBusyKey;
+    button.disabled = !action.enabled || isActive;
+    button.classList.toggle('is-busy', isActive);
     button.addEventListener('click', () => sendTurn(action.input_text || '', action));
     return button;
   }

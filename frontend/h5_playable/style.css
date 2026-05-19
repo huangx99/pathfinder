@@ -30,6 +30,10 @@ button {
 }
 button:disabled { opacity: 0.45; }
 button:not(:disabled):active { transform: translateY(1px); }
+button.is-busy {
+  opacity: 0.7;
+  border-color: var(--accent);
+}
 
 #app { min-height: 100vh; padding-bottom: 116px; }
 .topbar {

@@ -29,6 +29,9 @@ public:
     pathfinder::foundation::Result<DialogSessionState> loadOrCreateSessionSnapshot(
         const std::string& session_id);
 
+    pathfinder::foundation::Result<void> saveSessionSnapshot(
+        const DialogSessionState& state);
+
     pathfinder::foundation::Result<void> resetSession(
         const std::string& session_id);
 

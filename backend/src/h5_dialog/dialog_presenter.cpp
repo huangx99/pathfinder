@@ -135,6 +135,9 @@ std::string effectChineseName(const std::string& effect_key) {
     if (effect_key == "cut_wood") return "可以砍开木头";
     if (effect_key == "tool_dull") return "工具已经变钝";
     if (effect_key == "restore_sharpness") return "可以恢复工具锋利度";
+    if (effect_key == "ignite_fire") return "可以点燃火源";
+    if (effect_key == "make_torch") return "可以制作火把";
+    if (effect_key == "repel_beast") return "可以驱赶靠近的危险";
     return effect_key;
 }
 
@@ -376,6 +379,14 @@ Result<DialogResponseDto> DialogPresenter::buildRejectedResponse(
         resp.reply_text = "你还没有可以教给同伴的知识。先尝试一个东西，再回来教学。";
     } else if (reason_key == "learning_loop_failed") {
         resp.reply_text = "这次行动没有形成有效结果，已有知识不会被覆盖。";
+    } else if (reason_key == "feedback_not_found") {
+        resp.reply_text = "现在还没有找到这件事的有效做法。换一个具体目标，或先准备材料再试。";
+    } else if (reason_key == "condition_not_met") {
+        resp.reply_text = "现在条件还不满足。可能缺少材料、工具状态不对，或需要先完成前置步骤。";
+    } else if (reason_key == "resource_depleted") {
+        resp.reply_text = "这里的这个东西已经没有可消耗的数量了，不能继续这样尝试。";
+    } else if (reason_key == "missing_required_material") {
+        resp.reply_text = "你还缺少必要材料。先找到、处理或制作出需要的东西。";
     } else {
         resp.reply_text = "这个动作无法进行：" + reason_key;
     }

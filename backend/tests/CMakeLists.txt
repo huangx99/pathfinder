@@ -5653,7 +5653,38 @@ add_test(NAME h5_projection_developer_debug_text COMMAND pathfinder_tests_h5_pro
 add_test(NAME h5_projection_protocol COMMAND pathfinder_tests_h5_projection protocol)
 add_test(NAME h5_projection_replay COMMAND pathfinder_tests_h5_projection replay)
 
+
+# Story tests (P37)
+add_executable(pathfinder_tests_story
+    unit/story/story_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_story PRIVATE
+    pathfinder_story
+    pathfinder_h5_projection
+    pathfinder_foundation
+)
+
+add_test(NAME story_enum COMMAND pathfinder_tests_story enum)
+add_test(NAME story_scenario_validation COMMAND pathfinder_tests_story scenario)
+add_test(NAME story_success_progression COMMAND pathfinder_tests_story success)
+add_test(NAME story_failure_progression COMMAND pathfinder_tests_story failure)
+add_test(NAME story_projection_player_safe COMMAND pathfinder_tests_story projection)
+
 # H5 playable shell tests (P33)
+add_executable(pathfinder_tests_world_interaction
+    unit/world_interaction/world_interaction_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_world_interaction PRIVATE
+    pathfinder_world_interaction
+    pathfinder_h5_dialog
+)
+
+add_test(NAME world_interaction_enum COMMAND pathfinder_tests_world_interaction enum)
+add_test(NAME world_interaction_resolve_apply COMMAND pathfinder_tests_world_interaction interaction)
+add_test(NAME world_interaction_agent_threat COMMAND pathfinder_tests_world_interaction agent)
+
 add_executable(pathfinder_tests_h5_playable
     unit/h5_playable/playable_test.cpp
 )
@@ -5675,6 +5706,13 @@ add_test(NAME h5_playable_reset COMMAND pathfinder_tests_h5_playable reset)
 add_test(NAME h5_playable_codec COMMAND pathfinder_tests_h5_playable codec)
 add_test(NAME h5_playable_rotten_scope COMMAND pathfinder_tests_h5_playable rotten_scope)
 add_test(NAME h5_playable_frontend_gate COMMAND pathfinder_tests_h5_playable frontend_gate)
+add_test(NAME h5_playable_story_first_day COMMAND pathfinder_tests_h5_playable story)
+add_test(NAME h5_playable_story_beast_use COMMAND pathfinder_tests_h5_playable story_beast_use)
+add_test(NAME h5_playable_buttons_executable COMMAND pathfinder_tests_h5_playable buttons_executable)
+add_test(NAME h5_playable_p38_world COMMAND pathfinder_tests_h5_playable p38_world)
+add_test(NAME h5_playable_p38_agent COMMAND pathfinder_tests_h5_playable p38_agent)
+add_test(NAME h5_playable_p38_beast_no_fake_fire COMMAND pathfinder_tests_h5_playable p38_beast_no_fake_fire)
+add_test(NAME h5_playable_p38_failure COMMAND pathfinder_tests_h5_playable p38_failure)
 
 # Replay diagnostics tests (P31)
 add_executable(pathfinder_tests_p31_golden_replay_diagnostics

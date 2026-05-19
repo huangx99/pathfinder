@@ -37,24 +37,36 @@ bool containsAny(const std::string& text, const std::vector<std::string>& keywor
 }
 
 std::string detectObjectKey(const std::string& text) {
+    if (text.find("制作火把") != std::string::npos || text.find("做火把") != std::string::npos) return "wood";
+    const bool mentions_torch = text.find("火把") != std::string::npos;
+    const bool mentions_beast = text.find("野兽") != std::string::npos || text.find("低吼") != std::string::npos || text.find("影子") != std::string::npos;
+    const bool explicitly_repels = text.find("驱赶") != std::string::npos || text.find("赶走") != std::string::npos || text.find("吓退") != std::string::npos;
     if (text.find("腐烂红果") != std::string::npos) return "decayed_red_berry";
     if (text.find("红果") != std::string::npos) return "red_berry";
     if (text.find("磨石") != std::string::npos || text.find("打磨") != std::string::npos || text.find("磨一下") != std::string::npos) return "whetstone";
     if (text.find("斧头") != std::string::npos || text.find("斧子") != std::string::npos) return "axe";
     if (text.find("苦叶") != std::string::npos) return "bitter_leaf";
     if (text.find("石片") != std::string::npos) return "stone_flake";
-    if (text.find("木头") != std::string::npos || text.find("木材") != std::string::npos) return "wood";
+    if ((mentions_torch && mentions_beast) || explicitly_repels) return "torch";
+    if (text.find("火把") != std::string::npos) return "torch";
+    if (mentions_beast) return "beast_shadow";
+    if (text.find("火种") != std::string::npos || text.find("点燃") != std::string::npos || text.find("火源") != std::string::npos || text.find("生火") != std::string::npos) return "fire_seed";
+    if (text.find("干草") != std::string::npos || text.find("草") != std::string::npos) return "dry_grass";
+    if (text.find("木头") != std::string::npos || text.find("木材") != std::string::npos || text.find("制作火把") != std::string::npos) return "wood";
     return "";
 }
 
 std::string detectTargetObjectKey(const std::string& text, const std::string& object_key) {
     if (object_key == "axe" && (text.find("木头") != std::string::npos || text.find("木材") != std::string::npos || text.find("砍") != std::string::npos)) return "wood";
     if (object_key == "whetstone" && (text.find("斧头") != std::string::npos || text.find("斧子") != std::string::npos || text.find("打磨") != std::string::npos || text.find("磨") != std::string::npos)) return "axe";
+    if (object_key == "fire_seed" && (text.find("干草") != std::string::npos || text.find("草") != std::string::npos || text.find("火源") != std::string::npos || text.find("生火") != std::string::npos || text.find("点燃") != std::string::npos)) return "dry_grass";
+    if (object_key == "wood" && (text.find("火把") != std::string::npos || text.find("制作") != std::string::npos)) return "fire_seed";
+    if (object_key == "torch" && (text.find("野兽") != std::string::npos || text.find("驱赶") != std::string::npos || text.find("影子") != std::string::npos || text.find("低吼") != std::string::npos)) return "beast_shadow";
     return "";
 }
 
 DialogActionKind defaultActionForObject(const std::string& object_key) {
-    if (object_key == "stone_flake" || object_key == "axe" || object_key == "whetstone" || object_key == "wood") return DialogActionKind::Use;
+    if (object_key == "stone_flake" || object_key == "axe" || object_key == "whetstone" || object_key == "wood" || object_key == "dry_grass" || object_key == "fire_seed" || object_key == "torch" || object_key == "beast_shadow") return DialogActionKind::Use;
     if (!object_key.empty()) return DialogActionKind::Eat;
     return DialogActionKind::Unknown;
 }
