@@ -55,6 +55,19 @@ struct H5PlayableRequest {
     pathfinder::foundation::Result<void> validateBasic() const;
 };
 
+struct H5PlayableExecutionStatus {
+    bool visible{false};
+    std::optional<pathfinder::h5_projection::SafeTextProjection> current_goal;
+    std::optional<pathfinder::h5_projection::SafeTextProjection> active_step;
+    std::optional<pathfinder::h5_projection::SafeTextProjection> blocked_by;
+    std::optional<pathfinder::h5_projection::SafeTextProjection> interrupt_reason;
+    std::optional<pathfinder::h5_projection::SafeTextProjection> response_plan;
+    std::optional<pathfinder::h5_projection::SafeTextProjection> resume_hint;
+    std::vector<pathfinder::h5_projection::SafeTextProjection> trace_lines;
+
+    pathfinder::foundation::Result<void> validateBasic() const;
+};
+
 struct H5PlayableResponse {
     bool ok{false};
     std::string session_id;
@@ -62,6 +75,7 @@ struct H5PlayableResponse {
     PlayableFeedbackTone tone{PlayableFeedbackTone::Neutral};
     pathfinder::h5_projection::SafeTextProjection reply_text;
     pathfinder::h5_projection::H5GameProjection projection;
+    std::optional<H5PlayableExecutionStatus> execution_status;
     std::vector<pathfinder::h5_projection::ProjectionIssue> issues;
     std::vector<std::string> debug_keys;
 

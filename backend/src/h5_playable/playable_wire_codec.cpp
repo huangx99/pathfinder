@@ -215,6 +215,26 @@ std::string danger(const DangerHintProjection& value) {
     return out.str();
 }
 
+std::string optionalSafeText(const std::optional<SafeTextProjection>& value) {
+    if (!value.has_value()) return "null";
+    return safeText(*value);
+}
+
+std::string executionStatus(const H5PlayableExecutionStatus& value) {
+    std::ostringstream out;
+    out << "{";
+    out << "\"visible\":" << (value.visible ? "true" : "false") << ",";
+    out << "\"current_goal\":" << optionalSafeText(value.current_goal) << ",";
+    out << "\"active_step\":" << optionalSafeText(value.active_step) << ",";
+    out << "\"blocked_by\":" << optionalSafeText(value.blocked_by) << ",";
+    out << "\"interrupt_reason\":" << optionalSafeText(value.interrupt_reason) << ",";
+    out << "\"response_plan\":" << optionalSafeText(value.response_plan) << ",";
+    out << "\"resume_hint\":" << optionalSafeText(value.resume_hint) << ",";
+    out << "\"trace_lines\":" << arrayOf(value.trace_lines, safeText);
+    out << "}";
+    return out.str();
+}
+
 std::string tribe(const TribeStatusProjection& value) {
     std::ostringstream out;
     auto optionalText = [](const std::optional<SafeTextProjection>& text_value) {
@@ -354,6 +374,9 @@ Result<std::string> H5PlayableWireCodec::encodeResponse(const H5PlayableResponse
     out << "\"tone\":" << q(toString(response.tone)) << ",";
     out << "\"reply_text\":" << safeText(response.reply_text) << ",";
     out << "\"projection\":" << projection(response.projection) << ",";
+    out << "\"execution_status\":";
+    if (response.execution_status.has_value()) out << executionStatus(*response.execution_status); else out << "null";
+    out << ",";
     out << "\"issues\":" << arrayOf(response.issues, issue) << ",";
     out << "\"debug_keys\":" << stringArray(response.debug_keys);
     out << "}";

@@ -322,16 +322,29 @@
     };
   }
 
-  function normalizeExecution(_response) {
-    // Placeholder for P40 execution status.
-    // When backend adds execution_status field, fill from it.
+  function safeTextValue(value) {
+    return (value && value.zh_cn) || "";
+  }
+
+  function normalizeExecution(response) {
+    var status = (response && response.execution_status) || null;
+    if (!status || !status.visible) {
+      return {
+        visible: false,
+        goal: "",
+        step: "",
+        status: "",
+        interrupt: "",
+        blocked: "",
+      };
+    }
     return {
-      visible: false,
-      goal: "",
-      step: "",
-      status: "",
-      interrupt: "",
-      blocked: "",
+      visible: true,
+      goal: safeTextValue(status.current_goal),
+      step: safeTextValue(status.active_step),
+      status: safeTextValue(status.response_plan) || safeTextValue(status.resume_hint),
+      interrupt: safeTextValue(status.interrupt_reason),
+      blocked: safeTextValue(status.blocked_by),
     };
   }
 

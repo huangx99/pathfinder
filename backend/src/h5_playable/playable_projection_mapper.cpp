@@ -579,9 +579,9 @@ Result<H5ProjectionSourceBundle> H5PlayableProjectionMapper::buildSourceBundle(
     }
     if (hasDefaultCompanionTorchKnowledge(session_state)) {
         bundle.scene_summary.push_back(text(
-            "scene.companion.default_torch",
+            "scene.companion.default_torch_knowledge",
             SafeTextKind::Hint,
-            "同伴开局携带一个火把，并知道火把可以驱赶靠近的野兽；等待时如果危险靠近，他会尝试自己使用。"));
+            "同伴知道火把可以驱赶靠近的野兽，但开局没有火把；你需要教会或准备火把制作链路，他才能尝试自己准备并使用。"));
     }
     bundle.scene_summary.push_back(text("scene.config_driven_objects", SafeTextKind::Hint, objectSystemHint(scenario)));
 

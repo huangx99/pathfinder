@@ -141,6 +141,11 @@ static void test_wire_codec_json_safe() {
     auto json = H5PlayableWireCodec{}.encodeResponse(response.value());
     assert(json.is_ok());
     assert(json.value().find("\"projection\"") != std::string::npos);
+    assert(json.value().find("\"execution_status\"") != std::string::npos);
+    assert(response.value().execution_status.has_value());
+    assert(response.value().execution_status->visible);
+    assert(response.value().execution_status->current_goal.has_value());
+    assert(response.value().execution_status->active_step.has_value());
     assert(json.value().find(" + ") == std::string::npos);
     assert(json.value().find(" -> ") == std::string::npos);
     assert(json.value().find("raw_state") == std::string::npos);
@@ -380,10 +385,10 @@ static void test_p38_beast_progresses_without_fake_fire() {
     assert(cardDescriptionContains(wait2.value(), "beast_shadow", "已退去"));
 }
 
-static void test_companion_default_torch_repel_and_beast_returns() {
+static void test_companion_knows_torch_but_does_not_start_with_one() {
     H5PlayableTurnService service;
     H5PlayableBootstrapRequest bootstrap;
-    bootstrap.session_id = "s_companion_default_torch";
+    bootstrap.session_id = "s_companion_torch_knowledge_only";
     bootstrap.reset = true;
     auto boot = service.bootstrap(bootstrap);
     assert(boot.is_ok());
@@ -397,19 +402,16 @@ static void test_companion_default_torch_repel_and_beast_returns() {
     }
     assert(companion_knows_torch);
 
-    auto wait1 = service.handleTurn(turn("s_companion_default_torch", 1, "等待一会"));
+    auto wait1 = service.handleTurn(turn("s_companion_torch_knowledge_only", 1, "等待一会"));
     assert(wait1.is_ok());
     assert(wait1.value().reply_text.zh_cn.find("世界变化") != std::string::npos);
-    assert(wait1.value().reply_text.zh_cn.find("同伴") != std::string::npos);
-    assert(cardDescriptionContains(wait1.value(), "beast_shadow", "已退去"));
+    assert(wait1.value().reply_text.zh_cn.find("同伴用火把逼退") == std::string::npos);
+    assert(!cardDescriptionContains(wait1.value(), "beast_shadow", "已退去"));
 
-    auto wait2 = service.handleTurn(turn("s_companion_default_torch", 2, "等待一会"));
+    auto wait2 = service.handleTurn(turn("s_companion_torch_knowledge_only", 2, "等待一会"));
     assert(wait2.is_ok());
-    assert(wait2.value().reply_text.zh_cn.find("绕到树林另一侧") != std::string::npos ||
-           wait2.value().reply_text.zh_cn.find("继续观察营地") != std::string::npos);
     assert(wait2.value().reply_text.zh_cn.find("世界变化") != std::string::npos);
-    assert(wait2.value().reply_text.zh_cn.find("同伴") != std::string::npos);
-    assert(cardDescriptionContains(wait2.value(), "beast_shadow", "已退去"));
+    assert(wait2.value().reply_text.zh_cn.find("同伴用火把逼退") == std::string::npos);
 }
 
 static void test_p38_resource_failure_is_readable() {
@@ -471,6 +473,26 @@ static std::string readFile(const std::string& path) {
     return "";
 }
 
+static void test_h5_execution_status_visible_when_goal_execution_runs() {
+    H5PlayableTurnService service;
+    H5PlayableBootstrapRequest bootstrap;
+    bootstrap.session_id = "s_p40_execution_status";
+    bootstrap.reset = true;
+    auto boot = service.bootstrap(bootstrap);
+    assert(boot.is_ok());
+    assert(boot.value().execution_status.has_value());
+    assert(boot.value().execution_status->visible);
+    assert(boot.value().execution_status->current_goal.has_value());
+    assert(boot.value().execution_status->active_step.has_value());
+
+    auto wait = service.handleTurn(turn("s_p40_execution_status", 1, "等待"));
+    assert(wait.is_ok());
+    assert(wait.value().execution_status.has_value());
+    assert(wait.value().execution_status->visible);
+    assert(wait.value().execution_status->current_goal.has_value());
+    assert(wait.value().execution_status->active_step.has_value());
+}
+
 static void test_frontend_static_gate() {
     const auto html = readFile("frontend/h5_playable/index.html");
     const auto js = readFile("frontend/h5_playable/app.js");
@@ -484,6 +506,8 @@ static void test_frontend_static_gate() {
     assert(js.find("normalizeProjection") != std::string::npos);
     assert(js.find("object_cards") != std::string::npos);
     assert(js.find("actor_knowledge") != std::string::npos);
+    assert(js.find("execution_status") != std::string::npos);
+    assert(js.find("Placeholder for P40") == std::string::npos);
     // Safety: no hardcoded rule inference
     assert(js.find("red_berry") == std::string::npos);
     assert(js.find("restore_hunger") == std::string::npos);
@@ -503,13 +527,14 @@ int main(int argc, char* argv[]) {
     else if (name == "codec") test_wire_codec_json_safe();
     else if (name == "rotten_scope") test_rotten_red_berry_does_not_weaken_fresh_projection();
     else if (name == "frontend_gate") test_frontend_static_gate();
+    else if (name == "execution_status") test_h5_execution_status_visible_when_goal_execution_runs();
     else if (name == "story") test_story_first_day_projection_and_actions();
     else if (name == "story_beast_use") test_story_beast_use_not_torch_repel();
     else if (name == "buttons_executable") test_playable_buttons_are_executable();
     else if (name == "p38_world") test_p38_world_state_visible_consequences();
     else if (name == "p38_agent") test_p38_agent_fire_avoidance_visible();
     else if (name == "p38_beast_no_fake_fire") test_p38_beast_progresses_without_fake_fire();
-    else if (name == "companion_default_torch") test_companion_default_torch_repel_and_beast_returns();
+    else if (name == "companion_torch_knowledge_only") test_companion_knows_torch_but_does_not_start_with_one();
     else if (name == "p38_failure") test_p38_resource_failure_is_readable();
     else return 2;
     std::cout << "h5_playable " << name << " passed\n";

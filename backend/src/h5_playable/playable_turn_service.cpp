@@ -1,4 +1,6 @@
 #include "pathfinder/h5_playable/playable_turn_service.h"
+#include "pathfinder/goal_execution/goal_execution_system.h"
+#include "pathfinder/world_interaction/world_services.h"
 #include <algorithm>
 
 namespace pathfinder::h5_playable {
@@ -126,6 +128,143 @@ PlayableFeedbackTone toneFromDialog(const pathfinder::h5_dialog::DialogResponseD
     return PlayableFeedbackTone::Neutral;
 }
 
+
+pathfinder::h5_projection::SafeTextProjection executionText(const std::string& key, const std::string& text) {
+    return pathfinder::h5_projection::makeSafeText(key, pathfinder::h5_projection::SafeTextKind::Feedback, text);
+}
+
+H5PlayableExecutionStatus toPlayableExecutionStatus(const pathfinder::goal_execution::ExecutionStatusProjection& projection) {
+    auto convert = [](const pathfinder::goal_execution::SafeTextProjection& text_value, const std::string& key) -> std::optional<pathfinder::h5_projection::SafeTextProjection> {
+        if (text_value.text_zh_cn.empty()) return std::nullopt;
+        auto safe = executionText("execution." + key, text_value.text_zh_cn);
+        safe.reason_keys = text_value.source_trace_keys;
+        return safe;
+    };
+    H5PlayableExecutionStatus status;
+    status.current_goal = convert(projection.current_goal, "current_goal");
+    status.active_step = convert(projection.active_step, "active_step");
+    status.blocked_by = convert(projection.blocked_by, "blocked_by");
+    status.interrupt_reason = convert(projection.interrupt_reason, "interrupt_reason");
+    status.response_plan = convert(projection.response_plan, "response_plan");
+    status.resume_hint = convert(projection.resume_hint, "resume_hint");
+    for (const auto& line : projection.trace_lines) {
+        auto converted = convert(line, "trace");
+        if (converted.has_value()) status.trace_lines.push_back(*converted);
+    }
+    status.visible = status.current_goal.has_value() || status.active_step.has_value() || status.blocked_by.has_value() || status.interrupt_reason.has_value();
+    return status;
+}
+
+// TODO(P41-execution-persistence): This builds a minimal visible plan for H5 P40 projection.
+// Long-running goals should persist ExecutionContext in the session/save system once map and scheduling stages land.
+pathfinder::agent_reasoning::AgentPlan playableExecutionPlan(
+    const pathfinder::h5_dialog::DialogResponseDto& dialog_response,
+    const pathfinder::h5_dialog::DialogSessionState& session_state) {
+    pathfinder::agent_reasoning::AgentPlan plan;
+    plan.plan_id = "plan.h5_visible_execution." + session_state.session_id + "." + std::to_string(session_state.turn_index);
+    plan.actor_key = "companion";
+    plan.goal.goal_id = "goal.h5_visible_execution." + std::to_string(session_state.turn_index);
+    plan.goal.actor_key = "companion";
+    plan.goal.kind = pathfinder::agent_reasoning::AgentGoalKind::AcquireObject;
+    plan.goal.target_key = "camp_progress";
+    plan.goal.urgency = 35.0;
+    plan.goal.source_keys = {"h5_turn"};
+
+    pathfinder::agent_reasoning::AgentPlanStep step;
+    step.step_id = "step.h5_visible_execution." + std::to_string(session_state.turn_index);
+    step.actor_key = "companion";
+    step.estimated_ticks = 1;
+    step.explanation_zh_cn = "同伴正在根据当前局势行动。";
+
+    const auto text = dialog_response.reply_text;
+    const bool beast_related = text.find("野兽") != std::string::npos || text.find("危险") != std::string::npos || containsKey(session_state.debug_keys, "story.threat.beast_shadow.active");
+    if (beast_related) {
+        plan.goal.kind = pathfinder::agent_reasoning::AgentGoalKind::ReduceThreat;
+        plan.goal.target_key = "beast_shadow";
+        plan.goal.urgency = 85.0;
+        step.kind = pathfinder::agent_reasoning::PlanStepKind::DirectAction;
+        step.object_key = "torch";
+        step.target_key = "beast_shadow";
+        step.action_key = "use";
+        step.effect_key = "repel_beast";
+        step.explanation_zh_cn = "同伴正在盯住靠近的危险。";
+    } else if (text.find("斧头") != std::string::npos || text.find("木头") != std::string::npos) {
+        plan.goal.kind = pathfinder::agent_reasoning::AgentGoalKind::AcquireObject;
+        plan.goal.target_key = "wood_processed";
+        step.kind = pathfinder::agent_reasoning::PlanStepKind::DirectAction;
+        step.object_key = "axe";
+        step.target_key = "wood";
+        step.action_key = "use";
+        step.effect_key = "cut_wood";
+        step.explanation_zh_cn = "同伴正在为营地准备木材。";
+    } else {
+        step.kind = pathfinder::agent_reasoning::PlanStepKind::WaitForCondition;
+        step.action_key = "wait";
+        step.effect_key = "wait";
+        step.explanation_zh_cn = "同伴正在观察局势，等待下一步。";
+    }
+    plan.steps.push_back(step);
+    plan.total_estimated_ticks = 1;
+    plan.trace_keys = {"h5_execution_projection"};
+    return plan;
+}
+
+std::vector<pathfinder::goal_execution::ExternalInterruptSignal> playableInterrupts(
+    const pathfinder::h5_dialog::DialogResponseDto& dialog_response,
+    const pathfinder::h5_dialog::DialogSessionState& session_state) {
+    const auto text = dialog_response.reply_text;
+    const bool beast_related = text.find("野兽") != std::string::npos || text.find("危险") != std::string::npos || containsKey(session_state.debug_keys, "story.threat.beast_shadow.active");
+    if (!beast_related) return {};
+    pathfinder::goal_execution::ExternalInterruptSignal signal;
+    signal.interrupt_id = "interrupt.h5.beast_shadow." + std::to_string(session_state.turn_index);
+    signal.kind = pathfinder::goal_execution::ExternalInterruptKind::ThreatAppeared;
+    signal.source_event_id = "event.h5.beast_shadow";
+    signal.location_key = "forest_edge";
+    signal.target_actor_keys = {"companion"};
+    signal.threat_key = "beast_shadow";
+    signal.severity = 90.0;
+    signal.urgency = 90.0;
+    signal.can_be_ignored = false;
+    signal.public_summary_zh_cn = "靠近的野兽打断了同伴原本的行动。";
+    return {signal};
+}
+
+Result<H5PlayableExecutionStatus> buildExecutionStatus(
+    const pathfinder::h5_dialog::DialogResponseDto& dialog_response,
+    const pathfinder::h5_dialog::DialogSessionState& session_state) {
+    pathfinder::h5_dialog::DialogScenarioCatalog catalog;
+    auto scenario = catalog.defaultScenario();
+    if (scenario.is_error()) return Result<H5PlayableExecutionStatus>::fail(scenario.errors());
+    pathfinder::world_interaction::WorldSnapshotAdapter snapshot_adapter;
+    auto snapshot = snapshot_adapter.fromDialogSession(scenario.value(), session_state);
+    if (snapshot.is_error()) return Result<H5PlayableExecutionStatus>::fail(snapshot.errors());
+
+    pathfinder::goal_execution::ExecutionContext context;
+    context.context_id = "execution.h5." + session_state.session_id;
+    context.actor_key = "companion";
+    context.capability_tier = pathfinder::goal_execution::AgentCapabilityTier::CognitiveAgent;
+    auto actor = snapshot.value().actors_by_key.find("companion");
+    if (actor != snapshot.value().actors_by_key.end()) context.known_claims = actor->second.known_claims;
+
+    pathfinder::goal_execution::ExecutionTickRequest request;
+    request.request_id = "execution_tick.h5." + session_state.session_id + "." + std::to_string(session_state.turn_index);
+    request.context = std::move(context);
+    request.world_snapshot = snapshot.value();
+    request.visible_events = playableInterrupts(dialog_response, session_state);
+    request.incoming_plan = playableExecutionPlan(dialog_response, session_state);
+    request.elapsed_ticks = 1;
+    request.tick = session_state.turn_index;
+
+    pathfinder::goal_execution::GoalExecutionSystem system;
+    auto executed = system.tick(request);
+    if (executed.is_error()) return Result<H5PlayableExecutionStatus>::fail(executed.errors());
+    auto status = toPlayableExecutionStatus(executed.value().projection);
+    if (!status.current_goal.has_value()) status.current_goal = executionText("execution.current_goal.fallback", "同伴正在执行当前计划。");
+    if (!status.active_step.has_value()) status.active_step = executionText("execution.active_step.fallback", "当前步骤：等待或观察。完成后会继续评估目标。");
+    status.visible = true;
+    return Result<H5PlayableExecutionStatus>::ok(std::move(status));
+}
+
 pathfinder::h5_dialog::DialogResponseDto bootstrapDialogResponse(const std::string& session_id, uint64_t turn_index) {
     pathfinder::h5_dialog::DialogResponseDto response;
     response.session_id = session_id;
@@ -217,6 +356,9 @@ Result<H5PlayableResponse> H5PlayableTurnService::buildResponse(
     response.reply_text = makeSafeText("playable.reply." + request_key, SafeTextKind::Feedback, playableSafeReplyText(dialog_response));
     response.projection = std::move(projection_result.value());
     applyStoryProjection(response.projection, story_projection_result.value());
+    auto execution_status = buildExecutionStatus(dialog_response, story_session_state);
+    if (execution_status.is_error()) return Result<H5PlayableResponse>::fail(execution_status.errors());
+    response.execution_status = execution_status.value();
     response.issues = response.projection.issues;
 
     auto valid = response.validateBasic();

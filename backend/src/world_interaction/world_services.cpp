@@ -235,7 +235,6 @@ Result<WorldSnapshot> WorldSnapshotAdapter::fromDialogSession(
     companion.actor_key = "companion";
     companion.display_name_zh_cn = "同伴";
     companion.trust = 0.8;
-    companion.held_object_keys.push_back("torch");
     companion.known_claims = state.recipient_claims;
     for (const auto& claim : companion.known_claims) {
         if (!claim.predicate.effect_key.empty()) companion.known_effect_keys.push_back(claim.predicate.effect_key);

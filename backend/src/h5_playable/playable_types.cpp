@@ -128,6 +128,22 @@ Result<void> H5PlayableRequest::validateBasic() const {
     return Result<void>::ok();
 }
 
+Result<void> H5PlayableExecutionStatus::validateBasic() const {
+    auto validate_optional = [](const std::optional<pathfinder::h5_projection::SafeTextProjection>& text) {
+        if (!text.has_value()) return Result<void>::ok();
+        return text->validateBasic();
+    };
+    for (const auto* text : {&current_goal, &active_step, &blocked_by, &interrupt_reason, &response_plan, &resume_hint}) {
+        auto result = validate_optional(*text);
+        if (result.is_error()) return result;
+    }
+    for (const auto& line : trace_lines) {
+        auto result = line.validateBasic();
+        if (result.is_error()) return result;
+    }
+    return Result<void>::ok();
+}
+
 Result<void> H5PlayableResponse::validateBasic() const {
     auto session_result = validateSafeValue(session_id, "h5_playable.response.session_id");
     if (session_result.is_error()) return session_result;
@@ -137,6 +153,10 @@ Result<void> H5PlayableResponse::validateBasic() const {
     if (reply_text.kind == pathfinder::h5_projection::SafeTextKind::DebugSummary) return fail("h5_playable.response.reply_debug_forbidden");
     auto projection_result = projection.validateBasic();
     if (projection_result.is_error()) return projection_result;
+    if (execution_status.has_value()) {
+        auto execution_result = execution_status->validateBasic();
+        if (execution_result.is_error()) return execution_result;
+    }
     for (const auto& issue : issues) {
         auto issue_result = issue.validateBasic();
         if (issue_result.is_error()) return issue_result;

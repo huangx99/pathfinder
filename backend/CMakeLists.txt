@@ -711,6 +711,23 @@ target_link_libraries(pathfinder_agent_reasoning PUBLIC
     pathfinder_world_interaction_types
 )
 
+# Goal execution library (P40)
+add_library(pathfinder_goal_execution STATIC
+    src/goal_execution/goal_execution_types.cpp
+    src/goal_execution/goal_execution_system.cpp
+)
+
+target_include_directories(pathfinder_goal_execution PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(pathfinder_goal_execution PUBLIC
+    pathfinder_foundation
+    pathfinder_agent_reasoning
+    pathfinder_world_interaction_types
+    pathfinder_reaction
+)
+
 # World Interaction library (P38)
 add_library(pathfinder_world_interaction STATIC
     src/world_interaction/world_services.cpp
@@ -801,6 +818,7 @@ target_include_directories(pathfinder_h5_playable PUBLIC
 target_link_libraries(pathfinder_h5_playable PUBLIC
     pathfinder_foundation
     pathfinder_world_interaction
+    pathfinder_goal_execution
     pathfinder_h5_dialog
     pathfinder_h5_projection
     pathfinder_story
