@@ -1,7 +1,8 @@
 #include "pathfinder/agent_reasoning/agent_reasoner.h"
+#include "pathfinder/agent_reasoning/effect_execution.h"
 #include "pathfinder/condition/condition_expression_evaluator.h"
 #include "pathfinder/foundation/error.h"
-#include "pathfinder/agent_reasoning/reaction_planning_adapter.h"
+#include "pathfinder/reaction/reaction_fixtures.h"
 #include <algorithm>
 #include <cmath>
 #include <set>
@@ -106,6 +107,7 @@ std::vector<std::string> safeFactsFromSnapshot(const WorldSnapshot& snapshot) {
         for (const auto& [state_key, value] : object.numeric_states) {
             for (int threshold = 1; threshold <= 6; ++threshold) {
                 if (value >= threshold) facts.push_back(safeFactForState(key, state_key, threshold));
+                if (key == "wood" && state_key == "processed" && value >= threshold) facts.push_back(safeFactForQuantity("wood_processed", threshold));
             }
         }
         for (const auto& tag : object.state_tags) {
@@ -188,17 +190,12 @@ PlanPrecondition statePrecondition(const std::string& object_key, const std::str
 }
 
 std::vector<PlanPrecondition> requiredPreconditionsFor(const ActionCandidate& candidate) {
-    ReactionPlanningAdapter reaction_adapter;
-    auto from_reaction = reaction_adapter.preconditionsForEffect(candidate.effect_key);
-    if (from_reaction.is_ok() && !from_reaction.value().empty()) return from_reaction.value();
-
-    const auto& effect = candidate.effect_key;
-    if (effect == "restore_hunger") return {quantityPrecondition(candidate.object_key, 1, false)};
-    if (effect == "repel_beast") return {quantityPrecondition("torch", 1, true)};
-    if (effect == "ignite_fire") return {quantityPrecondition(candidate.object_key.empty() ? "dry_grass" : candidate.object_key, 1, false)};
-    if (effect == "build_house") return {quantityPrecondition("wood_processed", 3, true)};
-    if (effect == "provide_warmth") return {quantityPrecondition(candidate.object_key, 1, false)};
-    return {quantityPrecondition(candidate.object_key, 1, false)};
+    EffectExecutionSpecRegistry specs;
+    ExecutionConditionResolver resolver;
+    auto resolved = resolver.preconditionsForEffect(candidate.effect_key, specs, pathfinder::reaction::fixtures::coreP28Rules());
+    if (resolved.is_ok() && !resolved.value().empty()) return resolved.value();
+    if (!candidate.object_key.empty()) return {quantityPrecondition(candidate.object_key, 1, false)};
+    return {};
 }
 
 std::string producedMissingKey(const EffectSemantics& semantics) {
@@ -219,31 +216,33 @@ bool producesMissing(const ActionCandidate& candidate, const PlanPrecondition& p
     return false;
 }
 
-PlanStepKind stepKindForEffect(const std::string& effect_key) {
-    if (effect_key == "restore_sharpness") return PlanStepKind::RestoreTool;
-    if (effect_key == "build_house") return PlanStepKind::BuildStructure;
-    if (effect_key == "cut_wood" || effect_key == "make_torch" || effect_key == "ignite_fire") return PlanStepKind::PrepareObject;
+PlanStepKind stepKindForCandidate(const ActionCandidate& candidate) {
+    if (candidate.semantics.semantic_kind == EffectSemanticKind::ObjectStateDelta) return PlanStepKind::RestoreTool;
+    if (candidate.semantics.semantic_kind == EffectSemanticKind::CapabilityDelta) return PlanStepKind::BuildStructure;
+    if (candidate.semantics.semantic_kind == EffectSemanticKind::ObjectQuantityDelta) return PlanStepKind::PrepareObject;
     return PlanStepKind::DirectAction;
 }
 
+std::string executionObjectForCandidate(const ActionCandidate& candidate) {
+    if (!candidate.object_key.empty()) return candidate.object_key;
+    for (const auto& precondition : candidate.blocking_conditions) {
+        if (precondition.missing_domain == "object.quantity") return precondition.missing_key;
+    }
+    return candidate.object_key;
+}
+
 std::string explanationForStep(const ActionCandidate& candidate, const WorldSnapshot& snapshot) {
-    if (candidate.effect_key == "restore_hunger") return "吃下" + displayForObject(snapshot, candidate.object_key) + "来缓解饥饿。";
-    if (candidate.effect_key == "repel_beast") return "举起火把驱赶正在靠近的野兽。";
-    if (candidate.effect_key == "ignite_fire") return "点燃" + displayForObject(snapshot, candidate.object_key) + "，尽快获得火光和温暖。";
-    if (candidate.effect_key == "make_torch") return "用处理好的木头和火源制作火把。";
-    if (candidate.effect_key == "cut_wood") return "用锋利斧头砍木头，准备建造材料。";
-    if (candidate.effect_key == "restore_sharpness") return "先打磨斧头，让它能继续处理木头。";
-    if (candidate.effect_key == "build_house") return "用处理好的木头建造房子，提升庇护容量。";
-    if (candidate.effect_key == "provide_warmth") return displayForObject(snapshot, candidate.object_key) + "能提供温暖。";
-    return "执行已知行动：" + candidate.semantics.display_zh_cn + "。";
+    const auto object = candidate.object_key.empty() ? std::string("当前对象") : displayForObject(snapshot, candidate.object_key);
+    const auto target = candidate.target_key.has_value() ? "，目标是" + displayForObject(snapshot, *candidate.target_key) : std::string{};
+    return "执行已知行动：" + object + " -> " + candidate.semantics.display_zh_cn + target + "。";
 }
 
 AgentPlanStep stepFromCandidate(const ActionCandidate& candidate, const WorldSnapshot& snapshot, size_t index) {
     AgentPlanStep step;
     step.step_id = "step." + std::to_string(index) + "." + candidate.effect_key;
-    step.kind = stepKindForEffect(candidate.effect_key);
+    step.kind = stepKindForCandidate(candidate);
     step.actor_key = candidate.actor_key;
-    step.object_key = candidate.object_key.empty() && candidate.effect_key == "repel_beast" ? "torch" : candidate.object_key;
+    step.object_key = executionObjectForCandidate(candidate);
     step.target_key = candidate.target_key;
     step.action_key = candidate.action_key;
     step.effect_key = candidate.effect_key;
@@ -737,50 +736,12 @@ Result<ReasoningResult> AgentReasoner::reason(const ReasoningRequest& request) c
 }
 
 Result<AgentAutonomyResult> AgentPlanExecutorAdapter::toAutonomyResult(const AgentPlan& plan, const WorldSnapshot& snapshot) const {
-    auto plan_valid = plan.validateBasic();
-    if (plan_valid.is_error()) return Result<AgentAutonomyResult>::fail(plan_valid.errors());
-    AgentAutonomyResult result;
-    result.agent_actor_key = plan.actor_key;
-    result.required_knowledge_effect_key = plan.steps.front().effect_key;
-    result.used_object_key = plan.steps.front().object_key;
-    result.target_key = plan.steps.front().target_key.value_or(plan.goal.target_key.value_or(""));
-    result.summary_zh_cn = plan.steps.front().explanation_zh_cn;
-    result.skip_reason = InteractionFailureKind::ConditionNotMet;
-    if (plan.blocked) {
-        result.executed = false;
-        result.action_kind = AgentAutonomyActionKind::None;
-        result.summary_zh_cn = plan.blocking_reason_zh_cn.value_or("计划被阻塞。");
-        return Result<AgentAutonomyResult>::ok(result);
-    }
-    const auto& step = plan.steps.front();
-    if (step.effect_key == "repel_beast") {
-        result.action_kind = AgentAutonomyActionKind::HoldTorch;
-        result.executed = true;
-        result.skip_reason.reset();
-        result.summary_zh_cn = "同伴根据已掌握的火把知识，举起火光协助守住营地。";
-        auto action_change = makeChange("world.agent.reasoning.hold_torch." + std::to_string(snapshot.turn_index), WorldChangeKind::AgentActionExecuted, result.summary_zh_cn);
-        action_change.target_actor_key = plan.actor_key;
-        action_change.target_threat_key = result.target_key.empty() ? "beast_shadow" : result.target_key;
-        result.changes.push_back(action_change);
-        auto threat_change = makeChange("world.agent.reasoning.resolve_threat." + std::to_string(snapshot.turn_index), WorldChangeKind::ThreatResolved, "同伴用火把逼退了靠近的野兽。");
-        threat_change.target_threat_key = result.target_key.empty() ? "beast_shadow" : result.target_key;
-        result.changes.push_back(threat_change);
-    } else if (step.effect_key == "cut_wood" || step.effect_key == "make_torch") {
-        result.action_kind = AgentAutonomyActionKind::GatherMaterial;
-        result.executed = false;
-        result.summary_zh_cn = step.explanation_zh_cn;
-    } else if (step.effect_key == "restore_sharpness") {
-        result.action_kind = AgentAutonomyActionKind::MaintainTool;
-        result.executed = false;
-        result.summary_zh_cn = step.explanation_zh_cn;
-    } else {
-        result.action_kind = AgentAutonomyActionKind::FollowActor;
-        result.executed = false;
-        result.summary_zh_cn = step.explanation_zh_cn;
-    }
-    result.trace_keys = plan.trace_keys;
-    result.trace_keys.push_back("reasoning.plan:" + plan.plan_id);
-    return Result<AgentAutonomyResult>::ok(std::move(result));
+    EffectExecutionSpecRegistry specs;
+    AgentExecutionCoordinator coordinator;
+    auto result = coordinator.executePlan(snapshot, plan, AgentStepExecutionMode::ExecuteOneStep, specs);
+    if (result.is_error()) return result;
+    result.value().trace_keys.push_back("reasoning.plan:" + plan.plan_id);
+    return result;
 }
 
 Result<WorldInteractionInput> AgentPlanExecutorAdapter::toWorldInteractionInput(const AgentPlanStep& step, const WorldSnapshot& snapshot) const {

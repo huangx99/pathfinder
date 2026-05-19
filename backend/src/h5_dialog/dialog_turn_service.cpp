@@ -425,8 +425,8 @@ Result<DialogTurnServiceResult> DialogTurnService::handleDetailed(const DialogRe
                         auto companion_result_r = agent_service.tryAct(snapshot, companion_request);
                         if (companion_result_r.is_ok()) {
                             auto companion_result = companion_result_r.value();
+                            if (!companion_result.summary_zh_cn.empty()) agent_results.push_back(companion_result);
                             if (companion_result.executed) {
-                                agent_results.push_back(companion_result);
                                 all_changes.insert(all_changes.end(), companion_result.changes.begin(), companion_result.changes.end());
                             }
                         }
@@ -620,8 +620,8 @@ Result<DialogTurnServiceResult> DialogTurnService::handleDetailed(const DialogRe
         auto companion_result_r = agent_service.tryAct(after_player, companion_request);
         if (companion_result_r.is_ok()) {
             auto companion_result = companion_result_r.value();
+            if (!companion_result.summary_zh_cn.empty()) agent_results.push_back(companion_result);
             if (companion_result.executed) {
-                agent_results.push_back(companion_result);
                 all_changes.insert(all_changes.end(), companion_result.changes.begin(), companion_result.changes.end());
             }
         }

@@ -374,15 +374,18 @@ static void test_p38_beast_progresses_without_fake_fire() {
     assert(wait1.is_ok());
     assert(wait1.value().reply_text.zh_cn.find("世界变化") != std::string::npos);
     assert(wait1.value().reply_text.zh_cn.find("同伴") != std::string::npos);
-    assert(cardDescriptionContains(wait1.value(), "beast_shadow", "已退去"));
+    assert(!cardDescriptionContains(wait1.value(), "beast_shadow", "已退去"));
+    assert(cardDescriptionContains(wait1.value(), "beast_shadow", "正在靠近") || cardDescriptionContains(wait1.value(), "beast_shadow", "正在观察"));
 
     auto wait2 = service.handleTurn(turn("s_p38_beast_no_fake_fire", 2, "等待一会"));
     assert(wait2.is_ok());
-    assert(wait2.value().reply_text.zh_cn.find("绕到树林另一侧") != std::string::npos ||
-           wait2.value().reply_text.zh_cn.find("继续观察营地") != std::string::npos);
+    assert(wait2.value().reply_text.zh_cn.find("逼近营地") != std::string::npos ||
+           wait2.value().reply_text.zh_cn.find("继续靠近") != std::string::npos ||
+           wait2.value().reply_text.zh_cn.find("低吼") != std::string::npos);
     assert(wait2.value().reply_text.zh_cn.find("世界变化") != std::string::npos);
     assert(wait2.value().reply_text.zh_cn.find("同伴") != std::string::npos);
-    assert(cardDescriptionContains(wait2.value(), "beast_shadow", "已退去"));
+    assert(!cardDescriptionContains(wait2.value(), "beast_shadow", "已退去"));
+    assert(cardDescriptionContains(wait2.value(), "beast_shadow", "正在对峙") || cardDescriptionContains(wait2.value(), "beast_shadow", "正在靠近"));
 }
 
 static void test_companion_knows_torch_but_does_not_start_with_one() {

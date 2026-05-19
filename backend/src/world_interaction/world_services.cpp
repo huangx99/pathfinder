@@ -1,5 +1,7 @@
 #include "pathfinder/world_interaction/world_services.h"
+#include "pathfinder/agent_reasoning/effect_execution.h"
 #include "pathfinder/agent_reasoning/agent_reasoner.h"
+#include "pathfinder/condition/condition_expression_evaluator.h"
 #include "pathfinder/foundation/error.h"
 #include <algorithm>
 #include <cmath>
@@ -20,6 +22,19 @@ Result<WorldSnapshot> failSnapshot(const std::string& message) {
 
 Result<WorldInteractionResult> failInteraction(const std::string& message) {
     return Result<WorldInteractionResult>::fail(makeError(ErrorCode::validation_failed, message));
+}
+
+InteractionFailureKind interactionFailureFromExecution(pathfinder::agent_reasoning::ExecutionFailureKind kind) {
+    using pathfinder::agent_reasoning::ExecutionFailureKind;
+    switch (kind) {
+        case ExecutionFailureKind::MissingObject: return InteractionFailureKind::MissingObject;
+        case ExecutionFailureKind::MissingTarget: return InteractionFailureKind::MissingTarget;
+        case ExecutionFailureKind::InsufficientQuantity: return InteractionFailureKind::InsufficientQuantity;
+        case ExecutionFailureKind::ConditionNotMet: return InteractionFailureKind::ConditionNotMet;
+        case ExecutionFailureKind::SpecNotFound: return InteractionFailureKind::TargetMismatch;
+        case ExecutionFailureKind::ForbiddenBySafety: return InteractionFailureKind::ForbiddenByAudience;
+        default: return InteractionFailureKind::ConditionNotMet;
+    }
 }
 
 Result<std::vector<WorldChange>> failChanges(const std::string& message) {
@@ -324,112 +339,43 @@ Result<WorldInteractionResult> WorldInteractionService::resolve(
     const auto* object = findObject(snapshot, input.object_key);
     if (!object) return Result<WorldInteractionResult>::ok(failure(InteractionFailureKind::MissingObject, "这里没有这个东西。"));
     if ((input.action == pathfinder::h5_dialog::DialogActionKind::Eat || input.object_key == "wood" || input.object_key == "torch") && object->quantity <= 0) {
-        return Result<WorldInteractionResult>::ok(failure(InteractionFailureKind::InsufficientQuantity, object->display_name_zh_cn + "已经没有可用数量了。"));
+        return Result<WorldInteractionResult>::ok(failure(InteractionFailureKind::InsufficientQuantity, object->display_name_zh_cn + "已经没有可消耗的数量了。"));
     }
+
+    pathfinder::agent_reasoning::EffectExecutionSpecRegistry specs;
+    pathfinder::agent_reasoning::WorldEffectExecutor executor;
+    pathfinder::condition::ConditionExpressionEvaluator evaluator;
+    pathfinder::agent_reasoning::WorldExecutionRequest request;
+    request.request_id = input.interaction_id + ".p41";
+    request.actor_key = input.actor_key;
+    request.effect_key = input.effect_key;
+    request.object_key = input.object_key;
+    request.target_object_key = input.target_object_key;
+    request.target_threat_key = input.target_object_key;
+    auto executed = executor.execute(snapshot, request, specs, evaluator);
+    if (executed.is_error()) return Result<WorldInteractionResult>::fail(executed.errors());
 
     WorldInteractionResult result;
-    result.ok = true;
+    result.ok = executed.value().ok;
     result.learning_feedback_key = input.feedback_key;
-    result.trace_keys.push_back("world.interaction:" + input.effect_key);
-    const auto prefix = "world.change." + std::to_string(snapshot.turn_index) + "." + input.effect_key + ".";
-
-    auto add_quantity = [&](const std::string& id, const std::string& key, int delta, const std::string& summary) {
-        auto world_change = change(prefix + id, delta < 0 ? WorldChangeKind::ObjectConsumed : WorldChangeKind::ObjectQuantityChanged, summary);
-        world_change.target_instance_id = key;
-        world_change.quantity_delta = delta;
-        world_change.reason_keys.push_back("world.quantity");
-        result.changes.push_back(std::move(world_change));
-    };
-    auto add_numeric_delta = [&](const std::string& id, const std::string& key, const std::string& state_key, double delta, const std::string& summary) {
-        auto world_change = change(prefix + id, WorldChangeKind::ObjectStateChanged, summary);
-        world_change.target_instance_id = key;
-        world_change.state_key = state_key;
-        world_change.numeric_delta = delta;
-        world_change.reason_keys.push_back("world.state_delta");
-        result.changes.push_back(std::move(world_change));
-    };
-    auto add_numeric_set = [&](const std::string& id, const std::string& key, const std::string& state_key, double value, const std::string& summary) {
-        auto world_change = change(prefix + id, WorldChangeKind::ObjectStateChanged, summary);
-        world_change.target_instance_id = key;
-        world_change.state_key = state_key;
-        world_change.numeric_set_value = value;
-        world_change.reason_keys.push_back("world.state_set");
-        result.changes.push_back(std::move(world_change));
-    };
-
+    result.changes = executed.value().changes;
     if (input.action == pathfinder::h5_dialog::DialogActionKind::Eat) {
-        add_quantity("consume", input.object_key, -1, "你消耗了一个" + object->display_name_zh_cn + "，它在这个地方少了。剩余：" + std::to_string(std::max(0, object->quantity - 1)) + "。");
-        if (input.effect_key == "restore_hunger") {
-            auto world_change = change(prefix + "hunger", WorldChangeKind::ActorNeedChanged, "饥饿感缓解了一些。");
-            world_change.target_actor_key = input.actor_key;
-            result.changes.push_back(std::move(world_change));
-        } else if (input.effect_key == "poison") {
-            auto world_change = change(prefix + "poison", WorldChangeKind::ActorConditionChanged, "身体状态变差了，这次经验会影响之后的判断。");
-            world_change.target_actor_key = input.actor_key;
-            result.changes.push_back(std::move(world_change));
+        for (auto& world_change : result.changes) {
+            if (world_change.kind == WorldChangeKind::ObjectConsumed && world_change.target_instance_id == input.object_key) {
+                world_change.player_summary_zh_cn = "你消耗了一个" + object->display_name_zh_cn + "，它在这个地方少了。剩余：" + std::to_string(std::max(0, object->quantity - 1)) + "。";
+            }
         }
-    } else if (input.effect_key == "cut_wood") {
-        const auto* axe = findObject(snapshot, "axe");
-        const auto* wood = findObject(snapshot, "wood");
-        if (!axe || !wood) return Result<WorldInteractionResult>::ok(failure(InteractionFailureKind::MissingObject, "缺少斧头或木头。"));
-        if (doubleState(*axe, "sharpness") <= 0.0) return Result<WorldInteractionResult>::ok(failure(InteractionFailureKind::ConditionNotMet, "斧头太钝了，砍不动木头。"));
-        if (wood->quantity <= 0) return Result<WorldInteractionResult>::ok(failure(InteractionFailureKind::InsufficientQuantity, "木头已经没有了。"));
-        add_quantity("wood", "wood", -1, "木头被斧头砍开，变成了可以继续加工的材料。");
-        add_numeric_delta("processed", "wood", "processed", 1.0, "处理好的木材增加了。当前可用于制作火把。");
-        add_numeric_delta("sharpness", "axe", "sharpness", -1.0, "斧头的锋利度下降了。当前锋利度：" + std::to_string(static_cast<int>(std::max(0.0, doubleState(*axe, "sharpness") - 1.0))) + "。");
-    } else if (input.effect_key == "tool_dull") {
-        auto world_change = change(prefix + "dull", WorldChangeKind::ObjectStateChanged, "斧头太钝了，砍不动木头。你需要先打磨它。");
-        world_change.target_instance_id = "axe";
-        world_change.state_key = "sharpness";
-        world_change.numeric_set_value = 0.0;
-        result.changes.push_back(std::move(world_change));
-    } else if (input.effect_key == "restore_sharpness") {
-        add_numeric_set("sharpness", "axe", "sharpness", 3.0, "斧头被磨石重新打磨，锋利度恢复了。");
-    } else if (input.effect_key == "ignite_fire") {
-        const auto* grass = findObject(snapshot, "dry_grass");
-        if (!grass || grass->quantity <= 0) return Result<WorldInteractionResult>::ok(failure(InteractionFailureKind::InsufficientQuantity, "干草已经没有了。"));
-        add_quantity("grass", "dry_grass", -1, "干草被火种点燃，一处小火堆出现了。");
-        auto generated = change(prefix + "camp_fire", WorldChangeKind::ObjectGenerated, "火光照亮了周围，火堆现在可以被其他生物观察到。");
-        generated.target_instance_id = "camp_fire";
-        generated.definition_key = "camp_fire";
-        generated.quantity_delta = 1;
-        result.changes.push_back(std::move(generated));
-        add_numeric_set("beast_observed_fire", "beast_shadow", "observed_fire", 1.0, "火光让树林里的影子变得犹豫。野生生物已经观察到火。");
-    } else if (input.effect_key == "make_torch") {
-        const auto* wood = findObject(snapshot, "wood");
-        const auto* fire = findObject(snapshot, "camp_fire");
-        if (!wood || doubleState(*wood, "processed") <= 0.0) return Result<WorldInteractionResult>::ok(failure(InteractionFailureKind::ConditionNotMet, "还缺少处理好的木材。先用斧头砍木头。"));
-        if (!fire || fire->quantity <= 0) return Result<WorldInteractionResult>::ok(failure(InteractionFailureKind::ToolUnavailable, "还缺少稳定火源。先点燃干草形成火堆。"));
-        add_numeric_delta("processed", "wood", "processed", -1.0, "你消耗了一份处理好的木材。");
-        auto generated = change(prefix + "torch", WorldChangeKind::ObjectGenerated, "你把处理过的木头和火源组合起来，做出了一支火把。");
-        generated.target_instance_id = "torch";
-        generated.definition_key = "torch";
-        generated.quantity_delta = 1;
-        result.changes.push_back(std::move(generated));
-    } else if (input.effect_key == "repel_beast") {
-        const auto* torch = findObject(snapshot, "torch");
-        if (!torch || torch->quantity <= 0) return Result<WorldInteractionResult>::ok(failure(InteractionFailureKind::ToolUnavailable, "火把还没有做出来，不能用它驱赶野兽。"));
-        auto threat_change = change(prefix + "repel", WorldChangeKind::ThreatResolved, "火把的光和热逼退了靠近的野兽。树林里的低吼远去了。");
-        threat_change.target_threat_key = "beast_shadow";
-        threat_change.quantity_delta = 0;
-        result.changes.push_back(std::move(threat_change));
-    } else if (input.effect_key == "use_hint") {
-        auto world_change = change(prefix + "inspect_use", WorldChangeKind::ObjectStateChanged, "你摸索了" + object->display_name_zh_cn + "的用途，它没有立刻改变世界，但这次尝试被记录为可学习经验。");
-        world_change.target_instance_id = input.object_key;
-        world_change.reason_keys.push_back("world.no_material_change");
-        result.changes.push_back(std::move(world_change));
-    } else if (input.effect_key == "no_visible_effect") {
-        auto world_change = change(prefix + "no_visible", WorldChangeKind::ActorConditionChanged, "暂时没有明显变化，但这次尝试仍然进入经验记录。");
-        world_change.target_actor_key = input.actor_key;
-        world_change.reason_keys.push_back("world.no_visible_effect");
-        result.changes.push_back(std::move(world_change));
     }
+    result.player_feedback_zh_cn = executed.value().ok ? feedbackFromChanges(result.changes) : executed.value().safe_summary_zh_cn;
+    result.trace_keys = executed.value().trace_keys;
+    result.trace_keys.push_back("world.interaction:" + input.effect_key);
+    if (!executed.value().ok) result.failure_kind = interactionFailureFromExecution(executed.value().failure_kind);
 
     if (result.changes.empty()) {
         result.ok = false;
-        result.failure_kind = InteractionFailureKind::TargetMismatch;
-        result.player_feedback_zh_cn = "这个动作暂时没有可结算的世界变化。";
-    } else {
+        if (!result.failure_kind.has_value()) result.failure_kind = InteractionFailureKind::TargetMismatch;
+        if (result.player_feedback_zh_cn.empty()) result.player_feedback_zh_cn = "这个动作暂时没有可结算的世界变化。";
+    } else if (result.player_feedback_zh_cn.empty()) {
         result.player_feedback_zh_cn = feedbackFromChanges(result.changes);
     }
     auto validation = result.validateBasic();
@@ -568,7 +514,7 @@ Result<AgentAutonomyResult> AgentAutonomyService::tryAct(
         }
 
         result.skip_reason = InteractionFailureKind::KnowledgeNotKnown;
-        result.summary_zh_cn = reasoning.is_ok() ? reasoning.value().safe_explanation_zh_cn : "同伴还不能根据已知经验形成可执行计划。";
+        result.summary_zh_cn = reasoning.is_ok() ? "同伴暂时无法根据已知经验形成可执行计划。" + reasoning.value().safe_explanation_zh_cn : "同伴还不能根据已知经验形成可执行计划。";
         return Result<AgentAutonomyResult>::ok(result);
     }
 
@@ -675,11 +621,10 @@ Result<WorldProjectionPatch> WorldProjectionMapper::buildPatch(
         patch.trace_keys.push_back("world.change:" + toString(world_change.kind));
     }
     for (const auto& agent_result : agent_results) {
-        if (agent_result.executed) {
-            patch.scene_summary_zh_cn.push_back(agent_result.summary_zh_cn);
-            patch.player_feedback_lines_zh_cn.push_back("Agent行动：" + agent_result.summary_zh_cn);
-            patch.trace_keys.push_back("world.agent:" + toString(agent_result.action_kind));
-        }
+        if (agent_result.summary_zh_cn.empty()) continue;
+        patch.scene_summary_zh_cn.push_back(agent_result.summary_zh_cn);
+        patch.player_feedback_lines_zh_cn.push_back(std::string(agent_result.executed ? "Agent行动：" : "Agent状态：") + agent_result.summary_zh_cn);
+        patch.trace_keys.push_back("world.agent:" + toString(agent_result.action_kind));
     }
     for (const auto& [object_key, object] : snapshot.objects_by_key) {
         WorldObjectProjectionPatch object_patch;

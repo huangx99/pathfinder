@@ -695,6 +695,7 @@ target_link_libraries(pathfinder_world_interaction_types PUBLIC
 add_library(pathfinder_agent_reasoning STATIC
     src/agent_reasoning/reasoning_types.cpp
     src/agent_reasoning/effect_semantics.cpp
+    src/agent_reasoning/effect_execution.cpp
     src/agent_reasoning/reaction_planning_adapter.cpp
     src/agent_reasoning/agent_reasoner.cpp
 )

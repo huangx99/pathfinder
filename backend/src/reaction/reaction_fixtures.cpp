@@ -95,6 +95,7 @@ ObjectReactionRule fireDryBranchToTorchRule() {
     rule.feedback_key = "reaction.fire_branch_torch";
     rule.feedback_text = "木棍被点燃，变成了可以携带的火把。";
     rule.knowledge_effect_key = "transform_to_torch";
+    rule.execution_effect_key = "make_torch";
     rule.safe_tags = {"fire", "tool_creation"};
     return rule;
 }
@@ -151,6 +152,7 @@ ObjectReactionRule cutWoodWithAxeRule() {
     rule.feedback_key = "reaction.cut_wood";
     rule.feedback_text = "斧头把木头处理成可用材料。";
     rule.knowledge_effect_key = "cut_wood";
+    rule.execution_effect_key = "cut_wood";
     rule.safe_tags = {"material_processing", "tool_use"};
     return rule;
 }
@@ -177,6 +179,7 @@ ObjectReactionRule sharpenAxeRule() {
     rule.feedback_key = "reaction.sharpen_axe";
     rule.feedback_text = "斧头被重新打磨锋利。";
     rule.knowledge_effect_key = "restore_sharpness";
+    rule.execution_effect_key = "restore_sharpness";
     rule.safe_tags = {"tool_maintenance"};
     return rule;
 }

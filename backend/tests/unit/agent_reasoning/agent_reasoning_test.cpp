@@ -1,5 +1,7 @@
 #include "pathfinder/agent_reasoning/agent_reasoner.h"
+#include "pathfinder/agent_reasoning/effect_execution.h"
 #include "pathfinder/agent_reasoning/reaction_planning_adapter.h"
+#include "pathfinder/condition/condition_expression_evaluator.h"
 #include <algorithm>
 #include <cassert>
 #include <iostream>
@@ -67,7 +69,105 @@ static void effect_semantics_registry_validation() {
     assert(registry.validateAll().is_ok());
     assert(registry.findByEffectKey("restore_hunger").is_ok());
     assert(registry.findByEffectKey("build_house").is_ok());
+    EffectSemantics duplicate = registry.findByEffectKey("restore_hunger").value();
+    assert(registry.registerDefinition(duplicate).is_error());
     std::cout << "effect_semantics_registry_validation passed\n";
+}
+
+static void p41_execution_enums_and_dto_validation() {
+    assert(toString(EffectExecutionOpKind::ResolveThreat) == "resolve_threat");
+    assert(effectExecutionOpKindFromString("resolve_threat").is_ok());
+    assert(effectExecutionOpKindFromString("bad_value").is_error());
+    EffectExecutionOperation invalid;
+    assert(invalid.validateBasic().is_error());
+    EffectExecutionOperation operation;
+    operation.operation_id = "op.test";
+    operation.op_kind = EffectExecutionOpKind::EmitWorldEvent;
+    operation.target_kind = EffectExecutionTargetKind::ActorSelf;
+    operation.key_source = ExecutionValueSourceKind::Constant;
+    operation.safe_summary_zh_cn = "安全摘要。";
+    assert(operation.validateBasic().is_ok());
+    operation.safe_summary_zh_cn = "raw_state 泄漏";
+    assert(operation.validateBasic().is_error());
+    std::cout << "p41_execution_enums_and_dto_validation passed\n";
+}
+
+static void p41_execution_registry_validation() {
+    EffectSemanticsRegistry semantics;
+    EffectExecutionSpecRegistry specs;
+    assert(specs.validateAgainst(semantics).is_ok());
+    assert(specs.findByEffectKey("make_torch").is_ok());
+    assert(specs.findByEffectKey("repel_beast").is_ok());
+    auto duplicate = specs.findByEffectKey("make_torch").value();
+    assert(specs.registerSpec(duplicate).is_error());
+    EffectExecutionSpecRegistry empty(false);
+    assert(empty.findByEffectKey("make_torch").is_error());
+    std::cout << "p41_execution_registry_validation passed\n";
+}
+
+static void p41_world_effect_executor_make_torch_atomic() {
+    auto world = snapshot();
+    world.objects_by_key["wood"] = object("wood", 1);
+    world.objects_by_key["wood"].numeric_states["processed"] = 1;
+    world.objects_by_key["camp_fire"] = object("camp_fire", 1);
+    world.objects_by_key["torch"] = object("torch", 0);
+    EffectExecutionSpecRegistry specs;
+    WorldEffectExecutor executor;
+    pathfinder::condition::ConditionExpressionEvaluator evaluator;
+    WorldExecutionRequest req;
+    req.request_id = "p41.make_torch";
+    req.actor_key = "companion";
+    req.effect_key = "make_torch";
+    req.object_key = "wood";
+    auto result = executor.execute(world, req, specs, evaluator);
+    assert(result.is_ok());
+    assert(result.value().ok);
+    assert(result.value().changes.size() == 2);
+
+    world.objects_by_key["wood"].numeric_states["processed"] = 0;
+    auto failed = executor.execute(world, req, specs, evaluator);
+    assert(failed.is_ok());
+    assert(!failed.value().ok);
+    assert(failed.value().failure_kind == ExecutionFailureKind::ConditionNotMet);
+    assert(failed.value().changes.empty());
+    std::cout << "p41_world_effect_executor_make_torch_atomic passed\n";
+}
+
+static void p41_agent_step_executor_blocks_without_torch() {
+    auto world = snapshot();
+    world.objects_by_key["torch"] = object("torch", 0);
+    WorldThreatRuntimeState threat;
+    threat.threat_key = "beast_shadow";
+    threat.display_name_zh_cn = "野兽影子";
+    threat.phase = ThreatEventPhase::Approaching;
+    threat.level = 75;
+    threat.active = true;
+    world.threats_by_key[threat.threat_key] = threat;
+    EffectSemanticsRegistry semantics;
+    AgentPlanStep step;
+    step.step_id = "step.p41.repel";
+    step.kind = PlanStepKind::DirectAction;
+    step.actor_key = "companion";
+    step.object_key = "torch";
+    step.target_key = "beast_shadow";
+    step.action_key = "use";
+    step.effect_key = "repel_beast";
+    step.expected_semantics = {semantics.findByEffectKey("repel_beast").value()};
+    step.explanation_zh_cn = "举起火把驱赶正在靠近的野兽。";
+    EffectExecutionSpecRegistry specs;
+    AgentPlanStepExecutor executor;
+    AgentStepExecutionRequest req;
+    req.request_id = "p41.agent.step";
+    req.actor_key = "companion";
+    req.plan_id = "plan.p41";
+    req.step = step;
+    req.mode = AgentStepExecutionMode::ExecuteOneStep;
+    auto result = executor.executeStep(world, req, specs);
+    assert(result.is_ok());
+    assert(!result.value().ok);
+    assert(result.value().should_replan);
+    assert(result.value().world_result.changes.empty());
+    std::cout << "p41_agent_step_executor_blocks_without_torch passed\n";
 }
 
 static void goal_generation_hunger() {
@@ -365,6 +465,10 @@ static void h5_projection_safe() {
 int main(int argc, char* argv[]) {
     std::string mode = argc > 1 ? argv[1] : "all";
     if (mode == "effect_semantics_registry_validation") effect_semantics_registry_validation();
+    else if (mode == "p41_execution_enums_and_dto_validation") p41_execution_enums_and_dto_validation();
+    else if (mode == "p41_execution_registry_validation") p41_execution_registry_validation();
+    else if (mode == "p41_world_effect_executor_make_torch_atomic") p41_world_effect_executor_make_torch_atomic();
+    else if (mode == "p41_agent_step_executor_blocks_without_torch") p41_agent_step_executor_blocks_without_torch();
     else if (mode == "goal_generation_hunger") goal_generation_hunger();
     else if (mode == "candidate_from_owned_knowledge_only") candidate_from_owned_knowledge_only();
     else if (mode == "hungry_agent_selects_known_safe_food") hungry_agent_selects_known_safe_food();
@@ -381,6 +485,10 @@ int main(int argc, char* argv[]) {
     else if (mode == "h5_projection_safe") h5_projection_safe();
     else {
         effect_semantics_registry_validation();
+        p41_execution_enums_and_dto_validation();
+        p41_execution_registry_validation();
+        p41_world_effect_executor_make_torch_atomic();
+        p41_agent_step_executor_blocks_without_torch();
         goal_generation_hunger();
         candidate_from_owned_knowledge_only();
         hungry_agent_selects_known_safe_food();

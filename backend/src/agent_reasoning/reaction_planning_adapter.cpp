@@ -9,7 +9,6 @@ using pathfinder::foundation::ErrorCode;
 using pathfinder::foundation::Result;
 using pathfinder::foundation::makeError;
 using pathfinder::reaction::ReactionObjectRole;
-using pathfinder::reaction::ReactionOutputKind;
 
 namespace {
 
@@ -69,20 +68,10 @@ std::optional<PlanPrecondition> preconditionFromReactionCondition(const pathfind
     return std::nullopt;
 }
 
-bool outputSupportsEffect(const pathfinder::reaction::ReactionOutputTemplate& output, const std::string& effect_key) {
-    if (effect_key == "make_torch" &&
-        (output.output_kind == ReactionOutputKind::TransformObject || output.output_kind == ReactionOutputKind::ProduceObject) &&
-        output.product_definition_id.value() == "def_torch") return true;
-    if (effect_key == "cut_wood" && output.output_kind == ReactionOutputKind::ProduceObject && output.product_definition_id.value() == "def_wood_processed") return true;
-    if (effect_key == "restore_sharpness" && output.output_kind == ReactionOutputKind::ResourceDelta && output.resource_key == "sharpness" && output.resource_delta > 0.0) return true;
-    return false;
-}
-
 bool reactionRuleSupportsEffect(const pathfinder::reaction::ObjectReactionRule& rule, const std::string& effect_key) {
+    if (rule.execution_effect_key == effect_key) return true;
     if (rule.knowledge_effect_key == effect_key) return true;
-    return std::any_of(rule.output_templates.begin(), rule.output_templates.end(), [&](const auto& output) {
-        return outputSupportsEffect(output, effect_key);
-    });
+    return false;
 }
 
 std::vector<PlanPrecondition> dedupe(std::vector<PlanPrecondition> values) {

@@ -1,4 +1,6 @@
 #include "pathfinder/h5_playable/playable_projection_mapper.h"
+#include "pathfinder/agent_reasoning/effect_execution.h"
+#include "pathfinder/condition/condition_expression_evaluator.h"
 #include "pathfinder/world_interaction/world_services.h"
 #include "pathfinder/condition/condition_summary.h"
 #include "pathfinder/h5_dialog/dialog_scenario.h"
@@ -289,19 +291,35 @@ ConditionSummaryProjection disabledReason(const std::string& key, const std::str
 
 bool feedbackAvailable(const pathfinder::h5_dialog::DialogSessionState& state,
                        const pathfinder::h5_dialog::DialogFeedbackTemplate& feedback) {
-    if (feedback.effect_key == "make_torch") return runtimeNumber(state, "wood", "processed") > 0.0;
-    if (feedback.effect_key == "repel_beast") return runtimeNumber(state, "torch", "quantity") > 0.0;
-    return true;
+    pathfinder::h5_dialog::DialogScenarioCatalog catalog;
+    auto scenario = catalog.defaultScenario();
+    if (scenario.is_error()) return false;
+    pathfinder::world_interaction::WorldSnapshotAdapter adapter;
+    auto snapshot = adapter.fromDialogSession(scenario.value(), state);
+    if (snapshot.is_error()) return false;
+    pathfinder::agent_reasoning::EffectExecutionSpecRegistry specs;
+    pathfinder::agent_reasoning::WorldEffectExecutor executor;
+    pathfinder::condition::ConditionExpressionEvaluator evaluator;
+    pathfinder::agent_reasoning::WorldExecutionRequest request;
+    request.request_id = "h5.feedback_available." + feedback.feedback_key;
+    request.actor_key = "pioneer";
+    request.effect_key = feedback.effect_key;
+    request.object_key = feedback.object_key;
+    request.target_object_key = feedback.target_object_key;
+    request.target_threat_key = feedback.target_object_key;
+    request.dry_run = true;
+    auto result = executor.execute(snapshot.value(), request, specs, evaluator);
+    return result.is_ok() && result.value().ok;
 }
 
 std::string targetedActionInputText(const pathfinder::h5_dialog::DialogScenarioObject& source,
                                   const pathfinder::h5_dialog::DialogScenarioObject& target,
                                   const pathfinder::h5_dialog::DialogFeedbackTemplate& feedback) {
-    if (feedback.effect_key == "cut_wood") return "用" + source.display_name + "砍" + target.display_name;
-    if (feedback.effect_key == "restore_sharpness") return "用" + source.display_name + "打磨" + target.display_name;
-    if (feedback.effect_key == "ignite_fire") return "用" + source.display_name + "点燃" + target.display_name;
-    if (feedback.effect_key == "make_torch") return "制作火把";
-    if (feedback.effect_key == "repel_beast") return "用" + source.display_name + "驱赶" + target.display_name;
+    if (source.object_key == "axe" && target.object_key == "wood") return "用" + source.display_name + "砍" + target.display_name;
+    if (source.object_key == "whetstone" && target.object_key == "axe") return "用" + source.display_name + "打磨" + target.display_name;
+    if (source.object_key == "fire_seed" && target.object_key == "dry_grass") return "用" + source.display_name + "点燃" + target.display_name;
+    if (source.object_key == "wood" && target.object_key == "fire_seed") return "制作火把";
+    if (source.object_key == "torch" && target.object_key == "beast_shadow") return "用" + source.display_name + "驱赶" + target.display_name;
     if (feedback.action == pathfinder::h5_dialog::DialogActionKind::Use) return "用" + source.display_name + "作用于" + target.display_name;
     return actionName(pathfinder::h5_dialog::toString(feedback.action)) + source.display_name + "到" + target.display_name;
 }
@@ -542,10 +560,17 @@ std::string firstSafeReplyLine(const std::string& reply) {
     return out;
 }
 
+std::string depletedObjectReply(const std::string& reply) {
+    if (reply.find("苦叶") != std::string::npos && reply.find("没有可用") != std::string::npos) return "苦叶已经没有可消耗的数量了。";
+    if (reply.find("红果") != std::string::npos && reply.find("没有可用") != std::string::npos) return "红果已经没有可消耗的数量了。";
+    if (reply.find("干草") != std::string::npos && reply.find("没有可用") != std::string::npos) return "干草已经没有可消耗的数量了。";
+    return reply;
+}
+
 } // namespace
 
 std::string playableSafeReplyText(const pathfinder::h5_dialog::DialogResponseDto& dialog_response) {
-    return firstSafeReplyLine(dialog_response.reply_text);
+    return depletedObjectReply(firstSafeReplyLine(dialog_response.reply_text));
 }
 
 Result<H5ProjectionSourceBundle> H5PlayableProjectionMapper::buildSourceBundle(

@@ -43,6 +43,7 @@ struct ObjectReactionRule {
     std::string feedback_key;
     std::string feedback_text;
     std::string knowledge_effect_key;
+    std::string execution_effect_key;
     std::vector<std::string> safe_tags;
 
     pathfinder::foundation::Result<void> validateBasic() const;

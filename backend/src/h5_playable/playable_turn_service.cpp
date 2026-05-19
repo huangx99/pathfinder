@@ -58,10 +58,12 @@ pathfinder::story::StoryEvaluationContext buildStoryContext(
         if (!claim.predicate.effect_key.empty()) context.recipient_knowledge_effect_keys.push_back(claim.predicate.effect_key);
     }
     context.available_object_keys = session_state.visible_object_keys;
+    for (const auto& [object_key, runtime] : session_state.object_runtime_states) {
+        auto quantity = runtime.numeric_states.find("quantity");
+        if (quantity != runtime.numeric_states.end() && quantity->second > 0.0) addUnique(context.available_object_keys, object_key);
+    }
     context.completed_action_keys = session_state.completed_action_keys;
     context.teach_action_happened = dialog_response.decision == pathfinder::h5_dialog::DialogTurnDecision::TeachingRan || dialog_response.reply_text.find("同伴听取") != std::string::npos;
-    if (dialog_response.reply_text.find("火把") != std::string::npos) context.available_object_keys.push_back("torch");
-    if (dialog_response.reply_text.find("火") != std::string::npos) context.available_object_keys.push_back("camp_fire");
     return context;
 }
 

@@ -1,6 +1,7 @@
 #include "pathfinder/agent_reasoning/effect_semantics.h"
 #include "pathfinder/foundation/error.h"
 #include <algorithm>
+#include <set>
 
 namespace pathfinder::agent_reasoning {
 
@@ -55,6 +56,8 @@ std::vector<EffectSemantics> builtInEffectSemantics() {
         semantics("no_visible_effect", "无明显效果", EffectSemanticKind::ConditionDelta, "self", {}, {delta("none", "none", 0.0, "none")}, 10.0, 1, KnowledgeStatus::Candidate),
         semantics("cut_wood", "处理木头", EffectSemanticKind::ObjectQuantityDelta, "object", {AgentGoalKind::AcquireObject}, {delta("object", "wood_processed", 1.0, "exists")}, 10.0, 2),
         semantics("restore_sharpness", "打磨斧头", EffectSemanticKind::ObjectStateDelta, "object", {AgentGoalKind::RestoreToolState}, {delta("object_state", "axe.sharpness", 3.0, "higher")}, 0.0, 1),
+        semantics("tool_dull", "工具变钝", EffectSemanticKind::ObjectStateDelta, "object", {AgentGoalKind::RestoreToolState}, {delta("object_state", "axe.sharpness", 0.0, "higher", "set")}, 20.0, 1, KnowledgeStatus::Candidate),
+        semantics("use_hint", "摸索用途", EffectSemanticKind::ConditionDelta, "object", {AgentGoalKind::AcquireObject}, {delta("none", "none", 0.0, "none")}, 5.0, 1, KnowledgeStatus::Candidate),
         semantics("ignite_fire", "点燃火堆", EffectSemanticKind::ObjectQuantityDelta, "location", {AgentGoalKind::ReduceCold, AgentGoalKind::IncreaseWarmth, AgentGoalKind::MaintainFire}, {delta("object", "camp_fire", 1.0, "exists"), delta("group", "warmth", 30.0, "higher")}, 10.0, 1),
         semantics("make_torch", "制作火把", EffectSemanticKind::ObjectQuantityDelta, "object", {AgentGoalKind::AcquireObject, AgentGoalKind::ReduceThreat}, {delta("object", "torch", 1.0, "exists")}, 5.0, 2),
         semantics("repel_beast", "驱赶野兽", EffectSemanticKind::ThreatDelta, "target_threat", {AgentGoalKind::ReduceThreat}, {delta("threat", "beast", -100.0, "lower")}, 5.0, 1, KnowledgeStatus::Active, "threat"),
@@ -63,10 +66,27 @@ std::vector<EffectSemantics> builtInEffectSemantics() {
     };
 }
 
-Result<EffectSemantics> EffectSemanticsRegistry::findByEffectKey(const std::string& effect_key) const {
-    for (const auto& item : builtInEffectSemantics()) {
-        if (item.effect_key == effect_key) return Result<EffectSemantics>::ok(item);
+EffectSemanticsRegistry::EffectSemanticsRegistry() : EffectSemanticsRegistry(true) {}
+
+EffectSemanticsRegistry::EffectSemanticsRegistry(bool load_builtins) {
+    if (load_builtins) {
+        for (const auto& item : builtInEffectSemantics()) {
+            definitions_by_effect_key_[item.effect_key] = item;
+        }
     }
+}
+
+Result<void> EffectSemanticsRegistry::registerDefinition(const EffectSemantics& definition) {
+    auto valid = definition.validateBasic();
+    if (valid.is_error()) return valid;
+    if (definitions_by_effect_key_.find(definition.effect_key) != definitions_by_effect_key_.end()) return Result<void>::fail(makeError(ErrorCode::validation_failed, "effect semantics duplicate effect key"));
+    definitions_by_effect_key_[definition.effect_key] = definition;
+    return Result<void>::ok();
+}
+
+Result<EffectSemantics> EffectSemanticsRegistry::findByEffectKey(const std::string& effect_key) const {
+    auto it = definitions_by_effect_key_.find(effect_key);
+    if (it != definitions_by_effect_key_.end()) return Result<EffectSemantics>::ok(it->second);
     return Result<EffectSemantics>::fail(makeError(ErrorCode::knowledge_not_found, "effect semantics not found"));
 }
 
@@ -75,7 +95,7 @@ Result<std::vector<EffectSemantics>> EffectSemanticsRegistry::findByGoalKind(Age
         return Result<std::vector<EffectSemantics>>::fail(makeError(ErrorCode::validation_enum_unknown, "goal kind unknown"));
     }
     std::vector<EffectSemantics> matches;
-    for (const auto& item : builtInEffectSemantics()) {
+    for (const auto& [_, item] : definitions_by_effect_key_) {
         if (std::find(item.goal_affinities.begin(), item.goal_affinities.end(), goal_kind) != item.goal_affinities.end()) {
             matches.push_back(item);
         }
@@ -84,15 +104,15 @@ Result<std::vector<EffectSemantics>> EffectSemanticsRegistry::findByGoalKind(Age
 }
 
 Result<void> EffectSemanticsRegistry::validateAll() const {
-    const auto table = builtInEffectSemantics();
-    for (const auto& item : table) {
+    std::set<std::string> seen;
+    for (const auto& [key, item] : definitions_by_effect_key_) {
+        if (!seen.insert(key).second) return Result<void>::fail(makeError(ErrorCode::validation_failed, "effect semantics duplicate effect key"));
         auto valid = item.validateBasic();
         if (valid.is_error()) return valid;
     }
     const std::vector<std::string> required = {"restore_hunger", "poison", "no_visible_effect", "cut_wood", "restore_sharpness", "ignite_fire", "make_torch", "repel_beast", "provide_warmth", "build_house"};
     for (const auto& key : required) {
-        const auto found = std::find_if(table.begin(), table.end(), [&](const auto& item) { return item.effect_key == key; });
-        if (found == table.end()) return Result<void>::fail(makeError(ErrorCode::validation_failed, "required effect semantics missing"));
+        if (definitions_by_effect_key_.find(key) == definitions_by_effect_key_.end()) return Result<void>::fail(makeError(ErrorCode::validation_failed, "required effect semantics missing"));
     }
     return Result<void>::ok();
 }
