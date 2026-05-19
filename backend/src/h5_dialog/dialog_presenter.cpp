@@ -33,8 +33,12 @@ std::string effectDescription(const std::string& effect_key) {
     if (effect_key == "poison") return "你感到不适，健康状况变差了。";
     if (effect_key == "no_visible_effect") return "似乎没有什么明显的效果。";
     if (effect_key == "use_hint") return "你感觉到这个工具有某种用途。";
+    if (effect_key == "cut_wood") return "斧刃切入木头，木头被砍开了。";
+    if (effect_key == "tool_dull") return "斧刃已经变钝，砍木头不再有效。";
+    if (effect_key == "restore_sharpness") return "你打磨了工具，斧刃重新锋利起来。";
     return "你感知到了一些变化。";
 }
+
 
 std::vector<DialogQuickActionDto> defaultQuickActions() {
     std::vector<DialogQuickActionDto> actions;
@@ -47,6 +51,9 @@ std::vector<DialogQuickActionDto> defaultQuickActions() {
     };
     add("观察", "观察", DialogIntentKind::Observe);
     add("吃红果", "吃红果", DialogIntentKind::TryEat);
+    add("等待一会", "等待一会", DialogIntentKind::Wait);
+    add("使用斧头", "使用斧头", DialogIntentKind::TryUse);
+    add("使用磨石", "使用磨石", DialogIntentKind::TryUse);
     add("教同伴", "教同伴", DialogIntentKind::TeachRecipient);
     add("查看知识", "查看知识", DialogIntentKind::InspectActorKnowledge);
     add("查看同伴", "查看同伴", DialogIntentKind::InspectRecipientKnowledge);
@@ -88,11 +95,27 @@ std::string conditionDisplaySuffix(const pathfinder::knowledge::KnowledgeClaim& 
 
 std::string objectChineseName(const pathfinder::knowledge::KnowledgeClaim& claim) {
     if (claim.subject.subject_id == "red_berry" && hasCanonicalCondition(claim, "condition:object_state:eq:decayed")) return "腐烂红果";
+    if (claim.subject.subject_id == "red_berry" && hasCanonicalCondition(claim, "condition:object_state:eq:fresh")) return "红果";
     if (claim.subject.subject_id == "red_berry") return "红果";
     if (claim.subject.subject_id == "decayed_red_berry") return "腐烂红果";
     if (claim.subject.subject_id == "bitter_leaf") return "苦叶";
     if (claim.subject.subject_id == "stone_flake") return "石片";
+    if (claim.subject.subject_id == "axe") return "斧头";
+    if (claim.subject.subject_id == "wood") return "木头";
+    if (claim.subject.subject_id == "whetstone") return "磨石";
     return claim.subject.subject_id;
+}
+
+
+std::string relatedSubjectChineseName(const std::string& subject_id) {
+    if (subject_id == "wood") return "木头";
+    if (subject_id == "axe") return "斧头";
+    if (subject_id == "whetstone") return "磨石";
+    if (subject_id == "red_berry") return "红果";
+    if (subject_id == "decayed_red_berry") return "腐烂红果";
+    if (subject_id == "bitter_leaf") return "苦叶";
+    if (subject_id == "stone_flake") return "石片";
+    return subject_id;
 }
 
 std::string actionChineseName(const std::string& action_key) {
@@ -100,6 +123,7 @@ std::string actionChineseName(const std::string& action_key) {
     if (action_key == "use") return "使用";
     if (action_key == "observe") return "观察";
     if (action_key == "teach") return "传授";
+    if (action_key == "wait") return "等待";
     return action_key;
 }
 
@@ -108,6 +132,9 @@ std::string effectChineseName(const std::string& effect_key) {
     if (effect_key == "poison") return "会让身体不适或中毒";
     if (effect_key == "no_visible_effect") return "暂时没有明显效果";
     if (effect_key == "use_hint") return "可能有工具用途";
+    if (effect_key == "cut_wood") return "可以砍开木头";
+    if (effect_key == "tool_dull") return "工具已经变钝";
+    if (effect_key == "restore_sharpness") return "可以恢复工具锋利度";
     return effect_key;
 }
 
@@ -129,7 +156,13 @@ std::string statusChineseName(pathfinder::knowledge::KnowledgeStatus status) {
 
 std::string knowledgeChineseNote(const pathfinder::knowledge::KnowledgeClaim& claim) {
     std::string note = objectChineseName(claim);
-    note += "：" + actionChineseName(claim.predicate.action_key);
+    note += "：";
+    if (!claim.subject.related_subject_ids.empty()) {
+        note += "对" + relatedSubjectChineseName(claim.subject.related_subject_ids.front());
+    }
+    note += actionChineseName(claim.predicate.action_key);
+    if (hasCanonicalCondition(claim, "condition:object_state:eq:fresh")) note += "（新鲜状态）";
+    if (hasCanonicalCondition(claim, "condition:object_state:eq:decayed")) note += "（腐烂状态）";
     note += "后" + effectChineseName(claim.predicate.effect_key);
     note += "；" + statusChineseName(claim.status);
     return note;
@@ -138,6 +171,9 @@ std::string knowledgeChineseNote(const pathfinder::knowledge::KnowledgeClaim& cl
 std::string knowledgeSummaryLine(const pathfinder::knowledge::KnowledgeClaim& claim) {
     std::string line = claim.subject.subject_id + conditionDisplaySuffix(claim);
     line += " + " + claim.predicate.action_key;
+    if (!claim.subject.related_subject_ids.empty()) {
+        line += " @ " + claim.subject.related_subject_ids.front();
+    }
     line += " -> " + claim.predicate.effect_key;
     line += " [" + toString(claim.status) + "]";
     line += "（" + knowledgeChineseNote(claim) + "）";
@@ -206,7 +242,8 @@ Result<DialogResponseDto> DialogPresenter::buildLearningResponse(
     const DialogSessionState& state,
     const DialogIntent& intent,
     const LearningLoopResult& result,
-    const LearningDebugReport& report) const {
+    const LearningDebugReport&,
+    const std::string& observed_effect_key) const {
 
     DialogResponseDto resp;
     resp.session_id = state.session_id;
@@ -238,11 +275,8 @@ Result<DialogResponseDto> DialogPresenter::buildLearningResponse(
     oss << "\n";
 
     // 2. 感知反馈
-    if (intent.kind != DialogIntentKind::TeachRecipient) {
-        auto fb_r = catalog.findFeedback(scenario, intent.object_key, intent.action);
-        if (fb_r.is_ok()) {
-            oss << effectDescription(fb_r.value().effect_key) << "\n";
-        }
+    if (intent.kind != DialogIntentKind::TeachRecipient && !observed_effect_key.empty()) {
+        oss << effectDescription(observed_effect_key) << "\n";
     }
 
     // 3. 学习过程

@@ -83,6 +83,7 @@ std::string toString(ProtocolPayloadType type) {
         case ProtocolPayloadType::AgentHistoryProjection: return "agent_history_projection";
         case ProtocolPayloadType::AgentReplayLockProjection: return "agent_replay_lock_projection";
         case ProtocolPayloadType::AgentTrainingSampleProjection: return "agent_training_sample_projection";
+        case ProtocolPayloadType::H5GameProjection: return "h5_game_projection";
     }
     return "unknown";
 }
@@ -96,6 +97,7 @@ pathfinder::foundation::Result<ProtocolPayloadType> protocolPayloadTypeFromStrin
     if (str == "agent_history_projection") return pathfinder::foundation::Result<ProtocolPayloadType>::ok(ProtocolPayloadType::AgentHistoryProjection);
     if (str == "agent_replay_lock_projection") return pathfinder::foundation::Result<ProtocolPayloadType>::ok(ProtocolPayloadType::AgentReplayLockProjection);
     if (str == "agent_training_sample_projection") return pathfinder::foundation::Result<ProtocolPayloadType>::ok(ProtocolPayloadType::AgentTrainingSampleProjection);
+    if (str == "h5_game_projection") return pathfinder::foundation::Result<ProtocolPayloadType>::ok(ProtocolPayloadType::H5GameProjection);
     return pathfinder::foundation::Result<ProtocolPayloadType>::fail(
         pathfinder::foundation::makeError(
             pathfinder::foundation::ErrorCode::validation_enum_unknown,

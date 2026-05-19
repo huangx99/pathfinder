@@ -1,0 +1,426 @@
+#include "pathfinder/h5_playable/playable_projection_mapper.h"
+#include "pathfinder/condition/condition_summary.h"
+#include "pathfinder/h5_dialog/dialog_scenario.h"
+#include <algorithm>
+#include <sstream>
+#include <vector>
+
+namespace pathfinder::h5_playable {
+
+using pathfinder::foundation::ErrorCode;
+using pathfinder::foundation::makeError;
+using pathfinder::foundation::Result;
+using namespace pathfinder::h5_projection;
+
+namespace {
+
+SafeTextProjection text(const std::string& key, SafeTextKind kind, const std::string& zh_cn) {
+    return makeSafeText(key, kind, zh_cn);
+}
+
+bool hasCanonicalCondition(const pathfinder::knowledge::KnowledgeClaim& claim, const std::string& canonical_condition_key) {
+    for (const auto& condition : claim.conditions) {
+        auto canonical = pathfinder::knowledge::canonicalKnowledgeConditionKey(condition);
+        if (canonical.is_ok() && canonical.value() == canonical_condition_key) return true;
+    }
+    return false;
+}
+
+std::string objectNameFromKey(const std::string& key) {
+    if (key == "red_berry") return "红果";
+    if (key == "decayed_red_berry") return "腐烂红果";
+    if (key == "bitter_leaf") return "苦叶";
+    if (key == "stone_flake") return "石片";
+    if (key == "axe") return "斧头";
+    if (key == "wood") return "木头";
+    if (key == "whetstone") return "磨石";
+    if (key == "companion") return "同伴";
+    if (key == "pioneer") return "先驱者";
+    return key;
+}
+
+std::string objectNameFromClaim(const pathfinder::knowledge::KnowledgeClaim& claim) {
+    if (claim.subject.subject_id == "red_berry" && hasCanonicalCondition(claim, "condition:object_state:eq:decayed")) return "腐烂红果";
+    return objectNameFromKey(claim.subject.subject_id);
+}
+
+
+std::string targetNameFromClaim(const pathfinder::knowledge::KnowledgeClaim& claim) {
+    if (claim.subject.related_subject_ids.empty()) return "";
+    return objectNameFromKey(claim.subject.related_subject_ids.front());
+}
+
+std::string actionName(const std::string& action_key) {
+    if (action_key == "eat") return "吃";
+    if (action_key == "use") return "使用";
+    if (action_key == "observe") return "观察";
+    if (action_key == "teach") return "传授";
+    if (action_key == "wait") return "等待";
+    return action_key;
+}
+
+std::string effectName(const std::string& effect_key) {
+    if (effect_key == "restore_hunger") return "可以缓解饥饿";
+    if (effect_key == "poison") return "会让身体不适或中毒";
+    if (effect_key == "no_visible_effect") return "暂时没有明显效果";
+    if (effect_key == "use_hint") return "可能有工具用途";
+    if (effect_key == "cut_wood") return "可以砍开木头";
+    if (effect_key == "tool_dull") return "工具已经变钝";
+    if (effect_key == "restore_sharpness") return "可以恢复工具锋利度";
+    return effect_key;
+}
+
+std::string joinDisplayNames(const std::vector<pathfinder::h5_dialog::DialogScenarioObject>& objects) {
+    std::vector<std::string> names;
+    for (const auto& object : objects) {
+        if (object.visibility == pathfinder::h5_dialog::DialogObjectVisibility::Visible ||
+            object.visibility == pathfinder::h5_dialog::DialogObjectVisibility::Mentioned) {
+            names.push_back(object.display_name);
+        }
+    }
+    std::string joined;
+    for (size_t i = 0; i < names.size(); ++i) {
+        if (i > 0) joined += "、";
+        joined += names[i];
+    }
+    return joined;
+}
+
+std::string objectSystemHint(const pathfinder::h5_dialog::DialogScenario& scenario) {
+    size_t object_count = 0;
+    size_t action_count = 0;
+    for (const auto& object : scenario.objects) {
+        if (object.visibility != pathfinder::h5_dialog::DialogObjectVisibility::Visible &&
+            object.visibility != pathfinder::h5_dialog::DialogObjectVisibility::Mentioned) {
+            continue;
+        }
+        object_count += 1;
+        action_count += object.allowed_actions.size();
+    }
+    return "这个区域现在有 " + std::to_string(object_count) +
+           " 个可尝试对象、" + std::to_string(action_count) +
+           " 种直接行动。你会把每次尝试记成经验：它当时是什么状态、你做了什么、后来发生了什么。以后遇到草药、蘑菇、工具，也会用同样方式学习。";
+}
+
+bool claimHasReason(const pathfinder::knowledge::KnowledgeClaim& claim, const std::string& reason_key) {
+    return std::find(claim.reason_keys.begin(), claim.reason_keys.end(), reason_key) != claim.reason_keys.end();
+}
+
+std::string causalReasonText(const pathfinder::knowledge::KnowledgeClaim& claim) {
+    if (claimHasReason(claim, "causal_ambiguous_dose_window")) {
+        return "还不能下结论：你刚刚连续尝试过相似东西，结果可能来自其中某一次，也可能来自连续尝试。等一会儿，再单独试一次会更清楚。";
+    }
+    if (claimHasReason(claim, "causal_confirmation_capped_by_alternative_explanation")) {
+        return "还不能下结论：还有别的可能原因没排除，先把它当成经验记录。";
+    }
+    if (hasCanonicalCondition(claim, "condition:object_state:eq:fresh")) {
+        return "这条经验只适用于当前状态；状态变了，结果可能也会变。";
+    }
+    if (hasCanonicalCondition(claim, "condition:object_state:eq:decayed")) {
+        return "这条经验只适用于当前状态；不要直接套用到其他状态。";
+    }
+    return "";
+}
+
+std::string statusName(pathfinder::knowledge::KnowledgeStatus status) {
+    switch (status) {
+        case pathfinder::knowledge::KnowledgeStatus::Candidate: return "候选判断";
+        case pathfinder::knowledge::KnowledgeStatus::Hypothesis: return "经验假设";
+        case pathfinder::knowledge::KnowledgeStatus::Active: return "已确认";
+        case pathfinder::knowledge::KnowledgeStatus::Teachable: return "可传授";
+        case pathfinder::knowledge::KnowledgeStatus::Shared: return "已分享";
+        case pathfinder::knowledge::KnowledgeStatus::Operational: return "可用于行动";
+        case pathfinder::knowledge::KnowledgeStatus::Deprecated: return "旧知识";
+        case pathfinder::knowledge::KnowledgeStatus::Disproven: return "已否定";
+        case pathfinder::knowledge::KnowledgeStatus::Unknown: return "未知";
+        case pathfinder::knowledge::KnowledgeStatus::TestOnly: return "测试";
+    }
+    return "未知";
+}
+
+bool shouldShowClaim(const pathfinder::knowledge::KnowledgeClaim& claim) {
+    return claim.status != pathfinder::knowledge::KnowledgeStatus::Deprecated &&
+           claim.status != pathfinder::knowledge::KnowledgeStatus::Disproven &&
+           claim.status != pathfinder::knowledge::KnowledgeStatus::Unknown &&
+           claim.status != pathfinder::knowledge::KnowledgeStatus::TestOnly;
+}
+
+ActionAffordanceKind affordanceFromAction(pathfinder::h5_dialog::DialogActionKind action) {
+    if (action == pathfinder::h5_dialog::DialogActionKind::Eat) return ActionAffordanceKind::TryEat;
+    if (action == pathfinder::h5_dialog::DialogActionKind::Use) return ActionAffordanceKind::TryUse;
+    if (action == pathfinder::h5_dialog::DialogActionKind::Inspect) return ActionAffordanceKind::Inspect;
+    if (action == pathfinder::h5_dialog::DialogActionKind::Teach) return ActionAffordanceKind::Teach;
+    return ActionAffordanceKind::Inspect;
+}
+
+std::string inputForObjectAction(const pathfinder::h5_dialog::DialogScenarioObject& object, pathfinder::h5_dialog::DialogActionKind action) {
+    const auto name = object.display_name;
+    if (action == pathfinder::h5_dialog::DialogActionKind::Eat) return "吃" + name;
+    if (action == pathfinder::h5_dialog::DialogActionKind::Use) return "使用" + name;
+    if (action == pathfinder::h5_dialog::DialogActionKind::Inspect) return "观察" + name;
+    return "观察";
+}
+
+SafeTextKind actionTextKind(pathfinder::h5_dialog::DialogActionKind action) {
+    if (action == pathfinder::h5_dialog::DialogActionKind::Eat || action == pathfinder::h5_dialog::DialogActionKind::Use) return SafeTextKind::Feedback;
+    return SafeTextKind::Hint;
+}
+
+ActionProjection objectAction(const pathfinder::h5_dialog::DialogScenarioObject& object, pathfinder::h5_dialog::DialogActionKind action) {
+    ActionProjection projection;
+    projection.affordance = affordanceFromAction(action);
+    projection.action_key = "playable.action." + pathfinder::h5_dialog::toString(action) + "." + object.object_key;
+    projection.label = text(projection.action_key + ".label", actionTextKind(action), inputForObjectAction(object, action));
+    projection.input_text = inputForObjectAction(object, action);
+    projection.enabled = true;
+    projection.command_preview_key = "command." + pathfinder::h5_dialog::toString(action);
+    projection.target_object_refs.push_back(object.object_key);
+    return projection;
+}
+
+ActionProjection globalAction(const std::string& key, ActionAffordanceKind affordance, const std::string& label, const std::string& input) {
+    ActionProjection projection;
+    projection.action_key = key;
+    projection.affordance = affordance;
+    projection.label = text(key + ".label", SafeTextKind::Feedback, label);
+    projection.input_text = input;
+    projection.enabled = true;
+    projection.command_preview_key = "command." + key;
+    return projection;
+}
+
+std::string targetedActionInputText(const pathfinder::h5_dialog::DialogScenarioObject& source,
+                                  const pathfinder::h5_dialog::DialogScenarioObject& target,
+                                  const pathfinder::h5_dialog::DialogFeedbackTemplate& feedback) {
+    if (feedback.effect_key == "cut_wood") return "用" + source.display_name + "砍" + target.display_name;
+    if (feedback.effect_key == "restore_sharpness") return "用" + source.display_name + "打磨" + target.display_name;
+    if (feedback.action == pathfinder::h5_dialog::DialogActionKind::Use) return "用" + source.display_name + "作用于" + target.display_name;
+    return actionName(pathfinder::h5_dialog::toString(feedback.action)) + source.display_name + "到" + target.display_name;
+}
+
+const pathfinder::h5_dialog::DialogScenarioObject* findObjectByKey(
+    const pathfinder::h5_dialog::DialogScenario& scenario,
+    const std::string& object_key) {
+    for (const auto& object : scenario.objects) {
+        if (object.object_key == object_key) return &object;
+    }
+    return nullptr;
+}
+
+ActionProjection targetedActionFromFeedback(const pathfinder::h5_dialog::DialogScenario& scenario,
+                                            const pathfinder::h5_dialog::DialogFeedbackTemplate& feedback) {
+    const auto* source = findObjectByKey(scenario, feedback.object_key);
+    const auto* target = findObjectByKey(scenario, feedback.target_object_key);
+    const auto input = source && target ? targetedActionInputText(*source, *target, feedback) : feedback.feedback_key;
+    auto projection = globalAction("playable.action.targeted." + feedback.feedback_key, ActionAffordanceKind::TryUse, input, input);
+    projection.target_object_refs = {feedback.object_key, feedback.target_object_key};
+    return projection;
+}
+
+std::vector<ActionProjection> targetedActions(const pathfinder::h5_dialog::DialogScenario& scenario) {
+    std::vector<ActionProjection> actions;
+    std::vector<std::string> seen;
+    for (const auto& feedback : scenario.feedbacks) {
+        if (feedback.target_object_key.empty()) continue;
+        const auto key = feedback.object_key + "|" + feedback.target_object_key + "|" + pathfinder::h5_dialog::toString(feedback.action);
+        if (std::find(seen.begin(), seen.end(), key) != seen.end()) continue;
+        seen.push_back(key);
+        actions.push_back(targetedActionFromFeedback(scenario, feedback));
+    }
+    return actions;
+}
+
+std::vector<ActionProjection> globalActions() {
+    return {
+        globalAction("playable.action.observe", ActionAffordanceKind::Inspect, "观察", "观察"),
+        globalAction("playable.action.wait", ActionAffordanceKind::Inspect, "等待一会", "等待一会"),
+        globalAction("playable.action.teach_companion", ActionAffordanceKind::Teach, "教同伴", "教同伴"),
+        globalAction("playable.action.inspect_actor_knowledge", ActionAffordanceKind::Inspect, "查看知识", "查看知识"),
+        globalAction("playable.action.inspect_recipient_knowledge", ActionAffordanceKind::Inspect, "查看同伴", "查看同伴"),
+        globalAction("playable.action.restart", ActionAffordanceKind::Inspect, "重开", "重开")
+    };
+}
+
+StatusBadgeProjection badge(const std::string& key, const std::string& label, const std::string& tone, int priority) {
+    StatusBadgeProjection projection;
+    projection.badge_key = key;
+    projection.label = text(key + ".label", SafeTextKind::Hint, label);
+    projection.tone_key = tone;
+    projection.priority = priority;
+    return projection;
+}
+
+std::vector<StatusBadgeProjection> badgesForObject(const std::string& object_key, const std::vector<pathfinder::knowledge::KnowledgeClaim>& claims) {
+    std::vector<StatusBadgeProjection> badges;
+    for (const auto& claim : claims) {
+        if (!shouldShowClaim(claim)) continue;
+        const bool is_decayed_claim = claim.subject.subject_id == "red_berry" && hasCanonicalCondition(claim, "condition:object_state:eq:decayed");
+        const bool matches = claim.subject.subject_id == object_key ||
+            (object_key == "decayed_red_berry" && is_decayed_claim);
+        if (!matches) continue;
+        badges.push_back(badge("knowledge.badge." + object_key + "." + claim.predicate.effect_key, statusName(claim.status), "knowledge", 10));
+        break;
+    }
+    return badges;
+}
+
+ObjectCardProjection objectCard(const pathfinder::h5_dialog::DialogScenarioObject& object, const std::vector<pathfinder::knowledge::KnowledgeClaim>& claims) {
+    ObjectCardProjection card;
+    card.object_ref_key = object.object_key;
+    card.display_name = text("object." + object.object_key + ".name", SafeTextKind::DisplayName, object.display_name);
+    card.description = text("object." + object.object_key + ".description", SafeTextKind::Description, object.player_description);
+    card.visibility_key = pathfinder::h5_dialog::toString(object.visibility);
+    card.safe_tags = object.safe_tags;
+    card.knowledge_badges = badgesForObject(object.object_key, claims);
+    for (auto action : object.allowed_actions) {
+        card.actions.push_back(objectAction(object, action));
+    }
+    return card;
+}
+
+KnowledgeLineProjection knowledgeLine(const pathfinder::knowledge::KnowledgeClaim& claim, const std::string& owner_key, const std::string& owner_label) {
+    KnowledgeLineProjection line;
+    line.knowledge_id = claim.knowledge_id.empty() ?
+        "knowledge." + owner_key + "." + claim.subject.subject_id + "." + claim.predicate.action_key + "." + claim.predicate.effect_key :
+        claim.knowledge_id.value();
+    line.owner_label = text("knowledge.owner." + owner_key, SafeTextKind::DisplayName, owner_label);
+    line.subject_label = text("knowledge.subject." + claim.subject.subject_id, SafeTextKind::DisplayName, objectNameFromClaim(claim));
+    std::string predicate_label = actionName(claim.predicate.action_key);
+    const auto target_name = targetNameFromClaim(claim);
+    if (!target_name.empty()) predicate_label = "对" + target_name + predicate_label;
+    line.predicate_label = text("knowledge.predicate." + claim.predicate.action_key, SafeTextKind::DisplayName, predicate_label);
+    line.effect_summary = text("knowledge.effect." + claim.predicate.effect_key, SafeTextKind::Description, effectName(claim.predicate.effect_key));
+    line.status_key = pathfinder::knowledge::toString(claim.status);
+    auto confidence_text = statusName(claim.status);
+    const auto causal_text = causalReasonText(claim);
+    if (!causal_text.empty()) {
+        confidence_text += "；" + causal_text;
+    }
+    line.confidence_label = text("knowledge.confidence." + line.status_key, SafeTextKind::Hint, confidence_text);
+    line.reason_keys = claim.reason_keys;
+    line.teachable = claim.teaching_profile.teachable || claim.status == pathfinder::knowledge::KnowledgeStatus::Active || claim.status == pathfinder::knowledge::KnowledgeStatus::Teachable;
+    return line;
+}
+
+std::vector<KnowledgeLineProjection> knowledgeLines(const std::vector<pathfinder::knowledge::KnowledgeClaim>& claims, const std::string& owner_key, const std::string& owner_label) {
+    std::vector<KnowledgeLineProjection> lines;
+    for (const auto& claim : claims) {
+        if (shouldShowClaim(claim)) lines.push_back(knowledgeLine(claim, owner_key, owner_label));
+    }
+    return lines;
+}
+
+bool containsPoisonKnowledge(const std::vector<pathfinder::knowledge::KnowledgeClaim>& claims) {
+    for (const auto& claim : claims) {
+        if (shouldShowClaim(claim) && claim.predicate.effect_key == "poison") return true;
+    }
+    return false;
+}
+
+std::vector<DangerHintProjection> dangerHints(const std::vector<pathfinder::knowledge::KnowledgeClaim>& claims) {
+    std::vector<DangerHintProjection> hints;
+    if (!containsPoisonKnowledge(claims)) return hints;
+    DangerHintProjection hint;
+    hint.danger_key = "danger.known_bad_food";
+    hint.severity_label = text("danger.severity.warning", SafeTextKind::Warning, "需要谨慎");
+    hint.hint_text = text("danger.known_bad_food.hint", SafeTextKind::Warning, "你已经有经验表明，某些相似食物可能会让身体不适。");
+    hint.countermeasure_labels.push_back(text("danger.countermeasure.observe_first", SafeTextKind::Hint, "再次尝试前，先观察或回忆已有知识。"));
+    hint.related_object_refs.push_back("decayed_red_berry");
+    hints.push_back(std::move(hint));
+    return hints;
+}
+
+std::vector<ConditionSummaryProjection> conditionHints(const std::vector<pathfinder::knowledge::KnowledgeClaim>& claims) {
+    std::vector<ConditionSummaryProjection> hints;
+    pathfinder::condition::ConditionSummaryBuilder builder;
+    for (const auto& claim : claims) {
+        if (!shouldShowClaim(claim)) continue;
+        for (const auto& condition : claim.conditions) {
+            auto canonical = pathfinder::knowledge::canonicalKnowledgeConditionKey(condition);
+            if (canonical.is_error()) continue;
+            auto summary = builder.summarizeCanonicalKey(canonical.value());
+            ConditionSummaryProjection hint;
+            hint.condition_key = canonical.value();
+            hint.summary_text = text("condition.summary." + canonical.value(), SafeTextKind::Hint, summary.is_ok() ? summary.value().safe_summary_text : "这条知识只在特定情况下成立。");
+            hint.satisfied_hint = std::nullopt;
+            hint.blocking = false;
+            hints.push_back(std::move(hint));
+        }
+    }
+    return hints;
+}
+
+std::string firstSafeReplyLine(const std::string& reply) {
+    std::istringstream stream(reply);
+    std::string line;
+    std::vector<std::string> lines;
+    while (std::getline(stream, line)) {
+        if (line.find("你现在知道：") != std::string::npos) break;
+        if (line.find("同伴现在知道：") != std::string::npos) break;
+        if (line.rfind("- ", 0) == 0) continue;
+        if (line.find(" -> ") != std::string::npos) continue;
+        if (!line.empty()) lines.push_back(line);
+    }
+    if (lines.empty()) return "知识已更新，请查看知识面板。";
+    std::string out;
+    for (size_t i = 0; i < lines.size(); ++i) {
+        if (i > 0) out += "\n";
+        out += lines[i];
+    }
+    return out;
+}
+
+} // namespace
+
+std::string playableSafeReplyText(const pathfinder::h5_dialog::DialogResponseDto& dialog_response) {
+    return firstSafeReplyLine(dialog_response.reply_text);
+}
+
+Result<H5ProjectionSourceBundle> H5PlayableProjectionMapper::buildSourceBundle(
+    const pathfinder::h5_dialog::DialogResponseDto& dialog_response,
+    const pathfinder::h5_dialog::DialogSessionState& session_state) const {
+    pathfinder::h5_dialog::DialogScenarioCatalog catalog;
+    auto scenario_result = catalog.defaultScenario();
+    if (scenario_result.is_error()) return Result<H5ProjectionSourceBundle>::fail(scenario_result.errors());
+    const auto scenario = scenario_result.value();
+
+    H5ProjectionSourceBundle bundle;
+    bundle.scene_title = text("scene.p22_minimal.title", SafeTextKind::DisplayName, "林地边缘");
+    bundle.scene_summary.push_back(text("scene.p22_minimal.welcome", SafeTextKind::Description, scenario.welcome_text));
+    for (const auto& line : dialog_response.state_summary_lines) {
+        bundle.scene_summary.push_back(text("scene.summary.line", SafeTextKind::Feedback, line));
+    }
+    const auto visible_names = joinDisplayNames(scenario.objects);
+    if (!visible_names.empty()) {
+        bundle.scene_summary.push_back(text("scene.visible_objects", SafeTextKind::Hint, "你能看见：" + visible_names + "。"));
+    }
+    bundle.scene_summary.push_back(text("scene.config_driven_objects", SafeTextKind::Hint, objectSystemHint(scenario)));
+
+    for (const auto& object : scenario.objects) {
+        if (object.visibility == pathfinder::h5_dialog::DialogObjectVisibility::Visible ||
+            object.visibility == pathfinder::h5_dialog::DialogObjectVisibility::Mentioned) {
+            bundle.object_cards.push_back(objectCard(object, session_state.actor_claims));
+        }
+    }
+
+    bundle.action_bar = globalActions();
+    const auto target_actions = targetedActions(scenario);
+    bundle.action_bar.insert(bundle.action_bar.begin() + 1, target_actions.begin(), target_actions.end());
+    bundle.actor_knowledge = knowledgeLines(session_state.actor_claims, "actor", "你");
+    bundle.recipient_knowledge = knowledgeLines(session_state.recipient_claims, "recipient", "同伴");
+    bundle.condition_hints = conditionHints(session_state.actor_claims);
+    bundle.danger_hints = dangerHints(session_state.actor_claims);
+
+    TribeStatusProjection tribe;
+    tribe.tribe_ref_key = "tribe.initial_pair";
+    tribe.trust_label = text("tribe.trust.companion", SafeTextKind::Hint, "同伴愿意听你讲述经验。");
+    tribe.coordination_label = text("tribe.coordination.learning", SafeTextKind::Hint, "你们还处在最早的共同探索阶段。");
+    bundle.tribe_status = tribe;
+
+    bundle.warning_keys = dialog_response.warning_keys;
+    auto result = bundle.validateBasic();
+    if (result.is_error()) return Result<H5ProjectionSourceBundle>::fail(result.errors());
+    return Result<H5ProjectionSourceBundle>::ok(std::move(bundle));
+}
+
+} // namespace pathfinder::h5_playable

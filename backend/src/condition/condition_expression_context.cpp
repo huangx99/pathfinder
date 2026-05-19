@@ -16,6 +16,21 @@ static Result<void> validateRatio(double value, const std::string& field) {
     return Result<void>::ok();
 }
 
+static Result<void> validateNumericFields(const std::map<std::string, double>& fields, const std::string& owner) {
+    for (const auto& [key, value] : fields) {
+        if (key.empty()) {
+            return Result<void>::fail(makeError(ErrorCode::validation_failed, owner + " numeric field key empty"));
+        }
+        if (containsConditionForbiddenKey(key)) {
+            return Result<void>::fail(makeError(ErrorCode::validation_failed, owner + " numeric field key forbidden"));
+        }
+        if (!std::isfinite(value)) {
+            return Result<void>::fail(makeError(ErrorCode::validation_value_out_of_range, owner + " numeric field value must be finite"));
+        }
+    }
+    return Result<void>::ok();
+}
+
 Result<void> ConditionEvaluationContext::validateBasic() const {
     if (context_type.empty()) return Result<void>::fail(makeError(ErrorCode::validation_failed, "ConditionEvaluationContext context_type empty"));
     if (containsConditionForbiddenKey(context_type) || containsConditionForbiddenKey(safe_context_keys)) {
@@ -45,8 +60,19 @@ Result<void> ConditionEvaluationContext::validateBasic() const {
         auto trust_result = validateRatio(tribe->trust, "TribeConditionView trust");
         if (trust_result.is_error()) return trust_result;
     }
-    if (civilization && containsConditionForbiddenKey(civilization->capability_keys)) {
-        return Result<void>::fail(makeError(ErrorCode::validation_failed, "CivilizationConditionView contains forbidden key"));
+    if (civilization) {
+        if (containsConditionForbiddenKey(civilization->capability_keys)) {
+            return Result<void>::fail(makeError(ErrorCode::validation_failed, "CivilizationConditionView contains forbidden key"));
+        }
+        auto numeric_result = validateNumericFields(civilization->numeric_fields, "CivilizationConditionView");
+        if (numeric_result.is_error()) return numeric_result;
+    }
+    if (conflict) {
+        if (containsConditionForbiddenKey(conflict->summary_keys)) {
+            return Result<void>::fail(makeError(ErrorCode::validation_failed, "ConflictConditionView contains forbidden key"));
+        }
+        auto numeric_result = validateNumericFields(conflict->numeric_fields, "ConflictConditionView");
+        if (numeric_result.is_error()) return numeric_result;
     }
     return Result<void>::ok();
 }

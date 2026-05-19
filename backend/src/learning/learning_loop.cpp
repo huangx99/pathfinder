@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <sstream>
+#include <string>
 
 namespace pathfinder::learning {
 
@@ -169,13 +170,61 @@ static bool sameConditionKeys(const std::vector<KnowledgeCondition>& a,
 
 static bool shouldReviseForConditionScope(const std::vector<KnowledgeCondition>& existing_conditions,
                                           const std::vector<KnowledgeCondition>& incoming_conditions) {
-    if (sameConditionKeys(existing_conditions, incoming_conditions)) {
-        return true;
+    return sameConditionKeys(existing_conditions, incoming_conditions);
+}
+
+static bool sameKnowledgeLearningScope(const KnowledgeClaim& left, const KnowledgeClaim& right) {
+    return left.owner == right.owner &&
+           left.subject.subject_id == right.subject.subject_id &&
+           left.subject.kind == right.subject.kind &&
+           left.subject.related_subject_ids == right.subject.related_subject_ids &&
+           left.subject.relation_group_key == right.subject.relation_group_key &&
+           left.predicate.relation_type == right.predicate.relation_type &&
+           left.predicate.action_key == right.predicate.action_key &&
+           left.predicate.effect_key == right.predicate.effect_key &&
+           sameConditionKeys(left.conditions, right.conditions);
+}
+
+static bool hasReasonKey(const std::vector<std::string>& reason_keys, const std::string& reason_key) {
+    return std::find(reason_keys.begin(), reason_keys.end(), reason_key) != reason_keys.end();
+}
+
+static size_t accumulatedSupportForScope(const std::vector<KnowledgeClaim>& claims, const KnowledgeClaim& candidate) {
+    size_t support = 0;
+    const bool candidate_is_ambiguous = hasReasonKey(candidate.reason_keys, "causal_ambiguous_dose_window");
+    for (const auto& claim : claims) {
+        if (!sameKnowledgeLearningScope(claim, candidate)) continue;
+        if (!candidate_is_ambiguous && hasReasonKey(claim.reason_keys, "causal_ambiguous_dose_window")) continue;
+        support = std::max(support, claim.confidence.support_count);
     }
-    if (existing_conditions.empty()) {
-        return true;
+    return support;
+}
+
+static KnowledgeStatus statusFromIndependentExperienceCount(size_t experience_count) {
+    if (experience_count >= 3) return KnowledgeStatus::Active;
+    if (experience_count == 2) return KnowledgeStatus::Hypothesis;
+    return KnowledgeStatus::Candidate;
+}
+
+static void applyIndependentExperienceThreshold(KnowledgeClaim& claim, size_t previous_support_count) {
+    const size_t experience_count = std::max<size_t>(1, previous_support_count + 1);
+    claim.confidence.support_count = experience_count;
+    claim.confidence.source_summary_count = std::max(claim.confidence.source_summary_count, experience_count);
+    claim.status = statusFromIndependentExperienceCount(experience_count);
+    if (hasReasonKey(claim.reason_keys, "causal_ambiguous_dose_window") &&
+        (claim.status == KnowledgeStatus::Active ||
+         claim.status == KnowledgeStatus::Teachable ||
+         claim.status == KnowledgeStatus::Operational)) {
+        claim.status = KnowledgeStatus::Hypothesis;
+        claim.reason_keys.push_back("causal_confirmation_capped_by_alternative_explanation");
     }
-    return false;
+    claim.projection_flags.usable_for_action = claim.status == KnowledgeStatus::Active ||
+                                               claim.status == KnowledgeStatus::Teachable ||
+                                               claim.status == KnowledgeStatus::Operational;
+    claim.projection_flags.usable_for_teaching = claim.status == KnowledgeStatus::Teachable ||
+                                                 claim.status == KnowledgeStatus::Active;
+    claim.teaching_profile.teachable = claim.status == KnowledgeStatus::Teachable;
+    claim.reason_keys.push_back("independent_experience_threshold_applied");
 }
 
 static bool isValidEnumStoryKind(LearningLoopStoryKind k) {
@@ -452,6 +501,9 @@ Result<void> LearningSafeFeedbackInput::validateBasic() const {
     }
     if (containsLearningForbiddenKey(action_key)) {
         return Result<void>::fail(makeError(ErrorCode::validation_failed, "LearningSafeFeedbackInput action_key contains forbidden key"));
+    }
+    if (containsLearningForbiddenKey(target_subject_id) || containsLearningForbiddenKey(target_subject_type_key)) {
+        return Result<void>::fail(makeError(ErrorCode::validation_failed, "LearningSafeFeedbackInput target subject contains forbidden key"));
     }
     for (const auto& sig : outcome_signals) {
         if (sig == CognitionOutcomeSignal::Unknown || sig == CognitionOutcomeSignal::TestOnly) {
@@ -947,6 +999,8 @@ static KnowledgeFormationInput makeFormationInputFromClaimForRecipient(
     formation_input.target_relation = source_claim.predicate.relation_type;
     formation_input.action_key = source_claim.predicate.action_key;
     formation_input.effect_key = source_claim.predicate.effect_key;
+    formation_input.related_subject_ids = source_claim.subject.related_subject_ids;
+    formation_input.relation_group_key = source_claim.subject.relation_group_key;
     formation_input.candidate_conditions = source_claim.conditions;
     if (formation_input.candidate_conditions.empty()) {
         for (const auto& key : input.feedback.condition_keys) {
@@ -1273,6 +1327,10 @@ Result<LearningLoopResult> LearningLoopService::run(
                 formation_input.target_relation = KnowledgeRelationType::HasEffect;
                 formation_input.action_key = input.feedback.action_key;
                 formation_input.effect_key = input.feedback.effect_key;
+                if (!input.feedback.target_subject_id.empty()) {
+                    formation_input.related_subject_ids.push_back(input.feedback.target_subject_id);
+                    formation_input.relation_group_key = "action_target";
+                }
                 for (const auto& ck : input.feedback.condition_keys) {
                     KnowledgeCondition cond;
                     cond.condition_key = ck;
@@ -1314,10 +1372,14 @@ Result<LearningLoopResult> LearningLoopService::run(
                     auto& fres = form_r.value();
                     result.knowledge_formation_result = fres;
                     if (fres.claim.has_value()) {
-                        actor_claims.push_back(fres.claim.value());
-                        chain.knowledge_ids.push_back(fres.claim.value().knowledge_id);
+                        auto adjusted_claim = fres.claim.value();
+                        adjusted_claim.reason_keys.insert(adjusted_claim.reason_keys.end(), input.feedback.reason_keys.begin(), input.feedback.reason_keys.end());
+                        applyIndependentExperienceThreshold(adjusted_claim, accumulatedSupportForScope(actor_claims, adjusted_claim));
+                        fres.claim = adjusted_claim;
+                        actor_claims.push_back(adjusted_claim);
+                        chain.knowledge_ids.push_back(adjusted_claim.knowledge_id);
                         auto trace = makeTrace(LearningLoopStage::KnowledgeFormed, LearningStepDecision::Executed);
-                        trace.knowledge_ids.push_back(fres.claim.value().knowledge_id);
+                        trace.knowledge_ids.push_back(adjusted_claim.knowledge_id);
                         result.traces.push_back(std::move(trace));
                     } else {
                         result.traces.push_back(makeTrace(LearningLoopStage::KnowledgeFormed, LearningStepDecision::SkippedNoInput));
@@ -1365,6 +1427,9 @@ Result<LearningLoopResult> LearningLoopService::run(
                 revision_input.formation_input.target_relation = new_claim.predicate.relation_type;
                 revision_input.formation_input.action_key = new_claim.predicate.action_key;
                 revision_input.formation_input.effect_key = new_claim.predicate.effect_key;
+                revision_input.formation_input.related_subject_ids = new_claim.subject.related_subject_ids;
+                revision_input.formation_input.relation_group_key = new_claim.subject.relation_group_key;
+                revision_input.formation_input.candidate_conditions = new_claim.conditions;
                 revision_input.existing_claims = actor_claims;
                 revision_input.revision_tick = input.loop_tick;
                 revision_input.reason_keys.push_back("contradiction_detected");

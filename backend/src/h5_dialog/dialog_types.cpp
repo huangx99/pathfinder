@@ -24,6 +24,7 @@ std::string toString(DialogIntentKind kind) {
         case DialogIntentKind::InspectActorKnowledge: return "inspect_actor_knowledge";
         case DialogIntentKind::InspectRecipientKnowledge: return "inspect_recipient_knowledge";
         case DialogIntentKind::Help: return "help";
+        case DialogIntentKind::Wait: return "wait";
         case DialogIntentKind::Restart: return "restart";
         case DialogIntentKind::TestOnly: return "test_only";
     }
@@ -40,6 +41,7 @@ Result<DialogIntentKind> dialogIntentKindFromString(const std::string& str) {
     if (str == "inspect_actor_knowledge") return Result<DialogIntentKind>::ok(DialogIntentKind::InspectActorKnowledge);
     if (str == "inspect_recipient_knowledge") return Result<DialogIntentKind>::ok(DialogIntentKind::InspectRecipientKnowledge);
     if (str == "help") return Result<DialogIntentKind>::ok(DialogIntentKind::Help);
+    if (str == "wait") return Result<DialogIntentKind>::ok(DialogIntentKind::Wait);
     if (str == "restart") return Result<DialogIntentKind>::ok(DialogIntentKind::Restart);
     if (str == "test_only") return Result<DialogIntentKind>::ok(DialogIntentKind::TestOnly);
     return Result<DialogIntentKind>::fail(makeError(ErrorCode::validation_failed, "Unknown DialogIntentKind string"));
@@ -53,6 +55,7 @@ std::string toString(DialogActionKind kind) {
         case DialogActionKind::Use: return "use";
         case DialogActionKind::Teach: return "teach";
         case DialogActionKind::Inspect: return "inspect";
+        case DialogActionKind::Wait: return "wait";
         case DialogActionKind::Restart: return "restart";
         case DialogActionKind::TestOnly: return "test_only";
     }
@@ -66,6 +69,7 @@ Result<DialogActionKind> dialogActionKindFromString(const std::string& str) {
     if (str == "use") return Result<DialogActionKind>::ok(DialogActionKind::Use);
     if (str == "teach") return Result<DialogActionKind>::ok(DialogActionKind::Teach);
     if (str == "inspect") return Result<DialogActionKind>::ok(DialogActionKind::Inspect);
+    if (str == "wait") return Result<DialogActionKind>::ok(DialogActionKind::Wait);
     if (str == "restart") return Result<DialogActionKind>::ok(DialogActionKind::Restart);
     if (str == "test_only") return Result<DialogActionKind>::ok(DialogActionKind::TestOnly);
     return Result<DialogActionKind>::fail(makeError(ErrorCode::validation_failed, "Unknown DialogActionKind string"));
@@ -203,6 +207,9 @@ Result<void> DialogIntent::validateBasic() const {
     if (containsDialogForbiddenKey(object_key)) {
         return Result<void>::fail(makeError(ErrorCode::validation_failed, "object_key contains forbidden key"));
     }
+    if (containsDialogForbiddenKey(target_object_key)) {
+        return Result<void>::fail(makeError(ErrorCode::validation_failed, "target_object_key contains forbidden key"));
+    }
     if (containsDialogForbiddenKey(recipient_key)) {
         return Result<void>::fail(makeError(ErrorCode::validation_failed, "recipient_key contains forbidden key"));
     }
@@ -261,6 +268,38 @@ Result<void> DialogScenarioObject::validateBasic() const {
     return Result<void>::ok();
 }
 
+Result<void> DialogStateCondition::validateBasic() const {
+    if (object_key.empty()) {
+        return Result<void>::fail(makeError(ErrorCode::validation_failed, "state condition object_key empty"));
+    }
+    if (state_key.empty()) {
+        return Result<void>::fail(makeError(ErrorCode::validation_failed, "state condition state_key empty"));
+    }
+    if (op.empty()) {
+        return Result<void>::fail(makeError(ErrorCode::validation_failed, "state condition op empty"));
+    }
+    if (containsDialogForbiddenKey(object_key) || containsDialogForbiddenKey(state_key) || containsDialogForbiddenKey(op) || containsDialogForbiddenKey(tag_value)) {
+        return Result<void>::fail(makeError(ErrorCode::validation_failed, "state condition contains forbidden key"));
+    }
+    return Result<void>::ok();
+}
+
+Result<void> DialogStateMutation::validateBasic() const {
+    if (object_key.empty()) {
+        return Result<void>::fail(makeError(ErrorCode::validation_failed, "state mutation object_key empty"));
+    }
+    if (state_key.empty()) {
+        return Result<void>::fail(makeError(ErrorCode::validation_failed, "state mutation state_key empty"));
+    }
+    if (op.empty()) {
+        return Result<void>::fail(makeError(ErrorCode::validation_failed, "state mutation op empty"));
+    }
+    if (containsDialogForbiddenKey(object_key) || containsDialogForbiddenKey(state_key) || containsDialogForbiddenKey(op) || containsDialogForbiddenKey(tag_value)) {
+        return Result<void>::fail(makeError(ErrorCode::validation_failed, "state mutation contains forbidden key"));
+    }
+    return Result<void>::ok();
+}
+
 Result<void> DialogFeedbackTemplate::validateBasic() const {
     if (feedback_key.empty()) {
         return Result<void>::fail(makeError(ErrorCode::validation_failed, "feedback_key empty"));
@@ -274,8 +313,31 @@ Result<void> DialogFeedbackTemplate::validateBasic() const {
     if (action == DialogActionKind::Unknown || action == DialogActionKind::TestOnly) {
         return Result<void>::fail(makeError(ErrorCode::validation_failed, "invalid action kind"));
     }
-    if (containsDialogForbiddenKey(feedback_key) || containsDialogForbiddenKey(object_key) || containsDialogForbiddenKey(effect_key)) {
+    if (containsDialogForbiddenKey(feedback_key) || containsDialogForbiddenKey(object_key) || containsDialogForbiddenKey(target_object_key) || containsDialogForbiddenKey(effect_key)) {
         return Result<void>::fail(makeError(ErrorCode::validation_failed, "feedback contains forbidden key"));
+    }
+    for (const auto& condition : state_conditions) {
+        auto result = condition.validateBasic();
+        if (result.is_error()) return result;
+    }
+    for (const auto& mutation : state_mutations) {
+        auto result = mutation.validateBasic();
+        if (result.is_error()) return result;
+    }
+    return Result<void>::ok();
+}
+
+Result<void> DialogObjectRuntimeState::validateBasic() const {
+    if (object_key.empty()) {
+        return Result<void>::fail(makeError(ErrorCode::validation_failed, "runtime object_key empty"));
+    }
+    if (containsDialogForbiddenKey(object_key) || containsDialogForbiddenKey(tag_states)) {
+        return Result<void>::fail(makeError(ErrorCode::validation_failed, "runtime state contains forbidden key"));
+    }
+    for (const auto& pair : numeric_states) {
+        if (containsDialogForbiddenKey(pair.first)) {
+            return Result<void>::fail(makeError(ErrorCode::validation_failed, "runtime numeric key contains forbidden key"));
+        }
     }
     return Result<void>::ok();
 }

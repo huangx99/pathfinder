@@ -32,6 +32,13 @@ DialogSessionState createNewSession(const std::string& session_id) {
         if (obj.visibility == DialogObjectVisibility::Visible || obj.visibility == DialogObjectVisibility::Mentioned) {
             state.visible_object_keys.push_back(obj.object_key);
         }
+        DialogObjectRuntimeState runtime;
+        runtime.object_key = obj.object_key;
+        runtime.tag_states = obj.safe_tags;
+        if (obj.object_key == "axe") {
+            runtime.numeric_states["sharpness"] = 3.0;
+        }
+        state.object_runtime_states[obj.object_key] = runtime;
     }
 
     // Actor: pioneer

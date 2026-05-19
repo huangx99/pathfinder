@@ -5235,6 +5235,7 @@ target_link_libraries(pathfinder_tests_condition_types PRIVATE
 add_test(NAME condition_ref_validation COMMAND pathfinder_tests_condition_types ref_validation)
 add_test(NAME condition_value_debug_string COMMAND pathfinder_tests_condition_types value_debug_string)
 add_test(NAME condition_definition_validation COMMAND pathfinder_tests_condition_types definition_validation)
+add_test(NAME condition_definition_rejects_forbidden_value COMMAND pathfinder_tests_condition_types definition_rejects_forbidden_value)
 
 # P27 Condition expression unit tests: evaluator
 add_executable(pathfinder_tests_condition_evaluator
@@ -5249,6 +5250,9 @@ target_link_libraries(pathfinder_tests_condition_evaluator PRIVATE
 add_test(NAME condition_evaluator_object_state COMMAND pathfinder_tests_condition_evaluator object_state_canonical)
 add_test(NAME condition_evaluator_civilization_numeric COMMAND pathfinder_tests_condition_evaluator civilization_numeric)
 add_test(NAME condition_evaluator_combined_and COMMAND pathfinder_tests_condition_evaluator combined_and_condition)
+add_test(NAME condition_context_rejects_unsafe_numeric_fields COMMAND pathfinder_tests_condition_evaluator context_rejects_unsafe_numeric_fields)
+add_test(NAME condition_canonical_rejects_unsupported_op COMMAND pathfinder_tests_condition_evaluator canonical_rejects_unsupported_op)
+add_test(NAME condition_source_target_domains COMMAND pathfinder_tests_condition_evaluator source_target_domains)
 
 # P27 Condition expression unit tests: normalizer
 add_executable(pathfinder_tests_condition_normalizer
@@ -5288,3 +5292,413 @@ target_link_libraries(pathfinder_tests_p27_gate_scan PRIVATE
 )
 
 add_test(NAME p27_condition_authority_gate COMMAND pathfinder_tests_p27_gate_scan)
+
+# P28 Object reaction unit tests: types
+add_executable(pathfinder_tests_reaction_types
+    unit/reaction/reaction_types_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_reaction_types PRIVATE
+    pathfinder_reaction
+    pathfinder_condition
+    pathfinder_knowledge
+    pathfinder_object
+    pathfinder_foundation
+)
+
+add_test(NAME reaction_enum_roundtrip COMMAND pathfinder_tests_reaction_types enum_roundtrip)
+add_test(NAME reaction_input_validation COMMAND pathfinder_tests_reaction_types input_validation)
+add_test(NAME reaction_pattern_rejects_dynamic_tags COMMAND pathfinder_tests_reaction_types pattern_rejects_dynamic_tags)
+
+# P28 Object reaction unit tests: context
+add_executable(pathfinder_tests_reaction_context
+    unit/reaction/reaction_context_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_reaction_context PRIVATE
+    pathfinder_reaction
+    pathfinder_condition
+    pathfinder_object
+    pathfinder_foundation
+)
+
+add_test(NAME reaction_context_builder_maps_source_target COMMAND pathfinder_tests_reaction_context)
+
+# P28 Object reaction unit tests: resolver
+add_executable(pathfinder_tests_reaction_resolver
+    unit/reaction/reaction_resolver_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_reaction_resolver PRIVATE
+    pathfinder_reaction
+    pathfinder_condition
+    pathfinder_knowledge
+    pathfinder_object
+    pathfinder_foundation
+)
+
+add_test(NAME reaction_resolver_no_matching_rule COMMAND pathfinder_tests_reaction_resolver no_matching_rule)
+add_test(NAME reaction_resolver_priority_stable_order COMMAND pathfinder_tests_reaction_resolver priority)
+add_test(NAME reaction_resolver_produce_object_draft COMMAND pathfinder_tests_reaction_resolver produce_object_draft)
+add_test(NAME reaction_resolver_data_driven_feedback COMMAND pathfinder_tests_reaction_resolver data_driven_feedback)
+
+# P28 Object reaction integration tests
+add_executable(pathfinder_tests_p28_fire_branch
+    integration/p28/object_reaction_fire_branch_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_p28_fire_branch PRIVATE
+    pathfinder_reaction
+    pathfinder_condition
+    pathfinder_knowledge
+    pathfinder_object
+    pathfinder_foundation
+)
+
+add_test(NAME p28_fire_dry_branch_to_torch COMMAND pathfinder_tests_p28_fire_branch dry)
+add_test(NAME p28_fire_wet_branch_condition_blocked COMMAND pathfinder_tests_p28_fire_branch wet)
+
+add_executable(pathfinder_tests_p28_water_fire
+    integration/p28/object_reaction_water_fire_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_p28_water_fire PRIVATE
+    pathfinder_reaction
+    pathfinder_condition
+    pathfinder_knowledge
+    pathfinder_object
+    pathfinder_foundation
+)
+
+add_test(NAME p28_water_extinguishes_fire COMMAND pathfinder_tests_p28_water_fire)
+
+add_executable(pathfinder_tests_p28_gate_scan
+    integration/p28/object_reaction_gate_scan_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_p28_gate_scan PRIVATE
+    pathfinder_foundation
+)
+
+add_test(NAME p28_reaction_gate_scan COMMAND pathfinder_tests_p28_gate_scan)
+
+
+# P28.5 Configurable item/reaction pipeline unit tests: content
+add_executable(pathfinder_tests_reaction_content
+    unit/reaction/reaction_content_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_reaction_content PRIVATE
+    pathfinder_reaction
+    pathfinder_condition
+    pathfinder_knowledge
+    pathfinder_object
+    pathfinder_foundation
+)
+
+add_test(NAME reaction_content_valid_pack COMMAND pathfinder_tests_reaction_content valid_pack)
+add_test(NAME reaction_content_rejects_dynamic_tag COMMAND pathfinder_tests_reaction_content dynamic_tag)
+add_test(NAME reaction_content_rejects_missing_product COMMAND pathfinder_tests_reaction_content missing_product)
+add_test(NAME reaction_content_single_object_drink COMMAND pathfinder_tests_reaction_content single_object_drink)
+
+# P28.5 Configurable item/reaction pipeline unit tests: applier
+add_executable(pathfinder_tests_reaction_applier
+    unit/reaction/reaction_applier_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_reaction_applier PRIVATE
+    pathfinder_reaction
+    pathfinder_condition
+    pathfinder_knowledge
+    pathfinder_object
+    pathfinder_foundation
+)
+
+add_test(NAME reaction_applier_transform_usable_item COMMAND pathfinder_tests_reaction_applier transform)
+add_test(NAME reaction_applier_produce_runtime_object COMMAND pathfinder_tests_reaction_applier produce)
+
+# P28.5 Configurable item/reaction pipeline unit tests: learning bridge
+add_executable(pathfinder_tests_reaction_learning_bridge
+    unit/reaction/reaction_learning_bridge_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_reaction_learning_bridge PRIVATE
+    pathfinder_reaction
+    pathfinder_condition
+    pathfinder_knowledge
+    pathfinder_object
+    pathfinder_foundation
+)
+
+add_test(NAME reaction_learning_bridge_delivery COMMAND pathfinder_tests_reaction_learning_bridge delivery)
+add_test(NAME reaction_learning_bridge_observation_flag COMMAND pathfinder_tests_reaction_learning_bridge observation_flag)
+
+# P28.5 Configurable item/reaction pipeline integration tests
+add_executable(pathfinder_tests_p28_5_pipeline
+    integration/p28_5/configurable_reaction_pipeline_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_p28_5_pipeline PRIVATE
+    pathfinder_reaction
+    pathfinder_condition
+    pathfinder_knowledge
+    pathfinder_object
+    pathfinder_foundation
+)
+
+add_test(NAME p28_5_configurable_torch_learning COMMAND pathfinder_tests_p28_5_pipeline torch_learning)
+add_test(NAME p28_5_configurable_drink COMMAND pathfinder_tests_p28_5_pipeline drink)
+
+add_executable(pathfinder_tests_p28_5_learning_chain
+    integration/p28_5/configurable_reaction_learning_chain_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_p28_5_learning_chain PRIVATE
+    pathfinder_reaction
+    pathfinder_condition
+    pathfinder_knowledge
+    pathfinder_object
+    pathfinder_foundation
+)
+
+add_test(NAME p28_5_repeated_learning_teaching_chain COMMAND pathfinder_tests_p28_5_learning_chain chain)
+add_test(NAME p28_5_mixed_create_reinforce_teaching COMMAND pathfinder_tests_p28_5_learning_chain mixed)
+
+
+add_executable(pathfinder_tests_p28_5_system_stress
+    integration/p28_5/configurable_reaction_system_stress_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_p28_5_system_stress PRIVATE
+    pathfinder_reaction
+    pathfinder_condition
+    pathfinder_knowledge
+    pathfinder_object
+    pathfinder_cognition
+    pathfinder_tribe
+    pathfinder_foundation
+)
+
+add_test(NAME p28_5_stress_01_full_pipeline COMMAND pathfinder_tests_p28_5_system_stress 01_full_pipeline)
+add_test(NAME p28_5_stress_02_use_generated_torch COMMAND pathfinder_tests_p28_5_system_stress 02_use_generated_torch)
+add_test(NAME p28_5_stress_03_missing_material_retry COMMAND pathfinder_tests_p28_5_system_stress 03_missing_material_retry)
+add_test(NAME p28_5_stress_04_wet_branch_blocked COMMAND pathfinder_tests_p28_5_system_stress 04_wet_branch_blocked)
+add_test(NAME p28_5_stress_05_wrong_action COMMAND pathfinder_tests_p28_5_system_stress 05_wrong_action)
+add_test(NAME p28_5_stress_06_swapped_roles COMMAND pathfinder_tests_p28_5_system_stress 06_swapped_roles)
+add_test(NAME p28_5_stress_07_consumed_water COMMAND pathfinder_tests_p28_5_system_stress 07_consumed_water)
+add_test(NAME p28_5_stress_08_extinguish_fire COMMAND pathfinder_tests_p28_5_system_stress 08_extinguish_fire)
+add_test(NAME p28_5_stress_09_craft_spear COMMAND pathfinder_tests_p28_5_system_stress 09_craft_spear)
+add_test(NAME p28_5_stress_10_bind_bundle COMMAND pathfinder_tests_p28_5_system_stress 10_bind_bundle)
+add_test(NAME p28_5_stress_11_knowledge_drafts COMMAND pathfinder_tests_p28_5_system_stress 11_knowledge_drafts)
+add_test(NAME p28_5_stress_12_teach_reinforce COMMAND pathfinder_tests_p28_5_system_stress 12_teach_reinforce)
+add_test(NAME p28_5_stress_13_mixed_teaching COMMAND pathfinder_tests_p28_5_system_stress 13_mixed_teaching)
+add_test(NAME p28_5_stress_14_cognition_repeat COMMAND pathfinder_tests_p28_5_system_stress 14_cognition_repeat)
+add_test(NAME p28_5_stress_15_cognition_separate COMMAND pathfinder_tests_p28_5_system_stress 15_cognition_separate)
+add_test(NAME p28_5_stress_16_cognition_taught COMMAND pathfinder_tests_p28_5_system_stress 16_cognition_taught)
+add_test(NAME p28_5_stress_17_tribe_knowledge COMMAND pathfinder_tests_p28_5_system_stress 17_tribe_knowledge)
+add_test(NAME p28_5_stress_18_tribe_split_pressure COMMAND pathfinder_tests_p28_5_system_stress 18_tribe_split_pressure)
+add_test(NAME p28_5_stress_19_member_split COMMAND pathfinder_tests_p28_5_system_stress 19_member_split)
+add_test(NAME p28_5_stress_20_coordination_conflict COMMAND pathfinder_tests_p28_5_system_stress 20_coordination_conflict)
+
+# Danger tests (P29)
+add_executable(pathfinder_tests_danger_types
+    unit/danger/danger_types_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_danger_types PRIVATE
+    pathfinder_danger
+    pathfinder_reaction
+    pathfinder_object
+    pathfinder_foundation
+)
+
+add_test(NAME danger_types_enum COMMAND pathfinder_tests_danger_types enum)
+add_test(NAME danger_types_forbidden COMMAND pathfinder_tests_danger_types forbidden)
+add_test(NAME danger_threat_profile_builder COMMAND pathfinder_tests_danger_types builder)
+
+add_executable(pathfinder_tests_hazard_resolver
+    unit/danger/hazard_resolver_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_hazard_resolver PRIVATE
+    pathfinder_danger
+    pathfinder_reaction
+    pathfinder_knowledge
+    pathfinder_condition
+    pathfinder_tribe
+    pathfinder_object
+    pathfinder_foundation
+)
+
+add_test(NAME hazard_resolver_rotten_berry COMMAND pathfinder_tests_hazard_resolver rotten)
+add_test(NAME hazard_resolver_torch_escape COMMAND pathfinder_tests_hazard_resolver torch)
+add_test(NAME hazard_resolver_blocked_and_no_match COMMAND pathfinder_tests_hazard_resolver blocked)
+add_test(NAME hazard_resolver_knowledge_countermeasure COMMAND pathfinder_tests_hazard_resolver knowledge)
+
+add_executable(pathfinder_tests_danger_knowledge_bridge
+    unit/danger/danger_knowledge_bridge_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_danger_knowledge_bridge PRIVATE
+    pathfinder_danger
+    pathfinder_reaction
+    pathfinder_knowledge
+    pathfinder_foundation
+)
+
+add_test(NAME danger_knowledge_bridge_delivery COMMAND pathfinder_tests_danger_knowledge_bridge)
+
+add_executable(pathfinder_tests_tribe_danger_bridge
+    unit/danger/tribe_danger_bridge_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_tribe_danger_bridge PRIVATE
+    pathfinder_danger
+    pathfinder_tribe
+    pathfinder_foundation
+)
+
+add_test(NAME tribe_danger_bridge_pressure COMMAND pathfinder_tests_tribe_danger_bridge)
+
+add_executable(pathfinder_tests_p29_danger_flow
+    integration/p29/danger_exploration_flow_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_p29_danger_flow PRIVATE
+    pathfinder_danger
+    pathfinder_reaction
+    pathfinder_knowledge
+    pathfinder_condition
+    pathfinder_tribe
+    pathfinder_object
+    pathfinder_foundation
+)
+
+add_test(NAME p29_learning_teaching_tribe_flow COMMAND pathfinder_tests_p29_danger_flow learning)
+add_test(NAME p29_tool_mitigates_exploration COMMAND pathfinder_tests_p29_danger_flow tool)
+add_test(NAME p29_security_rejects_forbidden_output COMMAND pathfinder_tests_p29_danger_flow security)
+
+# Save package tests (P30)
+add_executable(pathfinder_tests_save_package
+    unit/save/save_package_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_save_package PRIVATE
+    pathfinder_save
+    pathfinder_replay
+    pathfinder_pipeline
+    pathfinder_rules
+    pathfinder_state
+    pathfinder_event
+    pathfinder_object
+    pathfinder_cognition
+    pathfinder_command
+    pathfinder_foundation
+)
+
+add_test(NAME save_package_enum COMMAND pathfinder_tests_save_package enum)
+add_test(NAME save_package_forbidden_keys COMMAND pathfinder_tests_save_package forbidden)
+add_test(NAME save_package_builder_validator COMMAND pathfinder_tests_save_package builder)
+add_test(NAME save_package_tamper_fails COMMAND pathfinder_tests_save_package tamper)
+add_test(NAME save_package_missing_snapshot_fails COMMAND pathfinder_tests_save_package missing_snapshot)
+add_test(NAME save_package_version_range_fails COMMAND pathfinder_tests_save_package version)
+add_test(NAME save_package_config_manifest_fails COMMAND pathfinder_tests_save_package config)
+add_test(NAME save_restore_plan COMMAND pathfinder_tests_save_package restore)
+
+add_executable(pathfinder_tests_p30_save_replay_flow
+    integration/p30/save_replay_flow_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_p30_save_replay_flow PRIVATE
+    pathfinder_save
+    pathfinder_replay
+    pathfinder_pipeline
+    pathfinder_rules
+    pathfinder_state
+    pathfinder_event
+    pathfinder_object
+    pathfinder_cognition
+    pathfinder_command
+    pathfinder_foundation
+)
+
+add_test(NAME p30_save_package_replay_flow COMMAND pathfinder_tests_p30_save_replay_flow)
+
+
+
+# H5 projection tests (P32)
+add_executable(pathfinder_tests_h5_projection
+    unit/h5_projection/projection_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_h5_projection PRIVATE
+    pathfinder_h5_projection
+    pathfinder_replay_diagnostics
+    pathfinder_protocol
+    pathfinder_foundation
+)
+
+add_test(NAME h5_projection_enum COMMAND pathfinder_tests_h5_projection enum)
+add_test(NAME h5_projection_safe_text COMMAND pathfinder_tests_h5_projection safe_text)
+add_test(NAME h5_projection_request COMMAND pathfinder_tests_h5_projection request)
+add_test(NAME h5_projection_player_filter COMMAND pathfinder_tests_h5_projection player_filter)
+add_test(NAME h5_projection_debug COMMAND pathfinder_tests_h5_projection debug)
+add_test(NAME h5_projection_knowledge COMMAND pathfinder_tests_h5_projection knowledge)
+add_test(NAME h5_projection_action COMMAND pathfinder_tests_h5_projection action)
+add_test(NAME h5_projection_danger COMMAND pathfinder_tests_h5_projection danger)
+add_test(NAME h5_projection_truncation COMMAND pathfinder_tests_h5_projection truncation)
+add_test(NAME h5_projection_script COMMAND pathfinder_tests_h5_projection script)
+add_test(NAME h5_projection_player_debug_text COMMAND pathfinder_tests_h5_projection player_debug_text)
+add_test(NAME h5_projection_developer_debug_text COMMAND pathfinder_tests_h5_projection developer_debug_text)
+add_test(NAME h5_projection_protocol COMMAND pathfinder_tests_h5_projection protocol)
+add_test(NAME h5_projection_replay COMMAND pathfinder_tests_h5_projection replay)
+
+# H5 playable shell tests (P33)
+add_executable(pathfinder_tests_h5_playable
+    unit/h5_playable/playable_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_h5_playable PRIVATE
+    pathfinder_h5_playable
+    pathfinder_h5_projection
+    pathfinder_h5_dialog
+    pathfinder_foundation
+)
+
+add_test(NAME h5_playable_enum COMMAND pathfinder_tests_h5_playable enum)
+add_test(NAME h5_playable_validation COMMAND pathfinder_tests_h5_playable validation)
+add_test(NAME h5_playable_bootstrap COMMAND pathfinder_tests_h5_playable bootstrap)
+add_test(NAME h5_playable_learning COMMAND pathfinder_tests_h5_playable learning)
+add_test(NAME h5_playable_targeted_actions COMMAND pathfinder_tests_h5_playable targeted_actions)
+add_test(NAME h5_playable_danger COMMAND pathfinder_tests_h5_playable danger)
+add_test(NAME h5_playable_reset COMMAND pathfinder_tests_h5_playable reset)
+add_test(NAME h5_playable_codec COMMAND pathfinder_tests_h5_playable codec)
+add_test(NAME h5_playable_rotten_scope COMMAND pathfinder_tests_h5_playable rotten_scope)
+add_test(NAME h5_playable_frontend_gate COMMAND pathfinder_tests_h5_playable frontend_gate)
+
+# Replay diagnostics tests (P31)
+add_executable(pathfinder_tests_p31_golden_replay_diagnostics
+    integration/p31/golden_replay_diagnostics_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_p31_golden_replay_diagnostics PRIVATE
+    pathfinder_replay_diagnostics
+    pathfinder_save
+    pathfinder_replay
+    pathfinder_pipeline
+    pathfinder_rules
+    pathfinder_state
+    pathfinder_event
+    pathfinder_object
+    pathfinder_cognition
+    pathfinder_command
+    pathfinder_foundation
+)
+
+add_test(NAME p31_golden_replay_enum COMMAND pathfinder_tests_p31_golden_replay_diagnostics enum)
+add_test(NAME p31_golden_replay_pass COMMAND pathfinder_tests_p31_golden_replay_diagnostics pass)
+add_test(NAME p31_package_integrity_diagnostic COMMAND pathfinder_tests_p31_golden_replay_diagnostics integrity)
+add_test(NAME p31_replay_mismatch_diagnostic COMMAND pathfinder_tests_p31_golden_replay_diagnostics mismatch)
+add_test(NAME p31_condition_trace_diagnostic COMMAND pathfinder_tests_p31_golden_replay_diagnostics condition)
+add_test(NAME p31_baseline_mismatch_diagnostic COMMAND pathfinder_tests_p31_golden_replay_diagnostics baseline)
+add_test(NAME p31_restore_plan_diagnostic COMMAND pathfinder_tests_p31_golden_replay_diagnostics restore)

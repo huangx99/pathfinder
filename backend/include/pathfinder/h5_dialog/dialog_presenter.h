@@ -15,7 +15,8 @@ public:
         const DialogSessionState& state,
         const DialogIntent& intent,
         const pathfinder::learning::LearningLoopResult& result,
-        const pathfinder::learning::LearningDebugReport& report) const;
+        const pathfinder::learning::LearningDebugReport& report,
+        const std::string& observed_effect_key = "") const;
 
     pathfinder::foundation::Result<DialogResponseDto> buildInspectResponse(
         const DialogSessionState& state,

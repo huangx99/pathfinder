@@ -34,6 +34,12 @@ bool containsConditionForbiddenKey(const std::vector<std::string>& keys) {
     return std::any_of(keys.begin(), keys.end(), [](const auto& key) { return containsConditionForbiddenKey(key); });
 }
 
+static bool containsForbiddenValue(const ConditionExpressionValue& value) {
+    if (auto text = std::get_if<std::string>(&value.value)) return containsConditionForbiddenKey(*text);
+    if (auto values = std::get_if<std::vector<std::string>>(&value.value)) return containsConditionForbiddenKey(*values);
+    return false;
+}
+
 bool ConditionExpressionValue::isEmpty() const {
     return std::holds_alternative<std::monostate>(value);
 }
@@ -125,7 +131,7 @@ static bool validOperator(ConditionExpressionOperator op) {
 
 Result<void> ConditionExpressionNode::validateBasic() const {
     if (!validNodeKind(kind)) return Result<void>::fail(makeError(ErrorCode::validation_enum_unknown, "ConditionExpressionNode kind invalid"));
-    if (containsConditionForbiddenKey(field_path) || containsConditionForbiddenKey(summary_key)) {
+    if (containsConditionForbiddenKey(field_path) || containsConditionForbiddenKey(summary_key) || containsForbiddenValue(value)) {
         return Result<void>::fail(makeError(ErrorCode::validation_failed, "ConditionExpressionNode contains forbidden key"));
     }
     if ((kind == ConditionExpressionNodeKind::Compare || kind == ConditionExpressionNodeKind::Contains ||

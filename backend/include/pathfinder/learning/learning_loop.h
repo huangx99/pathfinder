@@ -140,6 +140,8 @@ struct LearningSafeFeedbackInput {
     pathfinder::cognition::CognitionActionContextKind action_context;
     pathfinder::foundation::ActionId action_id;
     std::string action_key;
+    std::string target_subject_id;
+    std::string target_subject_type_key;
     std::vector<pathfinder::cognition::CognitionOutcomeSignal> outcome_signals;
     std::string effect_key;
     std::vector<std::string> condition_keys;

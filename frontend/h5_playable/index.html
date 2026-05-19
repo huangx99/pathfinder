@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>先驱者 - 可玩验证壳</title>
+<link rel="stylesheet" href="/style.css?v=p36_target_actions">
+</head>
+<body>
+<div id="app">
+  <header class="topbar">
+    <div>
+      <h1>先驱者</h1>
+      <p id="scene-subtitle">极简可玩验证壳</p>
+    </div>
+    <div class="turn-box">
+      <span id="turn-info">回合 0</span>
+      <button id="reset-button" type="button">重开</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="panel scene-panel" aria-label="场景">
+      <h2 id="scene-title">正在进入世界...</h2>
+      <div id="scene-summary" class="stack muted"></div>
+    </section>
+
+    <section class="panel feedback-panel" aria-label="行动反馈">
+      <h2>最近反馈</h2>
+      <div id="feedback-log" class="feedback-log"></div>
+    </section>
+
+    <section class="panel object-panel" aria-label="可见物体">
+      <h2>你能看见的东西</h2>
+      <div id="object-list" class="object-list"></div>
+    </section>
+
+    <section class="panel knowledge-panel" aria-label="知识">
+      <div class="knowledge-column">
+        <h2>我的知识</h2>
+        <div id="actor-knowledge" class="stack"></div>
+      </div>
+      <div class="knowledge-column">
+        <h2>同伴知识</h2>
+        <div id="recipient-knowledge" class="stack"></div>
+      </div>
+    </section>
+
+    <section class="panel hint-panel" aria-label="提示">
+      <h2>提示与危险</h2>
+      <div id="hint-list" class="stack"></div>
+    </section>
+  </main>
+
+  <footer class="command-bar">
+    <div id="action-bar" class="action-bar"></div>
+    <form id="command-form" class="command-form">
+      <input id="command-input" type="text" placeholder="输入中文指令，例如：观察" maxlength="128" autocomplete="off">
+      <button type="submit">发送</button>
+    </form>
+  </footer>
+</div>
+<script src="/app.js?v=p36_target_actions"></script>
+</body>
+</html>

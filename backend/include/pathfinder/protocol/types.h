@@ -49,7 +49,8 @@ enum class ProtocolPayloadType {
     Text,
     AgentHistoryProjection,
     AgentReplayLockProjection,
-    AgentTrainingSampleProjection
+    AgentTrainingSampleProjection,
+    H5GameProjection
 };
 
 std::string toString(ProtocolPayloadType type);

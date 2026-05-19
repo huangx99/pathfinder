@@ -11,12 +11,26 @@
 
 namespace pathfinder::h5_dialog {
 
+struct DialogTurnServiceResult {
+    DialogResponseDto response;
+    DialogSessionState state;
+};
+
 class DialogTurnService {
 public:
     DialogTurnService();
 
     pathfinder::foundation::Result<DialogResponseDto> handle(
         const DialogRequestDto& request);
+
+    pathfinder::foundation::Result<DialogTurnServiceResult> handleDetailed(
+        const DialogRequestDto& request);
+
+    pathfinder::foundation::Result<DialogSessionState> loadOrCreateSessionSnapshot(
+        const std::string& session_id);
+
+    pathfinder::foundation::Result<void> resetSession(
+        const std::string& session_id);
 
 private:
     DialogIntentParser intent_parser_;

@@ -504,6 +504,12 @@ Result<void> KnowledgeFormationInput::validateBasic() const {
     if (containsKnowledgeForbiddenKey(effect_key)) {
         return Result<void>::fail(makeError(ErrorCode::validation_failed, "KnowledgeFormationInput effect_key contains forbidden key"));
     }
+    if (containsKnowledgeForbiddenKey(related_subject_ids)) {
+        return Result<void>::fail(makeError(ErrorCode::validation_failed, "KnowledgeFormationInput related_subject_ids contain forbidden key"));
+    }
+    if (containsKnowledgeForbiddenKey(relation_group_key)) {
+        return Result<void>::fail(makeError(ErrorCode::validation_failed, "KnowledgeFormationInput relation_group_key contains forbidden key"));
+    }
     for (const auto& cond : candidate_conditions) {
         auto cond_result = cond.validateBasic();
         if (cond_result.is_error()) return cond_result;

@@ -63,6 +63,24 @@ std::string learningSubjectKeyFromObject(const std::string& object_key) {
     return object_key;
 }
 
+std::string conditionKeyFromStateCondition(const DialogStateCondition& condition) {
+    std::string value = condition.tag_value.empty() ? condition.state_key : condition.tag_value;
+    if (condition.op == "has_tag") {
+        return "condition:object_state:eq:" + value;
+    }
+    if (condition.op == "missing_tag") {
+        return "condition:object_state:not:" + value;
+    }
+    return "condition:object_state:" + condition.object_key + ":" + condition.state_key + ":" + condition.op + ":" + std::to_string(condition.number_value);
+}
+
+void appendUnique(std::vector<std::string>& values, const std::string& value) {
+    if (value.empty()) return;
+    if (std::find(values.begin(), values.end(), value) == values.end()) {
+        values.push_back(value);
+    }
+}
+
 pathfinder::knowledge::KnowledgeSubject knowledgeSubjectFromObject(const std::string& object_key) {
     pathfinder::knowledge::KnowledgeSubject subject;
     subject.kind = pathfinder::knowledge::KnowledgeSubjectKind::ObjectDefinition;
@@ -86,6 +104,10 @@ int statusPriority(pathfinder::knowledge::KnowledgeStatus status) {
         case pathfinder::knowledge::KnowledgeStatus::TestOnly: return 0;
     }
     return 0;
+}
+
+bool hasReasonKey(const pathfinder::knowledge::KnowledgeClaim& claim, const std::string& reason_key) {
+    return std::find(claim.reason_keys.begin(), claim.reason_keys.end(), reason_key) != claim.reason_keys.end();
 }
 
 std::string conditionKey(const pathfinder::knowledge::KnowledgeCondition& condition) {
@@ -119,6 +141,10 @@ std::string claimSemanticKey(const pathfinder::knowledge::KnowledgeClaim& claim)
     key += "|" + pathfinder::knowledge::toString(claim.subject.kind);
     key += "|" + claim.subject.subject_id;
     key += "|" + claim.subject.subject_type_key;
+    key += "|" + claim.subject.relation_group_key;
+    for (const auto& related_subject_id : claim.subject.related_subject_ids) {
+        key += "|target=" + related_subject_id;
+    }
     key += "|" + pathfinder::knowledge::toString(claim.predicate.relation_type);
     key += "|" + claim.predicate.action_key;
     key += "|" + claim.predicate.effect_key;
@@ -130,6 +156,11 @@ std::string claimSemanticKey(const pathfinder::knowledge::KnowledgeClaim& claim)
 
 bool shouldReplaceClaim(const pathfinder::knowledge::KnowledgeClaim& current,
                         const pathfinder::knowledge::KnowledgeClaim& candidate) {
+    const bool current_ambiguous = hasReasonKey(current, "causal_ambiguous_dose_window");
+    const bool candidate_ambiguous = hasReasonKey(candidate, "causal_ambiguous_dose_window");
+    if (current_ambiguous != candidate_ambiguous) {
+        return !candidate_ambiguous;
+    }
     const auto current_priority = statusPriority(current.status);
     const auto candidate_priority = statusPriority(candidate.status);
     if (candidate_priority != current_priority) {
@@ -206,14 +237,23 @@ Result<LearningLoopInput> DialogLearningAdapter::buildLearningInput(
     fb.cognition_target = cognitionTargetFromObject(learning_subject_key);
     fb.memory_subject = memorySubjectFromObject(learning_subject_key);
     fb.knowledge_subject = knowledgeSubjectFromObject(learning_subject_key);
+    if (!feedback.target_object_key.empty()) {
+        fb.target_subject_id = learningSubjectKeyFromObject(feedback.target_object_key);
+        fb.target_subject_type_key = "object";
+    }
     fb.action_context = cognitionContextFromAction(feedback.action);
     fb.action_id = actionIdFromDialogAction(feedback.action);
     fb.action_key = toString(feedback.action);
     fb.outcome_signals = feedback.outcome_signals;
     fb.effect_key = feedback.effect_key;
     fb.condition_keys = feedback.condition_keys;
+    for (const auto& state_condition : feedback.state_conditions) {
+        appendUnique(fb.condition_keys, conditionKeyFromStateCondition(state_condition));
+    }
     fb.utility_delta = feedback.utility_delta;
     fb.risk_delta = feedback.risk_delta;
+    fb.reason_keys = feedback.reason_keys;
+    fb.warning_keys = feedback.warning_keys;
     fb.observed_tick = state.current_tick;
     if (fb.source_event_ids.empty()) {
         fb.source_event_ids = {EventId("h5_dialog_event_" + state.session_id + "_" + std::to_string(state.turn_index))};

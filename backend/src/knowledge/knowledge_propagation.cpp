@@ -58,18 +58,40 @@ static bool isClaimTransferableByDefault(KnowledgeStatus status) {
         || status == KnowledgeStatus::Operational;
 }
 
+static std::vector<std::string> canonicalConditionKeys(const std::vector<KnowledgeCondition>& conditions) {
+    std::vector<std::string> keys;
+    keys.reserve(conditions.size());
+    for (const auto& condition : conditions) {
+        auto canonical = canonicalKnowledgeConditionKey(condition);
+        if (canonical.is_error()) return {};
+        keys.push_back(canonical.value());
+    }
+    std::sort(keys.begin(), keys.end());
+    return keys;
+}
+
+static bool claimsShareConditionScope(const KnowledgeClaim& source, const KnowledgeClaim& target) {
+    return canonicalConditionKeys(source.conditions) == canonicalConditionKeys(target.conditions);
+}
+
 static bool claimsMatchForReinforcement(const KnowledgeClaim& source, const KnowledgeClaim& target) {
     if (source.subject.subject_id != target.subject.subject_id) return false;
+    if (source.subject.related_subject_ids != target.subject.related_subject_ids) return false;
+    if (source.subject.relation_group_key != target.subject.relation_group_key) return false;
     if (source.predicate.relation_type != target.predicate.relation_type) return false;
     if (source.predicate.action_key != target.predicate.action_key) return false;
     if (source.predicate.effect_key != target.predicate.effect_key) return false;
+    if (!claimsShareConditionScope(source, target)) return false;
     return true;
 }
 
 static bool claimsMatchForConflictCheck(const KnowledgeClaim& source, const KnowledgeClaim& target) {
     if (source.subject.subject_id != target.subject.subject_id) return false;
+    if (source.subject.related_subject_ids != target.subject.related_subject_ids) return false;
+    if (source.subject.relation_group_key != target.subject.relation_group_key) return false;
     if (source.predicate.relation_type != target.predicate.relation_type) return false;
     if (source.predicate.action_key != target.predicate.action_key) return false;
+    if (!claimsShareConditionScope(source, target)) return false;
     return true;
 }
 
@@ -657,18 +679,20 @@ Result<KnowledgePropagationPlan> KnowledgePropagationPlanner::planPropagation(
             draft.source_owner = claim.owner;
             draft.channel = attempt.context.channel;
             draft.transfer_score = assess.transfer_score;
+            const auto draft_sequence_index = plan.recipient_claim_drafts.size();
 
             // Build new recipient claim
             KnowledgeClaim recipient_claim;
             KnowledgeIdFactory id_factory;
             auto kid_r = id_factory.makeKnowledgeId(attempt.target.owner, claim.subject, claim.predicate,
-                                                     attempt.context.propagation_tick, 0);
+                                                     attempt.context.propagation_tick, draft_sequence_index);
             if (kid_r.is_ok()) {
                 recipient_claim.knowledge_id = kid_r.value();
             } else {
                 std::string fallback_id = "know_prop_" + attempt.target.owner.entity_id.value() + "_" +
                                           claim.subject.subject_id + "_" + toString(claim.predicate.relation_type) +
-                                          "_" + std::to_string(attempt.context.propagation_tick.value()) + "_0";
+                                          "_" + std::to_string(attempt.context.propagation_tick.value()) + "_" +
+                                          std::to_string(draft_sequence_index);
                 recipient_claim.knowledge_id = KnowledgeId(fallback_id);
             }
             recipient_claim.owner = attempt.target.owner;
@@ -677,6 +701,7 @@ Result<KnowledgePropagationPlan> KnowledgePropagationPlanner::planPropagation(
             recipient_claim.conditions = claim.conditions;
             recipient_claim.confidence.confidence = assess.created_confidence;
             recipient_claim.confidence.band = confidenceToBand(assess.created_confidence);
+            recipient_claim.confidence.support_count = 1;
             recipient_claim.status = confidenceToStatus(assess.created_confidence);
             recipient_claim.created_tick = attempt.context.propagation_tick;
             recipient_claim.updated_tick = attempt.context.propagation_tick;
@@ -709,10 +734,10 @@ Result<KnowledgePropagationPlan> KnowledgePropagationPlanner::planPropagation(
             draft.transfer_score = assess.transfer_score;
 
             KnowledgeClaim recipient_claim = *exact_match_target;
-            // Update confidence: blend with teaching evidence
-            double new_confidence = std::min(
-                recipient_claim.confidence.confidence + assess.created_confidence * 0.25,
-                options.max_created_confidence);
+            // Update confidence: reinforcement must never lower an existing stronger claim.
+            double new_confidence = std::max(
+                recipient_claim.confidence.confidence,
+                std::min(recipient_claim.confidence.confidence + assess.created_confidence * 0.25, 1.0));
             recipient_claim.confidence.confidence = new_confidence;
             recipient_claim.confidence.band = confidenceToBand(new_confidence);
             recipient_claim.confidence.support_count += 1;
@@ -825,13 +850,20 @@ Result<KnowledgePropagationResult> KnowledgePropagationService::propagate(
         result.decision = KnowledgePropagationDecision::Skipped;
     }
 
-    // Convert drafts to created claims
+    auto matches_existing_target = [&](const KnowledgeClaim& claim) {
+        return std::any_of(
+            plan.attempt.target_existing_claims.begin(),
+            plan.attempt.target_existing_claims.end(),
+            [&](const KnowledgeClaim& existing) { return existing.knowledge_id == claim.knowledge_id; });
+    };
+
+    // Convert drafts by per-claim destination, not by the aggregate decision.
+    // A single teaching attempt may both create a new claim and reinforce an existing one.
     for (const auto& draft : plan.recipient_claim_drafts) {
-        if (result.decision == KnowledgePropagationDecision::CreatedRecipientClaim) {
-            result.created_claims.push_back(draft.claim);
-        } else if (result.decision == KnowledgePropagationDecision::ReinforcedRecipientClaim ||
-                   result.decision == KnowledgePropagationDecision::UpdatedRecipientClaim) {
+        if (matches_existing_target(draft.claim)) {
             result.updated_claims.push_back(draft.claim);
+        } else {
+            result.created_claims.push_back(draft.claim);
         }
     }
 
@@ -841,46 +873,42 @@ Result<KnowledgePropagationResult> KnowledgePropagationService::propagate(
     }
 
     // Generate event drafts for successful transfers
-    if (result.decision == KnowledgePropagationDecision::CreatedRecipientClaim) {
-        for (const auto& claim : result.created_claims) {
-            KnowledgeEventDraft evt;
-            evt.event_key = "knowledge.claim_transferred";
-            evt.knowledge_id = claim.knowledge_id;
-            evt.owner = claim.owner;
-            evt.subject = claim.subject;
-            evt.relation_type = claim.predicate.relation_type;
-            evt.status = claim.status;
-            evt.decision = KnowledgeFormationDecision::CreatedClaim;
-            evt.reason_keys.push_back("propagation_transfer");
-            result.event_drafts.push_back(evt);
+    for (const auto& claim : result.created_claims) {
+        KnowledgeEventDraft evt;
+        evt.event_key = "knowledge.claim_transferred";
+        evt.knowledge_id = claim.knowledge_id;
+        evt.owner = claim.owner;
+        evt.subject = claim.subject;
+        evt.relation_type = claim.predicate.relation_type;
+        evt.status = claim.status;
+        evt.decision = KnowledgeFormationDecision::CreatedClaim;
+        evt.reason_keys.push_back("propagation_transfer");
+        result.event_drafts.push_back(evt);
 
-            KnowledgeStateChangeDraft sc;
-            sc.change_key = "knowledge.state_change.propagation_created";
-            sc.knowledge_id = claim.knowledge_id;
-            sc.reason_keys.push_back("propagation");
-            result.state_changes.push_back(sc);
-        }
+        KnowledgeStateChangeDraft sc;
+        sc.change_key = "knowledge.state_change.propagation_created";
+        sc.knowledge_id = claim.knowledge_id;
+        sc.reason_keys.push_back("propagation");
+        result.state_changes.push_back(sc);
     }
 
-    if (result.decision == KnowledgePropagationDecision::ReinforcedRecipientClaim) {
-        for (const auto& claim : result.updated_claims) {
-            KnowledgeEventDraft evt;
-            evt.event_key = "knowledge.claim_transfer_reinforced";
-            evt.knowledge_id = claim.knowledge_id;
-            evt.owner = claim.owner;
-            evt.subject = claim.subject;
-            evt.relation_type = claim.predicate.relation_type;
-            evt.status = claim.status;
-            evt.decision = KnowledgeFormationDecision::UpdatedClaim;
-            evt.reason_keys.push_back("propagation_reinforcement");
-            result.event_drafts.push_back(evt);
+    for (const auto& claim : result.updated_claims) {
+        KnowledgeEventDraft evt;
+        evt.event_key = "knowledge.claim_transfer_reinforced";
+        evt.knowledge_id = claim.knowledge_id;
+        evt.owner = claim.owner;
+        evt.subject = claim.subject;
+        evt.relation_type = claim.predicate.relation_type;
+        evt.status = claim.status;
+        evt.decision = KnowledgeFormationDecision::UpdatedClaim;
+        evt.reason_keys.push_back("propagation_reinforcement");
+        result.event_drafts.push_back(evt);
 
-            KnowledgeStateChangeDraft sc;
-            sc.change_key = "knowledge.state_change.propagation_updated";
-            sc.knowledge_id = claim.knowledge_id;
-            sc.reason_keys.push_back("propagation");
-            result.state_changes.push_back(sc);
-        }
+        KnowledgeStateChangeDraft sc;
+        sc.change_key = "knowledge.state_change.propagation_updated";
+        sc.knowledge_id = claim.knowledge_id;
+        sc.reason_keys.push_back("propagation");
+        result.state_changes.push_back(sc);
     }
 
     auto result_r = result.validateBasic();

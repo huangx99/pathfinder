@@ -176,6 +176,8 @@ struct KnowledgeFormationInput {
     KnowledgeRelationType target_relation = KnowledgeRelationType::Unknown;
     std::string action_key;
     std::string effect_key;
+    std::vector<std::string> related_subject_ids;
+    std::string relation_group_key;
     std::vector<KnowledgeCondition> candidate_conditions;
     std::vector<std::string> reason_keys;
 

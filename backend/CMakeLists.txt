@@ -186,6 +186,25 @@ target_link_libraries(pathfinder_replay PUBLIC
     pathfinder_pipeline
 )
 
+
+# Save package library (P30)
+add_library(pathfinder_save STATIC
+    src/save/save_package.cpp
+)
+
+target_include_directories(pathfinder_save PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(pathfinder_save PUBLIC
+    pathfinder_foundation
+    pathfinder_state
+    pathfinder_event
+    pathfinder_command
+    pathfinder_pipeline
+    pathfinder_replay
+)
+
 # Protocol library (P4)
 add_library(pathfinder_protocol STATIC
     src/protocol/types.cpp
@@ -507,6 +526,23 @@ target_link_libraries(pathfinder_condition PUBLIC
     pathfinder_foundation
 )
 
+
+# Replay Diagnostics library (P31)
+add_library(pathfinder_replay_diagnostics STATIC
+    src/replay/replay_diagnostics.cpp
+)
+
+target_include_directories(pathfinder_replay_diagnostics PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(pathfinder_replay_diagnostics PUBLIC
+    pathfinder_foundation
+    pathfinder_condition
+    pathfinder_replay
+    pathfinder_save
+)
+
 # Knowledge library (P18 + P19 + P20)
 add_library(pathfinder_knowledge STATIC
     src/knowledge/knowledge_types.cpp
@@ -528,6 +564,30 @@ target_link_libraries(pathfinder_knowledge PUBLIC
     pathfinder_memory
 )
 
+# Reaction library (P28)
+add_library(pathfinder_reaction STATIC
+    src/reaction/reaction_types.cpp
+    src/reaction/reaction_rule.cpp
+    src/reaction/reaction_trace.cpp
+    src/reaction/reaction_context.cpp
+    src/reaction/reaction_resolver.cpp
+    src/reaction/reaction_fixtures.cpp
+    src/reaction/reaction_content.cpp
+    src/reaction/reaction_applier.cpp
+    src/reaction/reaction_learning_bridge.cpp
+)
+
+target_include_directories(pathfinder_reaction PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(pathfinder_reaction PUBLIC
+    pathfinder_foundation
+    pathfinder_condition
+    pathfinder_knowledge
+    pathfinder_object
+)
+
 # Tribe library (P23/P24)
 add_library(pathfinder_tribe STATIC
     src/tribe/tribe_types.cpp
@@ -543,6 +603,30 @@ target_include_directories(pathfinder_tribe PUBLIC
 target_link_libraries(pathfinder_tribe PUBLIC
     pathfinder_foundation
     pathfinder_knowledge
+)
+
+
+# Danger library (P29)
+add_library(pathfinder_danger STATIC
+    src/danger/danger_types.cpp
+    src/danger/threat_profile_builder.cpp
+    src/danger/hazard_resolver.cpp
+    src/danger/danger_knowledge_bridge.cpp
+    src/danger/tribe_danger_bridge.cpp
+)
+
+target_include_directories(pathfinder_danger PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(pathfinder_danger PUBLIC
+    pathfinder_foundation
+    pathfinder_condition
+    pathfinder_reaction
+    pathfinder_knowledge
+    pathfinder_cognition
+    pathfinder_tribe
+    pathfinder_object
 )
 
 # Civilization library (P26)
@@ -616,6 +700,56 @@ target_link_libraries(pathfinder_h5_dialog PUBLIC
     pathfinder_memory
     pathfinder_knowledge
     pathfinder_learning
+)
+
+
+# H5 Projection library (P32)
+add_library(pathfinder_h5_projection STATIC
+    src/h5_projection/projection.cpp
+)
+
+target_include_directories(pathfinder_h5_projection PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(pathfinder_h5_projection PUBLIC
+    pathfinder_foundation
+    pathfinder_protocol
+    pathfinder_replay_diagnostics
+)
+
+# H5 Playable shell library (P33)
+add_library(pathfinder_h5_playable STATIC
+    src/h5_playable/playable_types.cpp
+    src/h5_playable/playable_projection_mapper.cpp
+    src/h5_playable/playable_turn_service.cpp
+    src/h5_playable/playable_wire_codec.cpp
+    src/h5_playable/playable_http_server.cpp
+)
+
+target_include_directories(pathfinder_h5_playable PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(pathfinder_h5_playable PUBLIC
+    pathfinder_foundation
+    pathfinder_h5_dialog
+    pathfinder_h5_projection
+    pathfinder_condition
+    pathfinder_knowledge
+)
+
+# H5 Playable Server executable (P33)
+add_executable(pathfinder_h5_playable_server_exe
+    apps/h5_playable_server_main.cpp
+)
+
+set_target_properties(pathfinder_h5_playable_server_exe PROPERTIES
+    OUTPUT_NAME pathfinder_h5_playable_server
+)
+
+target_link_libraries(pathfinder_h5_playable_server_exe PRIVATE
+    pathfinder_h5_playable
 )
 
 # H5 Dialog Server executable (P22)

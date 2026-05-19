@@ -114,6 +114,8 @@ Result<KnowledgeFormationPlan> KnowledgeFormationPlanner::planFromMemorySummary(
     subject.kind = KnowledgeSubjectKind::ObjectDefinition;
     subject.subject_id = summary.key.subject.subject_id;
     subject.subject_type_key = summary.key.subject.subject_type_key;
+    subject.related_subject_ids = input.related_subject_ids;
+    subject.relation_group_key = input.relation_group_key;
     subject.safe_tags = summary.key.subject.safe_tags;
 
     // Build predicate

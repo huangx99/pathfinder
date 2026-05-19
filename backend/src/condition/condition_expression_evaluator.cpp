@@ -194,8 +194,9 @@ static Result<ConditionEvaluationResult> evalCanonical(const std::string& canoni
     std::string field;
     std::string op;
     std::string value;
-    if (domain == "object_state" || domain == "actor_requirement" || domain == "knowledge_source" ||
-        domain == "knowledge_condition" || domain == "test") {
+    if (domain == "object_state" || domain == "source_state" || domain == "target_state" ||
+        domain == "source_tag" || domain == "target_tag" || domain == "actor_requirement" ||
+        domain == "knowledge_source" || domain == "knowledge_condition" || domain == "test") {
         op = parts[2];
         value = suffixAfterDelimiters(canonical_key, ':', 3);
     } else {
@@ -225,23 +226,43 @@ static Result<ConditionEvaluationResult> evalCanonical(const std::string& canoni
         }
         return Result<ConditionEvaluationResult>::ok(makeResult(matched, score, canonical_key, summary_key, std::move(steps)));
     }
-    if (domain == "object_state") {
+    if (domain == "object_state" || domain == "target_state") {
+        if (op != "eq") return Result<ConditionEvaluationResult>::fail(makeError(ErrorCode::validation_failed, "unsupported target state condition op"));
         const bool matched = context.target && containsValue(context.target->state_keys, value);
-        return Result<ConditionEvaluationResult>::ok(makeResult(matched, matched ? 1.0 : 0.0, canonical_key, summary_key, {"object_state:" + value}));
+        return Result<ConditionEvaluationResult>::ok(makeResult(matched, matched ? 1.0 : 0.0, canonical_key, summary_key, {domain + ":" + value}));
+    }
+    if (domain == "source_state") {
+        if (op != "eq") return Result<ConditionEvaluationResult>::fail(makeError(ErrorCode::validation_failed, "unsupported source_state condition op"));
+        const bool matched = context.source && containsValue(context.source->state_keys, value);
+        return Result<ConditionEvaluationResult>::ok(makeResult(matched, matched ? 1.0 : 0.0, canonical_key, summary_key, {"source_state:" + value}));
+    }
+    if (domain == "target_tag") {
+        if (op != "has") return Result<ConditionEvaluationResult>::fail(makeError(ErrorCode::validation_failed, "unsupported target_tag condition op"));
+        const bool matched = context.target && containsValue(context.target->tag_keys, value);
+        return Result<ConditionEvaluationResult>::ok(makeResult(matched, matched ? 1.0 : 0.0, canonical_key, summary_key, {"target_tag:" + value}));
+    }
+    if (domain == "source_tag") {
+        if (op != "has") return Result<ConditionEvaluationResult>::fail(makeError(ErrorCode::validation_failed, "unsupported source_tag condition op"));
+        const bool matched = context.source && containsValue(context.source->tag_keys, value);
+        return Result<ConditionEvaluationResult>::ok(makeResult(matched, matched ? 1.0 : 0.0, canonical_key, summary_key, {"source_tag:" + value}));
     }
     if (domain == "actor_requirement") {
+        if (op != "has") return Result<ConditionEvaluationResult>::fail(makeError(ErrorCode::validation_failed, "unsupported actor_requirement condition op"));
         const bool matched = context.actor && containsValue(context.actor->requirement_keys, value);
         return Result<ConditionEvaluationResult>::ok(makeResult(matched, matched ? 1.0 : 0.0, canonical_key, summary_key, {"actor_requirement:" + value}));
     }
     if (domain == "knowledge_source") {
+        if (op != "eq") return Result<ConditionEvaluationResult>::fail(makeError(ErrorCode::validation_failed, "unsupported knowledge_source condition op"));
         const bool matched = context.knowledge && containsValue(context.knowledge->source_keys, value);
         return Result<ConditionEvaluationResult>::ok(makeResult(matched, matched ? 1.0 : 0.0, canonical_key, summary_key, {"knowledge_source:" + value}));
     }
     if (domain == "knowledge_condition") {
+        if (op != "eq") return Result<ConditionEvaluationResult>::fail(makeError(ErrorCode::validation_failed, "unsupported knowledge_condition condition op"));
         const bool matched = context.knowledge && containsValue(context.knowledge->condition_keys, value);
         return Result<ConditionEvaluationResult>::ok(makeResult(matched, matched ? 1.0 : 0.0, canonical_key, summary_key, {"knowledge_condition:" + value}));
     }
     if (domain == "test") {
+        if (op != "eq") return Result<ConditionEvaluationResult>::fail(makeError(ErrorCode::validation_failed, "unsupported test condition op"));
         const bool matched = containsValue(context.safe_context_keys, value);
         return Result<ConditionEvaluationResult>::ok(makeResult(matched, matched ? 1.0 : 0.0, canonical_key, summary_key, {"test_condition:" + value}));
     }

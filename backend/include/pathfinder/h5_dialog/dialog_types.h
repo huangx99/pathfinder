@@ -11,6 +11,7 @@
 #include <string>
 #include <vector>
 #include <optional>
+#include <unordered_map>
 
 namespace pathfinder::h5_dialog {
 
@@ -28,6 +29,7 @@ enum class DialogIntentKind {
     InspectActorKnowledge,
     InspectRecipientKnowledge,
     Help,
+    Wait,
     Restart,
     TestOnly
 };
@@ -42,6 +44,7 @@ enum class DialogActionKind {
     Use,
     Teach,
     Inspect,
+    Wait,
     Restart,
     TestOnly
 };
@@ -97,6 +100,7 @@ struct DialogIntent {
     DialogIntentKind kind = DialogIntentKind::Unknown;
     DialogActionKind action = DialogActionKind::Unknown;
     std::string object_key;
+    std::string target_object_key;
     std::string recipient_key;
     std::string normalized_text;
     std::vector<std::string> reason_keys;
@@ -139,13 +143,36 @@ struct DialogScenarioObject {
     pathfinder::foundation::Result<void> validateBasic() const;
 };
 
+struct DialogStateCondition {
+    std::string object_key;
+    std::string state_key;
+    std::string op;
+    double number_value = 0.0;
+    std::string tag_value;
+
+    pathfinder::foundation::Result<void> validateBasic() const;
+};
+
+struct DialogStateMutation {
+    std::string object_key;
+    std::string state_key;
+    std::string op;
+    double number_value = 0.0;
+    std::string tag_value;
+
+    pathfinder::foundation::Result<void> validateBasic() const;
+};
+
 struct DialogFeedbackTemplate {
     std::string feedback_key;
     std::string object_key;
+    std::string target_object_key;
     DialogActionKind action = DialogActionKind::Unknown;
     std::string effect_key;
     std::vector<pathfinder::cognition::CognitionOutcomeSignal> outcome_signals;
     std::vector<std::string> condition_keys;
+    std::vector<DialogStateCondition> state_conditions;
+    std::vector<DialogStateMutation> state_mutations;
     double utility_delta = 0.0;
     double risk_delta = 0.0;
     std::vector<std::string> reason_keys;
@@ -164,6 +191,26 @@ struct DialogScenario {
     std::vector<std::string> reason_keys;
 };
 
+
+struct DialogCausalExposureRecord {
+    std::string object_key;
+    std::string family_key;
+    std::string action_key;
+    std::string effect_key;
+    uint64_t observed_tick = 0;
+    double dose_amount = 1.0;
+    std::vector<std::string> state_keys;
+    std::vector<std::string> reason_keys;
+};
+
+struct DialogObjectRuntimeState {
+    std::string object_key;
+    std::unordered_map<std::string, double> numeric_states;
+    std::vector<std::string> tag_states;
+
+    pathfinder::foundation::Result<void> validateBasic() const;
+};
+
 struct DialogSessionState {
     std::string session_id;
     std::string scenario_key;
@@ -179,7 +226,9 @@ struct DialogSessionState {
     std::vector<pathfinder::knowledge::KnowledgeClaim> actor_claims;
     std::vector<pathfinder::knowledge::KnowledgeClaim> recipient_claims;
 
+    std::unordered_map<std::string, DialogObjectRuntimeState> object_runtime_states;
     std::vector<std::string> completed_action_keys;
+    std::vector<DialogCausalExposureRecord> causal_exposures;
     std::vector<std::string> debug_keys;
 
     pathfinder::foundation::Result<void> validateBasic() const;
