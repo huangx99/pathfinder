@@ -879,6 +879,29 @@ target_link_libraries(pathfinder_h5_playable_server_exe PRIVATE
     pathfinder_h5_playable
 )
 
+# World Command library (P43)
+add_library(pathfinder_world_command STATIC
+    src/world_command/world_command_types.cpp
+    src/world_command/world_command_registry.cpp
+    src/world_command/world_command_dispatcher.cpp
+    src/world_command/world_command_projection.cpp
+    src/world_command/world_command_trace.cpp
+    src/world_command/world_command_pipeline.cpp
+    src/world_command/handlers/noop_command_handler.cpp
+    src/world_command/handlers/wait_command_handler.cpp
+    src/world_command/handlers/inspect_command_handler.cpp
+    src/world_command/handlers/system_tick_command_handler.cpp
+    src/world_command/handlers/generate_world_command_handler.cpp
+)
+
+target_include_directories(pathfinder_world_command PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(pathfinder_world_command PUBLIC
+    pathfinder_foundation
+)
+
 # H5 Dialog Server executable (P22)
 add_executable(pathfinder_h5_dialog_server_exe
     apps/h5_dialog_server_main.cpp

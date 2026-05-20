@@ -5869,3 +5869,40 @@ target_link_libraries(pathfinder_tests_content_integration PRIVATE
 )
 
 add_test(NAME content_integration_flow COMMAND pathfinder_tests_content_integration flow)
+
+# World Command unit tests (P43)
+add_executable(pathfinder_tests_world_command
+    unit/world_command/world_command_test.cpp
+    unit/world_command/world_command_dispatcher_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_world_command PRIVATE
+    pathfinder_world_command
+    pathfinder_foundation
+)
+
+add_test(NAME world_command_enum COMMAND pathfinder_tests_world_command enum)
+add_test(NAME world_command_dto_validation COMMAND pathfinder_tests_world_command dto_validation)
+add_test(NAME world_command_pipeline COMMAND pathfinder_tests_world_command pipeline)
+add_test(NAME world_command_registry COMMAND pathfinder_tests_world_command registry)
+add_test(NAME world_command_trace COMMAND pathfinder_tests_world_command trace)
+add_test(NAME world_command_trace_isolation COMMAND pathfinder_tests_world_command trace_isolation)
+add_test(NAME world_command_source_distinguish COMMAND pathfinder_tests_world_command source_distinguish)
+add_test(NAME world_command_dispatcher_lookup COMMAND pathfinder_tests_world_command lookup)
+add_test(NAME world_command_dispatcher_no_playbook_rules COMMAND pathfinder_tests_world_command no_playbook_rules)
+
+# World Command integration tests (P43)
+add_executable(pathfinder_tests_world_command_integration
+    integration/world_command/world_command_flow_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_world_command_integration PRIVATE
+    pathfinder_world_command
+    pathfinder_foundation
+)
+
+add_test(NAME world_command_flow_bootstrap COMMAND pathfinder_tests_world_command_integration bootstrap)
+add_test(NAME world_command_flow_sequence COMMAND pathfinder_tests_world_command_integration sequence)
+add_test(NAME world_command_flow_response_completeness COMMAND pathfinder_tests_world_command_integration response_completeness)
+add_test(NAME world_command_flow_invalid_command COMMAND pathfinder_tests_world_command_integration invalid_command)
+add_test(NAME world_command_flow_trace_integrity COMMAND pathfinder_tests_world_command_integration trace_integrity)
