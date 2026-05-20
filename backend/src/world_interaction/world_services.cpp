@@ -3,6 +3,7 @@
 #include "pathfinder/agent_reasoning/agent_reasoner.h"
 #include "pathfinder/condition/condition_expression_evaluator.h"
 #include "pathfinder/foundation/error.h"
+#include "pathfinder/goal_execution/goal_execution_system.h"
 #include <algorithm>
 #include <cmath>
 #include <sstream>
@@ -94,6 +95,11 @@ const WorldObjectInstance* findObject(const WorldSnapshot& snapshot, const std::
     return &it->second;
 }
 
+std::string displayObjectName(const WorldSnapshot& snapshot, const std::string& key) {
+    const auto* object = findObject(snapshot, key);
+    return object && !object->display_name_zh_cn.empty() ? object->display_name_zh_cn : key;
+}
+
 const WorldThreatRuntimeState* findThreat(const WorldSnapshot& snapshot, const std::string& key) {
     auto it = snapshot.threats_by_key.find(key);
     if (it == snapshot.threats_by_key.end()) return nullptr;
@@ -102,6 +108,163 @@ const WorldThreatRuntimeState* findThreat(const WorldSnapshot& snapshot, const s
 
 bool actorKnowsEffect(const WorldActorRuntimeState& actor, const std::string& effect_key) {
     return std::find(actor.known_effect_keys.begin(), actor.known_effect_keys.end(), effect_key) != actor.known_effect_keys.end();
+}
+
+bool actorCanAccessObject(const WorldObjectInstance& object, const std::string& actor_key) {
+    if (actor_key.empty()) return false;
+    auto quantity_it = object.actor_quantities.find(actor_key);
+    if (quantity_it != object.actor_quantities.end() && quantity_it->second > 0) return true;
+    const bool explicitly_permitted = std::find(object.permitted_actor_keys.begin(), object.permitted_actor_keys.end(), actor_key) != object.permitted_actor_keys.end();
+    if (!object.actor_quantities.empty()) return explicitly_permitted;
+    if (object.owner_actor_key == actor_key) return true;
+    if (explicitly_permitted) return true;
+    return object.owner_actor_key.empty() && object.permitted_actor_keys.empty();
+}
+
+int actorOwnedQuantity(const WorldObjectInstance& object, const std::string& actor_key) {
+    auto it = object.actor_quantities.find(actor_key);
+    if (it == object.actor_quantities.end()) return 0;
+    return std::max(0, it->second);
+}
+
+WorldSnapshot actorAccessibleSnapshot(const WorldSnapshot& snapshot, const std::string& actor_key) {
+    auto scoped = snapshot;
+    auto actor_it = snapshot.actors_by_key.find(actor_key);
+    for (auto& [key, object] : scoped.objects_by_key) {
+        bool accessible = actorCanAccessObject(object, actor_key);
+        if (!accessible && actor_it != snapshot.actors_by_key.end()) {
+            accessible = std::find(actor_it->second.held_object_keys.begin(), actor_it->second.held_object_keys.end(), key) != actor_it->second.held_object_keys.end();
+        }
+        if (actorOwnedQuantity(object, actor_key) > 0) {
+            object.numeric_states["world_quantity"] = static_cast<double>(object.quantity);
+            object.quantity = actorOwnedQuantity(object, actor_key);
+            object.numeric_states["quantity"] = static_cast<double>(object.quantity);
+            continue;
+        }
+        if (!accessible && object.quantity > 0) {
+            object.numeric_states["world_quantity"] = static_cast<double>(object.quantity);
+            object.quantity = 0;
+            object.numeric_states["quantity"] = 0.0;
+            addTag(object.state_tags, "not_accessible_to_actor");
+        }
+    }
+    return scoped;
+}
+
+bool actorHasAccessibleQuantity(const WorldSnapshot& snapshot, const std::string& actor_key, const std::string& object_key, int required_quantity = 1) {
+    auto object_it = snapshot.objects_by_key.find(object_key);
+    if (object_it != snapshot.objects_by_key.end()) {
+        if (actorOwnedQuantity(object_it->second, actor_key) >= required_quantity) return true;
+        if (actorCanAccessObject(object_it->second, actor_key) && object_it->second.actor_quantities.empty() && object_it->second.quantity >= required_quantity) return true;
+    }
+    auto actor_it = snapshot.actors_by_key.find(actor_key);
+    if (actor_it == snapshot.actors_by_key.end()) return false;
+    return static_cast<int>(std::count(actor_it->second.held_object_keys.begin(), actor_it->second.held_object_keys.end(), object_key)) >= required_quantity;
+}
+
+AgentAutonomyActionKind actionKindFromDriver(pathfinder::goal_execution::ActionDriverKind kind) {
+    using pathfinder::goal_execution::ActionDriverKind;
+    switch (kind) {
+        case ActionDriverKind::CounterThreat: return AgentAutonomyActionKind::HoldTorch;
+        case ActionDriverKind::ChopWood:
+        case ActionDriverKind::Gather:
+        case ActionDriverKind::UseObject:
+        case ActionDriverKind::BuildStructure: return AgentAutonomyActionKind::GatherMaterial;
+        case ActionDriverKind::SharpenTool: return AgentAutonomyActionKind::MaintainTool;
+        case ActionDriverKind::MoveTo: return AgentAutonomyActionKind::ApproachTarget;
+        default: return AgentAutonomyActionKind::FollowActor;
+    }
+}
+
+std::string autonomySummaryFromCommand(
+    const WorldActorRuntimeState& actor,
+    const WorldSnapshot& snapshot,
+    const pathfinder::goal_execution::DriverCommand& command) {
+    const auto object_name = command.object_key.has_value() ? displayObjectName(snapshot, *command.object_key) : std::string("当前对象");
+    const auto target_name = command.target_key.has_value() ? displayObjectName(snapshot, *command.target_key) : std::string{};
+    if (command.effect_key == "repel_beast") return actor.display_name_zh_cn + "根据已知经验使用自己可支配的" + object_name + "应对" + target_name + "。";
+    if (command.effect_key == "make_torch") return actor.display_name_zh_cn + "发现缺少火把，于是按已知制作流程尝试制作火把。";
+    if (command.effect_key == "ignite_fire") return actor.display_name_zh_cn + "发现制作火把还缺火源，于是按已知流程先点燃火源。";
+    if (command.effect_key == "cut_wood") return actor.display_name_zh_cn + "发现制作火把还缺处理好的木材，于是先处理木头。";
+    if (command.effect_key == "restore_sharpness") return actor.display_name_zh_cn + "发现工具状态不足，于是先维护工具。";
+    return actor.display_name_zh_cn + "根据已知经验推进当前目标：" + command.public_summary_zh_cn;
+}
+
+Result<AgentAutonomyResult> executePlanThroughP40(
+    const WorldSnapshot& actor_scoped_snapshot,
+    const WorldSnapshot& display_snapshot,
+    const WorldActorRuntimeState& actor,
+    const AgentAutonomyRequest& request,
+    const pathfinder::agent_reasoning::AgentPlan& plan) {
+    pathfinder::goal_execution::ExecutionContext context;
+    context.context_id = "execution.autonomy." + request.agent_actor_key + "." + std::to_string(display_snapshot.turn_index);
+    context.actor_key = request.agent_actor_key;
+    context.capability_tier = pathfinder::goal_execution::AgentCapabilityTier::CognitiveAgent;
+    context.known_claims = actor.known_claims;
+
+    pathfinder::goal_execution::ExecutionTickRequest tick_request;
+    tick_request.request_id = "execution_tick.autonomy." + request.agent_actor_key + "." + std::to_string(display_snapshot.turn_index);
+    tick_request.context = std::move(context);
+    tick_request.world_snapshot = actor_scoped_snapshot;
+    tick_request.incoming_plan = plan;
+    tick_request.elapsed_ticks = 1;
+    tick_request.tick = display_snapshot.turn_index;
+
+    pathfinder::goal_execution::GoalExecutionSystem execution_system;
+    auto ticked = execution_system.tick(tick_request);
+    if (ticked.is_error()) return Result<AgentAutonomyResult>::fail(ticked.errors());
+
+    AgentAutonomyResult result;
+    result.agent_actor_key = request.agent_actor_key;
+    result.required_knowledge_effect_key = request.required_knowledge_effect_key;
+    result.target_key = request.target_threat_key;
+    result.action_kind = AgentAutonomyActionKind::None;
+    result.skip_reason = InteractionFailureKind::ConditionNotMet;
+    result.summary_zh_cn = ticked.value().safe_summary_zh_cn.empty() ? "同伴正在根据目标执行下一步。" : ticked.value().safe_summary_zh_cn;
+    result.trace_keys = ticked.value().trace;
+
+    if (ticked.value().commands_to_resolve.empty()) {
+        if (!ticked.value().internal_blockers.empty()) {
+            result.summary_zh_cn = ticked.value().internal_blockers.front().safe_summary_zh_cn;
+            result.skip_reason = InteractionFailureKind::ToolUnavailable;
+        } else if (!ticked.value().generated_subgoals.empty()) {
+            result.summary_zh_cn = actor.display_name_zh_cn + "发现当前目标还缺少" + ticked.value().generated_subgoals.front().target_key.value_or("前置条件") + "，已转入准备步骤。";
+        }
+        return Result<AgentAutonomyResult>::ok(std::move(result));
+    }
+
+    WorldInteractionService interaction_service;
+    WorldChangeApplier applier;
+    auto running_snapshot = actor_scoped_snapshot;
+    std::vector<WorldChange> changes;
+    for (const auto& input : ticked.value().world_changes) {
+        auto resolved = interaction_service.resolve(running_snapshot, input, InteractionResolveOptions{});
+        if (resolved.is_error()) return Result<AgentAutonomyResult>::fail(resolved.errors());
+        if (!resolved.value().ok) {
+            result.summary_zh_cn = resolved.value().player_feedback_zh_cn;
+            result.skip_reason = resolved.value().failure_kind.value_or(InteractionFailureKind::ConditionNotMet);
+            return Result<AgentAutonomyResult>::ok(std::move(result));
+        }
+        changes.insert(changes.end(), resolved.value().changes.begin(), resolved.value().changes.end());
+        auto applied = applier.apply(running_snapshot, resolved.value().changes);
+        if (applied.is_ok()) running_snapshot = applied.value();
+    }
+
+    const auto& first_command = ticked.value().commands_to_resolve.front();
+    result.executed = !changes.empty();
+    result.action_kind = actionKindFromDriver(first_command.driver_kind);
+    result.used_object_key = first_command.object_key.value_or("");
+    result.target_key = first_command.target_key.value_or(request.target_threat_key);
+    result.summary_zh_cn = autonomySummaryFromCommand(actor, display_snapshot, first_command);
+    result.skip_reason.reset();
+    WorldChange action_change;
+    action_change.change_id = "world.agent." + request.agent_actor_key + ".p40_action." + std::to_string(display_snapshot.turn_index);
+    action_change.kind = WorldChangeKind::AgentActionExecuted;
+    action_change.player_summary_zh_cn = result.summary_zh_cn;
+    action_change.target_actor_key = request.agent_actor_key;
+    result.changes.push_back(std::move(action_change));
+    result.changes.insert(result.changes.end(), changes.begin(), changes.end());
+    return Result<AgentAutonomyResult>::ok(std::move(result));
 }
 
 std::vector<pathfinder::knowledge::KnowledgeClaim> claimsFromActorKnowledge(
@@ -134,13 +297,26 @@ std::string statusSummaryForObject(const WorldObjectInstance& object) {
     } else if (object.definition_key == "axe") {
         add("锋利度：" + std::to_string(static_cast<int>(doubleState(object, "sharpness"))));
     } else if (object.definition_key == "torch") {
-        add(object.quantity > 0 ? "可用火把：" + std::to_string(object.quantity) : "尚未制作");
+        const int pioneer = actorOwnedQuantity(object, "pioneer");
+        const int companion = actorOwnedQuantity(object, "companion");
+        int assigned_total = 0;
+        for (const auto& [_, quantity_value] : object.actor_quantities) assigned_total += std::max(0, quantity_value);
+        const int public_count = std::max(0, object.quantity - assigned_total);
+        if (object.quantity <= 0) add("尚未制作");
+        if (pioneer > 0) add("你的火把：" + std::to_string(pioneer));
+        if (companion > 0) add("同伴火把：" + std::to_string(companion));
+        if (public_count > 0) add("公共火把：" + std::to_string(public_count));
+        if (object.quantity > 0 && pioneer == 0 && companion == 0 && public_count == 0) add("已分配火把：" + std::to_string(object.quantity));
     } else if (object.definition_key == "camp_fire") {
         add(object.quantity > 0 ? "状态：已点燃" : "状态：未点燃");
     } else if (object.definition_key == "beast_shadow") {
         auto threat = doubleState(object, "threat_level");
         if (hasTag(object.state_tags, "failed") || hasTag(object.state_tags, "attacked")) add("状态：已经袭击营地");
-        else if (hasTag(object.state_tags, "resolved")) add("状态：已退去");
+        else if (hasTag(object.state_tags, "resolved")) {
+            add("状态：已退去，正在外围观察");
+            const auto flank_waits = static_cast<int>(doubleState(object, "flank_waits"));
+            if (flank_waits > 0) add("迂回观察：" + std::to_string(flank_waits));
+        }
         else if (threat >= 75.0) add("状态：正在对峙");
         else if (threat >= 50.0) add("状态：正在靠近");
         else if (threat >= 25.0) add("状态：正在观察");
@@ -226,6 +402,11 @@ Result<WorldSnapshot> WorldSnapshotAdapter::fromDialogSession(
         instance.definition_key = object.object_key;
         instance.display_name_zh_cn = object.display_name;
         instance.kind = kindForObject(object);
+        instance.owner_actor_key = runtime.owner_actor_key;
+        instance.permitted_actor_keys = runtime.permitted_actor_keys;
+        for (const auto& [actor_key, quantity_value] : runtime.actor_quantities) {
+            instance.actor_quantities[actor_key] = std::max(0, static_cast<int>(std::round(quantity_value)));
+        }
         instance.quantity = intState(runtime, "quantity", 1);
         instance.visible = object.visibility != pathfinder::h5_dialog::DialogObjectVisibility::HiddenFromPlayer;
         instance.usable = !object.allowed_actions.empty();
@@ -294,6 +475,12 @@ Result<void> WorldSnapshotAdapter::writeBackToDialogSession(
     for (const auto& [key, object] : snapshot.objects_by_key) {
         auto& runtime = state.object_runtime_states[key];
         runtime.object_key = key;
+        runtime.owner_actor_key = object.owner_actor_key;
+        runtime.permitted_actor_keys = object.permitted_actor_keys;
+        runtime.actor_quantities.clear();
+        for (const auto& [actor_key, quantity_value] : object.actor_quantities) {
+            runtime.actor_quantities[actor_key] = static_cast<double>(quantity_value);
+        }
         runtime.numeric_states = object.numeric_states;
         runtime.numeric_states["quantity"] = static_cast<double>(object.quantity);
         runtime.tag_states = object.state_tags;
@@ -359,6 +546,11 @@ Result<WorldInteractionResult> WorldInteractionService::resolve(
     result.ok = executed.value().ok;
     result.learning_feedback_key = input.feedback_key;
     result.changes = executed.value().changes;
+    for (auto& world_change : result.changes) {
+        if ((world_change.kind == WorldChangeKind::ObjectGenerated || world_change.kind == WorldChangeKind::ObjectConsumed) && !world_change.target_actor_key.has_value()) {
+            world_change.target_actor_key = input.actor_key;
+        }
+    }
     if (input.action == pathfinder::h5_dialog::DialogActionKind::Eat) {
         for (auto& world_change : result.changes) {
             if (world_change.kind == WorldChangeKind::ObjectConsumed && world_change.target_instance_id == input.object_key) {
@@ -402,6 +594,18 @@ Result<WorldSnapshot> WorldChangeApplier::apply(
                 object.numeric_states["quantity"] = static_cast<double>(object.quantity);
                 syncQuantityTag(object);
                 if (world_change.kind == WorldChangeKind::ObjectGenerated) object.visible = true;
+                if (world_change.target_actor_key.has_value()) {
+                    if (world_change.kind == WorldChangeKind::ObjectGenerated && world_change.quantity_delta > 0) {
+                        object.actor_quantities[*world_change.target_actor_key] += world_change.quantity_delta;
+                        if (object.owner_actor_key.empty()) object.owner_actor_key = *world_change.target_actor_key;
+                    } else if (world_change.kind == WorldChangeKind::ObjectConsumed && world_change.quantity_delta < 0) {
+                        auto actor_quantity = object.actor_quantities.find(*world_change.target_actor_key);
+                        if (actor_quantity != object.actor_quantities.end()) {
+                            actor_quantity->second = std::max(0, actor_quantity->second + world_change.quantity_delta);
+                            if (actor_quantity->second == 0) object.actor_quantities.erase(actor_quantity);
+                        }
+                    }
+                }
             }
             if (world_change.state_key.has_value()) {
                 if (world_change.numeric_set_value.has_value()) object.numeric_states[*world_change.state_key] = *world_change.numeric_set_value;
@@ -445,7 +649,11 @@ Result<WorldSnapshot> WorldChangeApplier::apply(
                 for (const auto& tag : world_change.tag_add) addTag(object_it->second.state_tags, tag);
                 for (const auto& tag : world_change.tag_remove) removeTag(object_it->second.state_tags, tag);
                 if (!threat.resolved) removeTag(object_it->second.state_tags, "resolved");
-                if (threat.resolved) addTag(object_it->second.state_tags, "resolved");
+                if (threat.resolved) {
+                    addTag(object_it->second.state_tags, "resolved");
+                    removeTag(object_it->second.state_tags, "flanking_probe");
+                    object_it->second.numeric_states["flank_waits"] = 0.0;
+                }
                 if (threat.phase == ThreatEventPhase::Mitigated) addTag(object_it->second.state_tags, "avoiding_fire");
                 if (threat.phase == ThreatEventPhase::Failed) {
                     addTag(object_it->second.state_tags, "failed");
@@ -499,8 +707,11 @@ Result<AgentAutonomyResult> AgentAutonomyService::tryAct(
         pathfinder::agent_reasoning::ReasoningRequest reasoning_request;
         reasoning_request.request_id = request.request_key.empty() ? "autonomy.companion" : request.request_key;
         reasoning_request.actor_key = request.agent_actor_key;
-        reasoning_request.world_snapshot = snapshot;
+        auto scoped_snapshot = actorAccessibleSnapshot(snapshot, request.agent_actor_key);
+        reasoning_request.world_snapshot = scoped_snapshot;
         reasoning_request.agent_knowledge = claimsFromActorKnowledge(actor, request);
+        reasoning_request.options.min_confidence_score = 0.0;
+        reasoning_request.options.allow_tentative_knowledge = true;
         reasoning_request.need_state.actor_key = request.agent_actor_key;
         reasoning_request.need_state.fear = std::clamp(threat->level, 0.0, 100.0);
         reasoning_request.trigger_key = request.trigger_key.empty() ? "agent_autonomy" : request.trigger_key;
@@ -508,13 +719,17 @@ Result<AgentAutonomyResult> AgentAutonomyService::tryAct(
         pathfinder::agent_reasoning::AgentReasoner reasoner;
         auto reasoning = reasoner.reason(reasoning_request);
         if (reasoning.is_ok() && reasoning.value().selected_plan) {
-            pathfinder::agent_reasoning::AgentPlanExecutorAdapter adapter;
-            auto planned = adapter.toAutonomyResult(*reasoning.value().selected_plan, snapshot);
+            auto planned = executePlanThroughP40(scoped_snapshot, snapshot, actor, request, *reasoning.value().selected_plan);
             if (planned.is_ok()) return planned;
         }
 
         result.skip_reason = InteractionFailureKind::KnowledgeNotKnown;
-        result.summary_zh_cn = reasoning.is_ok() ? "同伴暂时无法根据已知经验形成可执行计划。" + reasoning.value().safe_explanation_zh_cn : "同伴还不能根据已知经验形成可执行计划。";
+        if (actorKnowsEffect(actor, request.required_knowledge_effect_key) && !actorHasAccessibleQuantity(snapshot, request.agent_actor_key, "torch")) {
+            result.skip_reason = InteractionFailureKind::ToolUnavailable;
+            result.summary_zh_cn = "同伴知道火把能应对危险，但他没有被分配或持有可用火把，所以不能凭空使用你的物品。";
+        } else {
+            result.summary_zh_cn = reasoning.is_ok() ? "同伴暂时无法根据已知经验形成可执行计划。" + reasoning.value().safe_explanation_zh_cn : "同伴还不能根据已知经验形成可执行计划。";
+        }
         return Result<AgentAutonomyResult>::ok(result);
     }
 
@@ -528,12 +743,14 @@ Result<AgentAutonomyResult> AgentAutonomyService::tryAct(
             std::find(request.observed_object_keys.begin(), request.observed_object_keys.end(), "fire") != request.observed_object_keys.end();
         const bool knows_fire = actorKnowsEffect(actor, "fire_is_dangerous") ||
             (threat && std::find(threat->instinct_effect_keys.begin(), threat->instinct_effect_keys.end(), "fire_is_dangerous") != threat->instinct_effect_keys.end());
+        const auto* threat_object = findObject(snapshot, request.target_threat_key.empty() ? "beast_shadow" : request.target_threat_key);
+        const bool flanking_probe = threat_object && hasTag(threat_object->state_tags, "flanking_probe");
         if (!threat || threat->resolved || threat->level < 25.0) {
             result.skip_reason = InteractionFailureKind::ThreatNotActive;
             result.summary_zh_cn = "野生生物还没有进入可见威胁阶段。";
             return Result<AgentAutonomyResult>::ok(result);
         }
-        if (fire_visible && knows_fire) {
+        if (fire_visible && knows_fire && !flanking_probe) {
             result.action_kind = AgentAutonomyActionKind::AvoidHazard;
             result.executed = true;
             result.used_object_key = "fire";
@@ -566,7 +783,7 @@ Result<AgentAutonomyResult> AgentAutonomyService::tryAct(
             return Result<AgentAutonomyResult>::ok(std::move(result));
         }
         result.skip_reason = InteractionFailureKind::KnowledgeNotKnown;
-        result.summary_zh_cn = "野生生物没有观察到足以避让的危险，仍在继续靠近。";
+        result.summary_zh_cn = flanking_probe ? "野兽正在迂回试探，普通火光不足以让它立刻退去，需要主动应对。" : "野生生物没有观察到足以避让的危险，仍在继续靠近。";
         return Result<AgentAutonomyResult>::ok(std::move(result));
     }
 
@@ -579,12 +796,30 @@ Result<std::vector<WorldChange>> ThreatEventBridge::progressThreats(
     auto threat = findThreat(snapshot, input.threat_key);
     if (!threat) return failChanges("threat not found");
     if (threat->resolved) {
-        auto world_change = change("world.threat.return." + std::to_string(snapshot.turn_index), WorldChangeKind::ThreatLevelChanged, "野兽没有彻底离开，它绕到树林另一侧继续观察营地。");
+        const auto* threat_object = findObject(snapshot, input.threat_key);
+        const auto current_flank_waits = threat_object ? doubleState(*threat_object, "flank_waits") : 0.0;
+        const auto interval = std::max<uint64_t>(1, input.reentry_interval_waits);
+        const auto next_flank_waits = current_flank_waits + 1.0;
+        if (next_flank_waits < static_cast<double>(interval)) {
+            auto wait_change = change("world.threat.flank_wait." + std::to_string(snapshot.turn_index), WorldChangeKind::ObjectStateChanged, "野兽退到树林外徘徊，暂时没有重新靠近。");
+            wait_change.target_instance_id = input.threat_key;
+            wait_change.state_key = "flank_waits";
+            wait_change.numeric_set_value = next_flank_waits;
+            return Result<std::vector<WorldChange>>::ok({wait_change});
+        }
+
+        auto reset_change = change("world.threat.flank_reset." + std::to_string(snapshot.turn_index), WorldChangeKind::ObjectStateChanged, "野兽在外围观察了几回合，开始寻找新的接近路线。");
+        reset_change.target_instance_id = input.threat_key;
+        reset_change.state_key = "flank_waits";
+        reset_change.numeric_set_value = 0.0;
+
+        auto world_change = change("world.threat.return." + std::to_string(snapshot.turn_index), WorldChangeKind::ThreatLevelChanged, "野兽没有彻底离开，它绕到树林另一侧重新靠近营地。");
         world_change.target_threat_key = input.threat_key;
-        world_change.numeric_set_value = 25.0;
+        world_change.numeric_set_value = std::clamp(input.reentry_level, 1.0, 100.0);
         world_change.tag_remove.push_back("resolved");
-        world_change.tag_add.push_back("foreshadowing");
-        return Result<std::vector<WorldChange>>::ok({world_change});
+        world_change.tag_add.push_back("approaching");
+        world_change.tag_add.push_back("flanking_probe");
+        return Result<std::vector<WorldChange>>::ok({reset_change, world_change});
     }
     auto new_level = std::clamp(threat->level + input.level_delta, 0.0, 100.0);
     std::string summary;

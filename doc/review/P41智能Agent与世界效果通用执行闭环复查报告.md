@@ -4,6 +4,10 @@
 
 结论：复查通过，可以进入下一阶段，但仍保留 P1/P2 残留风险。
 
+追加复查结论（资源归属修正）：通过。
+
+本次追加复查确认：P41 不再把“世界里存在火把”直接等价为“同伴可以使用火把”。玩家制作出的火把默认记录到玩家的 actor 数量视图，同伴即使已经学会“火把能驱赶野兽”，如果没有被显式分配或授权，也只能返回“知道但没有可用火把”，不能凭空取用玩家物品。
+
 本次复查针对提交：
 
 - `60f5cc0 feat: complete P41 long-term effect DTOs`
@@ -24,6 +28,24 @@
 - P41 配置目录化与表现层去硬编码：未完全完成，作为后续风险保留。
 
 ## 2. 已执行验证
+
+### 2.0 追加验证：资源归属与同伴权限
+
+已执行：
+
+```bash
+cmake --build build/backend --target pathfinder_tests_h5_playable pathfinder_tests_world_interaction pathfinder_tests_agent_reasoning pathfinder_tests_goal_execution -j2
+ctest --test-dir build/backend -R 'h5_playable_|goal_execution_|agent_reasoning_|world_interaction_' --output-on-failure
+```
+
+结果：58/58 通过。
+
+重点覆盖：
+
+- `h5_playable_companion_taught_torch_autonomy` 已改为验证“同伴学会火把知识但没有显式火把权限时不能行动”。
+- 玩家制作火把后，火把不会自动成为营地共享物。
+- 同伴自动行动反馈不再出现“从营地共享物品里取用”。
+- Agent 自主执行使用 actor-scoped resource view，不再默认读取全局物品数量。
 
 ### 2.1 编译验证
 
@@ -319,3 +341,69 @@ P41 复查通过。
 这次修复已经把上一轮最关键的问题补上：长期 DTO、长期操作枚举、长期目标枚举、未来场景测试都已经进入代码和测试体系。当前系统已经可以作为“智能 Agent 与世界效果通用执行闭环”的基础层继续发展。
 
 但必须明确：P41 不是项目终点。它完成的是通用执行底座，不是完整内容生产系统。下一步最重要的是把 P40/P41 桥接层中的内容 key 映射逐步收敛到配置目录，否则未来内容越来越多时，仍会回到“加东西要改代码”的风险。
+
+## 8. P40 接入同伴自主行动补充复查
+
+复查日期：2026-05-20
+
+### 8.1 问题结论
+
+本次复查确认：P40 目标执行系统并不是没有实现，真正问题是“同伴自主行动路径”之前没有稳定走完 P39 推理计划到 P40 Driver 再到 P41 世界结算的闭环。
+
+具体表现是：
+
+- 同伴知道 `repel_beast` 时，如果自己没有火把，不能凭空使用玩家的火把，这是正确的。
+- 但同伴同时掌握 `make_torch / ignite_fire / cut_wood / restore_sharpness` 等前置知识时，自主行动应该继续走准备链，而不是停在“缺少火把”。
+- P40 对 `wood_processed` 的材料解释和 P41 / P39 的“wood.processed 派生材料”解释存在口径差异，导致执行层误判缺材料。
+
+### 8.2 本次修正
+
+已完成以下修正：
+
+- `AgentAutonomyService` 的同伴自主行动路径接入 `GoalExecutionSystem::tick`。
+- 同伴行动现在使用 actor-scoped snapshot，只能看见和使用自己可支配的资源。
+- P40 `quantityOf` 和 `MaterialRequirementEvaluator` 支持把 `wood.processed` 解释为可用的 `wood_processed` 派生材料。
+- P40 Driver 产出的 `DriverCommand` 统一交给 `WorldInteractionService`，再由 P41 `WorldEffectExecutor` 结算，不在 H5 或 autonomy 层直接伪造结果。
+- 新增底层回归 `world_interaction_companion_p40_torch`，验证“同伴无火把但掌握完整链路时，会通过 P40 制作自己的火把”。
+
+### 8.3 不是写死结果的判断
+
+本次修复不是针对“火把”写一条绕过逻辑。
+
+实际链路是：
+
+1. 同伴拥有传播来的知识 Claim。
+2. P39 根据威胁目标生成计划。
+3. P40 根据计划步骤检查材料和前置条件。
+4. P40 生成 DriverCommand。
+5. WorldInteractionService 解析命令。
+6. P41 WorldEffectExecutor 依据 effect spec 产生 WorldChange。
+7. WorldChangeApplier 把生成物归属到行动 actor。
+
+当前仍有少量 effect 文案摘要用于 H5 展示，但规则结果不由这些文案决定。
+
+### 8.4 自检结果
+
+已执行相关回归：
+
+```text
+ctest --test-dir build/backend -R 'h5_playable_|world_interaction_|goal_execution_|agent_reasoning_' --output-on-failure
+```
+
+结果：58/58 通过。
+
+覆盖重点：
+
+- H5 可玩流程没有被破坏。
+- 世界交互与威胁逻辑通过。
+- P39 推理链仍能选择火把、造火把、斧头维护等计划。
+- P40 材料、阻塞、Driver、投影相关测试通过。
+- 新增同伴 P40 自主造火把回归通过。
+
+### 8.5 后续风险
+
+仍建议后续继续处理：
+
+- `wood_processed` 这种派生材料现在已有统一解释，但长期应进入内容目录 / 材料别名配置，不应无限扩散 C++ 特例。
+- autonomy summary 仍有少量中文文案 key 映射，后续内容目录化时应迁移到配置。
+- 当前同伴自主行动是“一次触发执行一步”，后续大世界需要把执行上下文持久化，让 Agent 可跨多回合继续未完成目标。

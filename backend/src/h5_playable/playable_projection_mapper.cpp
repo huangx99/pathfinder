@@ -6,6 +6,7 @@
 #include "pathfinder/condition/condition_summary.h"
 #include "pathfinder/h5_dialog/dialog_scenario.h"
 #include <algorithm>
+#include <cmath>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -110,6 +111,25 @@ bool runtimeHasTag(const pathfinder::h5_dialog::DialogSessionState& state,
     return runtime && std::find(runtime->tag_states.begin(), runtime->tag_states.end(), tag) != runtime->tag_states.end();
 }
 
+int runtimeActorQuantity(const pathfinder::h5_dialog::DialogSessionState& state,
+                         const std::string& object_key,
+                         const std::string& actor_key) {
+    const auto* runtime = runtimeForObject(state, object_key);
+    if (!runtime) return 0;
+    auto it = runtime->actor_quantities.find(actor_key);
+    if (it == runtime->actor_quantities.end()) return 0;
+    return static_cast<int>(std::max(0.0, std::floor(it->second)));
+}
+
+int runtimeAssignedQuantity(const pathfinder::h5_dialog::DialogSessionState& state,
+                            const std::string& object_key) {
+    const auto* runtime = runtimeForObject(state, object_key);
+    if (!runtime) return 0;
+    int total = 0;
+    for (const auto& [_, quantity] : runtime->actor_quantities) total += static_cast<int>(std::max(0.0, std::floor(quantity)));
+    return total;
+}
+
 std::string objectRuntimeStatus(const pathfinder::h5_dialog::DialogSessionState& state,
                                 const std::string& object_key) {
     std::vector<std::string> parts;
@@ -129,7 +149,14 @@ std::string objectRuntimeStatus(const pathfinder::h5_dialog::DialogSessionState&
         parts.push_back("锋利度：" + std::to_string(static_cast<int>(runtimeNumber(state, object_key, "sharpness"))));
     } else if (object_key == "torch") {
         const auto quantity = static_cast<int>(runtimeNumber(state, object_key, "quantity"));
-        parts.push_back(quantity > 0 ? "可用火把：" + std::to_string(quantity) : "尚未制作");
+        const int pioneer = runtimeActorQuantity(state, object_key, "pioneer");
+        const int companion = runtimeActorQuantity(state, object_key, "companion");
+        const int public_count = std::max(0, quantity - runtimeAssignedQuantity(state, object_key));
+        if (quantity <= 0) parts.push_back("尚未制作");
+        if (pioneer > 0) parts.push_back("你的火把：" + std::to_string(pioneer));
+        if (companion > 0) parts.push_back("同伴火把：" + std::to_string(companion));
+        if (public_count > 0) parts.push_back("公共火把：" + std::to_string(public_count));
+        if (quantity > 0 && pioneer == 0 && companion == 0 && public_count == 0) parts.push_back("已分配火把：" + std::to_string(quantity));
     } else if (object_key == "camp_fire") {
         parts.push_back(runtimeNumber(state, object_key, "quantity") > 0.0 ? "状态：已点燃" : "状态：未点燃");
     } else if (object_key == "beast_shadow") {

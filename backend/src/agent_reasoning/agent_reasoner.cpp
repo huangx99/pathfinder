@@ -284,6 +284,10 @@ KnowledgeUsability usabilityFor(const KnowledgeClaim& claim, const EffectSemanti
     if (claim.status == KnowledgeStatus::Deprecated || claim.status == KnowledgeStatus::Disproven) return KnowledgeUsability::Conflicted;
     if (claim.confidence.conflict_count > 0) return KnowledgeUsability::Conflicted;
     if (statusAtLeast(claim.status, semantics.confidence_floor) && claim.confidence.confidence >= options.min_confidence_score) return KnowledgeUsability::Usable;
+    const bool received_by_teaching = std::find(claim.reason_keys.begin(), claim.reason_keys.end(), "received_by_propagation") != claim.reason_keys.end();
+    if (received_by_teaching && semantics.semantic_kind == EffectSemanticKind::ThreatDelta && urgency >= 25.0 && claim.confidence.confidence > 0.0) {
+        return KnowledgeUsability::Tentative;
+    }
     if ((claim.status == KnowledgeStatus::Candidate || claim.status == KnowledgeStatus::Hypothesis) &&
         (options.allow_tentative_knowledge || (options.emergency_allows_tentative && urgency >= 80.0)) &&
         claim.confidence.confidence >= std::min(0.25, options.min_confidence_score)) {

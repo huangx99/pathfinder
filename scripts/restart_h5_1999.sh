@@ -32,21 +32,28 @@ echo "[3/5] Stop old H5 server on port 1999 only"
 find_h5_1999_pids() {
   local pid comm args
   {
-    ss -ltnp 2>/dev/null |
-    awk '$4 ~ /:1999$/ {print}' |
+    ss -H -ltnp 2>/dev/null |
+      awk -v port=":${PORT}" '$4 ~ port"$" {print}' |
       sed -n 's/.*pid=\([0-9][0-9]*\).*/\1/p'
-    ps -eo pid=,comm=,args= |
-      awk -v self="$$" -v bin="$SERVER_BIN" '$1 != self && ($2 ~ /^pathfinder_h5/ || $3 == bin) && /--port 1999/ {print $1}'
+    ps -ww -eo pid=,args= 2>/dev/null |
+      awk -v self="$$" -v port="${PORT}" '$1 != self && index($0, "pathfinder_h5_playable_server") && index($0, "--port " port) {print $1}'
+    pgrep -f "pathfinder_h5_playable_server.*--port ${PORT}" 2>/dev/null || true
   } |
     sort -u |
     while read -r pid; do
       [[ -z "$pid" ]] && continue
       comm="$(ps -p "$pid" -o comm= 2>/dev/null || true)"
-      args="$(ps -p "$pid" -o args= 2>/dev/null || true)"
-      if [[ "$comm" == pathfinder_h5* || "$args" == *pathfinder_h5_playable_server* ]]; then
+      args="$(ps -ww -p "$pid" -o args= 2>/dev/null || true)"
+      if [[ -z "$comm$args" ]]; then
+        continue
+      fi
+      if [[ "$pid" == "$$" || "$args" == *"restart_h5_1999.sh"* ]]; then
+        continue
+      fi
+      if [[ "$args" == *pathfinder_h5_playable_server* && "$args" == *"--port ${PORT}"* ]]; then
         echo "$pid"
       else
-        echo "ERROR: port 1999 is used by non-H5 process pid=$pid comm=$comm" >&2
+        echo "ERROR: port ${PORT} is used by non-H5 process pid=$pid comm=$comm" >&2
         return 2
       fi
     done
@@ -69,12 +76,49 @@ if [[ -n "$old_pids" ]]; then
 
   remaining_pids="$(find_h5_1999_pids)"
   if [[ -n "$remaining_pids" ]]; then
+    echo "Old H5 server still running after TERM, sending KILL: $(paste -sd ' ' - <<<"$remaining_pids")"
+    while read -r pid; do
+      [[ -z "$pid" ]] && continue
+      kill -KILL "$pid"
+    done <<<"$remaining_pids"
+    for _ in {1..20}; do
+      if [[ -z "$(find_h5_1999_pids)" ]]; then
+        break
+      fi
+      sleep 0.2
+    done
+  fi
+
+  remaining_pids="$(find_h5_1999_pids)"
+  if [[ -n "$remaining_pids" ]]; then
     echo "ERROR: port 1999 is still occupied by H5 server PIDs: $(paste -sd ' ' - <<<"$remaining_pids")" >&2
     ss -ltnp 2>/dev/null | awk '$4 ~ /:1999$/ {print}' >&2 || true
     exit 1
   fi
 else
-  echo "No existing 1999 H5 server found"
+  if ss -H -ltnp 2>/dev/null | awk -v port=":${PORT}" '$4 ~ port"$" {found=1} END {exit found?0:1}'; then
+    sleep 0.5
+    old_pids="$(find_h5_1999_pids)"
+    if [[ -n "$old_pids" ]]; then
+      echo "Stopping delayed-detected PIDs: $(paste -sd ' ' - <<<"$old_pids")"
+      while read -r pid; do
+        [[ -z "$pid" ]] && continue
+        kill "$pid"
+      done <<<"$old_pids"
+      for _ in {1..20}; do
+        if [[ -z "$(find_h5_1999_pids)" ]]; then
+          break
+        fi
+        sleep 0.2
+      done
+    else
+      echo "ERROR: port ${PORT} is occupied but no safe H5 process was detected" >&2
+      ss -ltnp 2>/dev/null | awk -v port=":${PORT}" '$4 ~ port"$" {print}' >&2 || true
+      exit 1
+    fi
+  else
+    echo "No existing 1999 H5 server found"
+  fi
 fi
 
 echo "[4/5] Start H5 server on 1999"

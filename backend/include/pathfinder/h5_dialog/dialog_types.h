@@ -247,6 +247,9 @@ struct DialogCausalExposureRecord {
 
 struct DialogObjectRuntimeState {
     std::string object_key;
+    std::string owner_actor_key;
+    std::vector<std::string> permitted_actor_keys;
+    std::unordered_map<std::string, double> actor_quantities;
     std::unordered_map<std::string, double> numeric_states;
     std::vector<std::string> tag_states;
 

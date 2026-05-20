@@ -742,6 +742,7 @@ target_link_libraries(pathfinder_world_interaction PUBLIC
     pathfinder_foundation
     pathfinder_world_interaction_types
     pathfinder_agent_reasoning
+    pathfinder_goal_execution
 )
 
 # H5 Dialog library (P22)

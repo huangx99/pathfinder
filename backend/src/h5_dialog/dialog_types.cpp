@@ -384,12 +384,18 @@ Result<void> DialogObjectRuntimeState::validateBasic() const {
     if (object_key.empty()) {
         return Result<void>::fail(makeError(ErrorCode::validation_failed, "runtime object_key empty"));
     }
-    if (containsDialogForbiddenKey(object_key) || containsDialogForbiddenKey(tag_states)) {
+    if (containsDialogForbiddenKey(object_key) || containsDialogForbiddenKey(owner_actor_key) ||
+        containsDialogForbiddenKey(permitted_actor_keys) || containsDialogForbiddenKey(tag_states)) {
         return Result<void>::fail(makeError(ErrorCode::validation_failed, "runtime state contains forbidden key"));
     }
     for (const auto& pair : numeric_states) {
         if (containsDialogForbiddenKey(pair.first)) {
             return Result<void>::fail(makeError(ErrorCode::validation_failed, "runtime numeric key contains forbidden key"));
+        }
+    }
+    for (const auto& pair : actor_quantities) {
+        if (containsDialogForbiddenKey(pair.first) || pair.second < 0.0) {
+            return Result<void>::fail(makeError(ErrorCode::validation_failed, "runtime actor quantity invalid"));
         }
     }
     return Result<void>::ok();

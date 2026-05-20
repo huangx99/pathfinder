@@ -139,7 +139,7 @@
     uiState.isBusy = true;
     uiState.activeBusyKey = action
       ? action.actionKey || action.inputText || "action"
-      : "command";
+      : (cmd === "等待" ? "wait" : cmd === "教同伴" ? "teach" : "command");
     setBusyUI(true);
 
     try {
@@ -168,11 +168,20 @@
     }
   }
 
+  function markBusyButton(btn, busy, key) {
+    if (!btn) return;
+    var isActive = busy && uiState.activeBusyKey === key;
+    btn.disabled = busy;
+    btn.classList.toggle("is-busy", isActive);
+    btn.classList.toggle("is-locked", busy && !isActive);
+  }
+
   function setBusyUI(busy) {
-    dom.btnReset.disabled = busy || uiState.activeBusyKey === "reset";
-    dom.btnReset.classList.toggle("is-busy", busy && uiState.activeBusyKey === "reset");
-    dom.btnWait.disabled = busy;
-    dom.btnTeach.disabled = busy;
+    markBusyButton(dom.btnWait, busy, "wait");
+    markBusyButton(dom.btnTeach, busy, "teach");
+    markBusyButton(dom.btnKnowledge, busy, "knowledge");
+    markBusyButton(dom.btnLog, busy, "log");
+    markBusyButton(dom.btnReset, busy, "reset");
 
     var allBtns = dom.actionList.querySelectorAll("button");
     for (var i = 0; i < allBtns.length; i++) {
@@ -180,6 +189,7 @@
       var isActive = busy && b.dataset.busyKey === uiState.activeBusyKey;
       b.disabled = busy;
       b.classList.toggle("is-busy", isActive);
+      b.classList.toggle("is-locked", busy && !isActive);
     }
   }
 
@@ -764,7 +774,7 @@
     }
     if (exec.step) {
       dom.executionContent.appendChild(
-        el("div", "card-line", "步骤：" + exec.step)
+        el("div", "card-line", "步骤：" + exec.step.replace(/^当前步骤：/, ""))
       );
     }
     if (exec.status) {
@@ -898,6 +908,8 @@
       }
     }
     if (waitAction) {
+      uiState.activeBusyKey = "wait";
+      waitAction.actionKey = waitAction.actionKey || "wait";
       sendTurn(waitAction.inputText || "等待", waitAction);
     } else {
       sendTurn("等待", null);

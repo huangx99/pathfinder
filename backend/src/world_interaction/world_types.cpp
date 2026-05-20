@@ -132,7 +132,12 @@ Result<void> WorldObjectInstance::validateBasic() const {
     if (display_name_zh_cn.empty()) return fail("world object display name empty");
     if (kind == WorldObjectInstanceKind::Unknown) return fail("world object kind unknown");
     if (quantity < 0) return fail("world object quantity negative");
-    if (containsForbiddenText(display_name_zh_cn) || containsForbiddenText(state_tags)) return fail("world object contains forbidden text");
+    for (const auto& [actor_key, quantity_value] : actor_quantities) {
+        if (actor_key.empty() || quantity_value < 0) return fail("world object actor quantity invalid");
+        if (containsForbiddenText(actor_key)) return fail("world object actor quantity contains forbidden text");
+    }
+    if (containsForbiddenText(display_name_zh_cn) || containsForbiddenText(owner_actor_key) ||
+        containsForbiddenText(permitted_actor_keys) || containsForbiddenText(state_tags)) return fail("world object contains forbidden text");
     return Result<void>::ok();
 }
 

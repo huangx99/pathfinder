@@ -311,11 +311,16 @@ button {
 
 /* === Right Panel: Actions === */
 .action-list {
-  flex-shrink: 0;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 4px;
   margin-bottom: 6px;
+  padding-right: 2px;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 .action-list:empty { display: none; }
 .action-btn {
@@ -333,11 +338,12 @@ button {
   transition: background 0.15s;
 }
 .action-btn:active:not(:disabled) { transform: translateY(1px); }
-.action-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.action-btn:disabled { cursor: not-allowed; }
+.action-btn.is-locked { opacity: 0.55; transform: none; }
 .action-btn.primary { background: var(--action-bg); border-color: var(--action); color: var(--action); }
 .action-btn.warning { background: var(--warning-bg); border-color: var(--warning); color: var(--warning); }
 .action-btn.danger { background: var(--danger-bg); border-color: var(--danger); color: var(--danger); }
-.action-btn.is-busy { opacity: 0.6; }
+.action-btn.is-busy { opacity: 0.95; transform: translateY(1px); box-shadow: inset 0 2px 8px rgba(0,0,0,0.45); }
 
 /* === Companion Card === */
 .companion-card, .execution-card {
@@ -387,10 +393,11 @@ button {
   font-weight: 600;
   white-space: nowrap;
 }
-.global-btn:active { transform: translateY(1px); }
-.global-btn:disabled { opacity: 0.4; }
+.global-btn:active:not(:disabled) { transform: translateY(1px); }
+.global-btn:disabled { cursor: not-allowed; }
+.global-btn.is-locked { opacity: 0.55; transform: none; }
 .global-btn.danger-btn { background: var(--danger-bg); border-color: var(--danger); color: var(--danger); }
-.global-btn.is-busy { opacity: 0.6; }
+.global-btn.is-busy { opacity: 0.95; transform: translateY(1px); box-shadow: inset 0 2px 8px rgba(0,0,0,0.45); }
 
 /* === Log Drawer === */
 .drawer {
@@ -522,6 +529,7 @@ button {
   .object-chip { padding: 4px 6px; min-height: 30px; }
   .object-chip .obj-name { font-size: 11px; }
   .object-chip .obj-meta { font-size: 9px; }
+  .action-list { gap: 3px; margin-bottom: 4px; }
   .action-btn { min-height: 32px; padding: 5px 8px; font-size: 11px; }
   .bottombar { padding: 3px 6px; }
   .global-btn { min-height: 34px; font-size: 11px; padding: 4px; }

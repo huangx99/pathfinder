@@ -58,7 +58,15 @@ const WorldObjectInstance* findObject(const WorldSnapshot& snapshot, const std::
 
 int quantityOf(const WorldSnapshot& snapshot, const std::string& key) {
     const auto* object = findObject(snapshot, key);
-    return object == nullptr ? 0 : object->quantity;
+    if (object != nullptr) return object->quantity;
+    if (key == "wood_processed") {
+        const auto* wood = findObject(snapshot, "wood");
+        if (wood == nullptr) return 0;
+        auto processed_it = wood->numeric_states.find("processed");
+        const double processed = processed_it == wood->numeric_states.end() ? 0.0 : processed_it->second;
+        return static_cast<int>(std::max(0.0, std::floor(processed)));
+    }
+    return 0;
 }
 
 double numericState(const WorldObjectInstance* object, const std::string& key) {
@@ -109,6 +117,7 @@ ActionDriverKind driverKindForStep(const AgentPlanStep& step) {
     if (step.action_key == "move") return ActionDriverKind::MoveTo;
     if (step.action_key == "chop") return ActionDriverKind::ChopWood;
     if (step.kind == PlanStepKind::PrepareObject) return ActionDriverKind::UseObject;
+    if (step.kind == PlanStepKind::WaitForCondition) return ActionDriverKind::UseObject;
     return ActionDriverKind::Gather;
 }
 
@@ -488,12 +497,12 @@ Result<MaterialEvaluationResult> MaterialRequirementEvaluator::evaluate(const Ma
         MaterialAvailability item;
         item.object_key = requirement.object_key;
         const auto* object = findObject(input.world_snapshot, requirement.object_key);
-        item.total_quantity = object == nullptr ? 0 : object->quantity;
+        item.total_quantity = quantityOf(input.world_snapshot, requirement.object_key);
         for (const auto& reservation : input.reserved_resources) {
             if (reservation.status == ReservationStatus::Active && reservation.resource_key == requirement.object_key) item.reserved_quantity += reservation.quantity;
         }
         item.available_quantity = std::max(0, item.total_quantity - item.reserved_quantity);
-        bool state_ok = object != nullptr;
+        bool state_ok = object != nullptr || item.total_quantity > 0;
         if (object != nullptr) {
             for (const auto& tag : requirement.acceptable_state_tags) state_ok = state_ok && contains(object->state_tags, tag);
             for (const auto& tag : requirement.forbidden_state_tags) state_ok = state_ok && !contains(object->state_tags, tag);
@@ -707,7 +716,16 @@ ExecutionStatusProjection ExecutionProjectionMapper::map(const ExecutionResult& 
         const auto* frame = findFrame(result.updated_context, *result.updated_context.active_frame_id);
         if (frame != nullptr) projection.current_goal = {frame->public_reason_zh_cn, frame->trace_keys};
     }
-    if (result.updated_context.active_driver_state) projection.active_step = {"当前步骤：" + toString(result.updated_context.active_driver_state->driver_kind), result.updated_context.trace_keys};
+    if (result.updated_context.active_driver_state) {
+        const auto& state = *result.updated_context.active_driver_state;
+        if (state.driver_kind == ActionDriverKind::CounterThreat && state.object_key && state.target_key) {
+            projection.active_step = {"使用" + *state.object_key + "应对" + *state.target_key, result.updated_context.trace_keys};
+        } else if (state.driver_kind == ActionDriverKind::UseObject && state.action_key == "wait") {
+            projection.active_step = {"观察局势，等待新的目标或危险", result.updated_context.trace_keys};
+        } else {
+            projection.active_step = {"执行动作：" + toString(state.driver_kind), result.updated_context.trace_keys};
+        }
+    }
     if (!result.internal_blockers.empty()) projection.blocked_by = {result.internal_blockers.front().safe_summary_zh_cn, {result.internal_blockers.front().blocker_id}};
     if (!result.interrupt_decisions.empty()) {
         projection.interrupt_reason = {result.interrupt_decisions.front().safe_explanation_zh_cn, result.interrupt_decisions.front().trace_keys};

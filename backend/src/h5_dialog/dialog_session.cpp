@@ -94,6 +94,7 @@ DialogSessionState createNewSession(const std::string& session_id) {
             runtime.numeric_states["threat_level"] = 0.0;
             runtime.numeric_states["observed_fire"] = 0.0;
             runtime.numeric_states["knows_fire_danger"] = 1.0;
+            runtime.numeric_states["flank_waits"] = 0.0;
             runtime.tag_states.push_back("dormant");
             runtime.tag_states.push_back("agent_wildlife");
         }

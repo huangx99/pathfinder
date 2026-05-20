@@ -29,6 +29,43 @@ bool containsKey(const std::vector<std::string>& keys, const std::string& key) {
     return std::find(keys.begin(), keys.end(), key) != keys.end();
 }
 
+bool isKnowledgeStatusTeachable(pathfinder::knowledge::KnowledgeStatus status) {
+    using pathfinder::knowledge::KnowledgeStatus;
+    return status == KnowledgeStatus::Active ||
+           status == KnowledgeStatus::Teachable ||
+           status == KnowledgeStatus::Shared ||
+           status == KnowledgeStatus::Operational ||
+           status == KnowledgeStatus::Hypothesis ||
+           status == KnowledgeStatus::Candidate;
+}
+
+bool sameKnowledgeMeaning(const pathfinder::knowledge::KnowledgeClaim& lhs,
+                          const pathfinder::knowledge::KnowledgeClaim& rhs) {
+    return lhs.subject.subject_id == rhs.subject.subject_id &&
+           lhs.subject.related_subject_ids == rhs.subject.related_subject_ids &&
+           lhs.predicate.action_key == rhs.predicate.action_key &&
+           lhs.predicate.effect_key == rhs.predicate.effect_key;
+}
+
+bool recipientAlreadyHasMeaning(const std::vector<pathfinder::knowledge::KnowledgeClaim>& recipient_claims,
+                                const pathfinder::knowledge::KnowledgeClaim& source_claim) {
+    return std::any_of(recipient_claims.begin(), recipient_claims.end(), [&](const auto& recipient_claim) {
+        return sameKnowledgeMeaning(recipient_claim, source_claim) &&
+               recipient_claim.status != pathfinder::knowledge::KnowledgeStatus::Deprecated &&
+               recipient_claim.status != pathfinder::knowledge::KnowledgeStatus::Disproven;
+    });
+}
+
+const pathfinder::knowledge::KnowledgeClaim* selectClaimForTeaching(const DialogSessionState& state) {
+    const pathfinder::knowledge::KnowledgeClaim* fallback = nullptr;
+    for (auto it = state.actor_claims.rbegin(); it != state.actor_claims.rend(); ++it) {
+        if (!isKnowledgeStatusTeachable(it->status)) continue;
+        if (!fallback) fallback = &*it;
+        if (!recipientAlreadyHasMeaning(state.recipient_claims, *it)) return &*it;
+    }
+    return fallback;
+}
+
 const DialogScenarioObject* findScenarioObjectByKey(const DialogScenario& scenario, const std::string& object_key) {
     for (const auto& object : scenario.objects) {
         if (object.object_key == object_key) return &object;
@@ -435,6 +472,8 @@ Result<DialogTurnServiceResult> DialogTurnService::handleDetailed(const DialogRe
                             if (!companion_result.summary_zh_cn.empty()) agent_results.push_back(companion_result);
                             if (companion_result.executed) {
                                 all_changes.insert(all_changes.end(), companion_result.changes.begin(), companion_result.changes.end());
+                                auto after_companion_r = applier.apply(snapshot, companion_result.changes);
+                                if (after_companion_r.is_ok()) snapshot = after_companion_r.value();
                             }
                         }
                         pathfinder::world_interaction::AgentAutonomyRequest beast_request;
@@ -533,16 +572,7 @@ Result<DialogTurnServiceResult> DialogTurnService::handleDetailed(const DialogRe
 
     DialogFeedbackTemplate feedback;
     if (intent.kind == DialogIntentKind::TeachRecipient) {
-        const pathfinder::knowledge::KnowledgeClaim* teach_claim = nullptr;
-        for (const auto& claim : state.actor_claims) {
-            if (claim.status == pathfinder::knowledge::KnowledgeStatus::Active ||
-                claim.status == pathfinder::knowledge::KnowledgeStatus::Teachable ||
-                claim.status == pathfinder::knowledge::KnowledgeStatus::Hypothesis ||
-                claim.status == pathfinder::knowledge::KnowledgeStatus::Candidate) {
-                teach_claim = &claim;
-                break;
-            }
-        }
+        const pathfinder::knowledge::KnowledgeClaim* teach_claim = selectClaimForTeaching(state);
         if (!teach_claim) {
             return rejected(state, intent, "no_teachable_knowledge");
         }

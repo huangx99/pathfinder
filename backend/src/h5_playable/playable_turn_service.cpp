@@ -241,7 +241,7 @@ pathfinder::agent_reasoning::AgentPlan playableExecutionPlan(
         step.kind = pathfinder::agent_reasoning::PlanStepKind::WaitForCondition;
         step.action_key = "wait";
         step.effect_key = "wait";
-        step.explanation_zh_cn = "同伴正在观察局势，等待下一步。";
+        step.explanation_zh_cn = "同伴正在观察局势，等待新的目标或危险。";
     }
     plan.steps.push_back(step);
     plan.total_estimated_ticks = 1;
@@ -303,8 +303,8 @@ Result<H5PlayableExecutionStatus> buildExecutionStatus(
     auto executed = system.tick(request);
     if (executed.is_error()) return Result<H5PlayableExecutionStatus>::fail(executed.errors());
     auto status = toPlayableExecutionStatus(executed.value().projection);
-    if (!status.current_goal.has_value()) status.current_goal = executionText("execution.current_goal.fallback", "同伴正在执行当前计划。");
-    if (!status.active_step.has_value()) status.active_step = executionText("execution.active_step.fallback", "当前步骤：等待或观察。完成后会继续评估目标。");
+    if (!status.current_goal.has_value()) status.current_goal = executionText("execution.current_goal.fallback", "同伴正在观察局势，等待新的目标或危险。");
+    if (!status.active_step.has_value()) status.active_step = executionText("execution.active_step.fallback", "等待或观察。完成后会继续评估目标。");
     status.visible = true;
     return Result<H5PlayableExecutionStatus>::ok(std::move(status));
 }

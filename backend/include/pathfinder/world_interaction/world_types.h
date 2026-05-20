@@ -93,6 +93,9 @@ struct WorldObjectInstance {
     std::string display_name_zh_cn;
     WorldObjectInstanceKind kind{WorldObjectInstanceKind::Unknown};
     std::string location_key{"forest_edge"};
+    std::string owner_actor_key;
+    std::vector<std::string> permitted_actor_keys;
+    std::unordered_map<std::string, int> actor_quantities;
     int quantity{0};
     bool visible{true};
     bool usable{true};
@@ -236,6 +239,8 @@ struct ThreatProgressInput {
     std::string threat_key{"beast_shadow"};
     double level_delta{25.0};
     uint64_t elapsed_ticks{0};
+    uint64_t reentry_interval_waits{3};
+    double reentry_level{50.0};
 };
 
 struct ThreatCountermeasureInput {

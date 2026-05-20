@@ -5,6 +5,7 @@
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <vector>
 
 using namespace pathfinder::h5_playable;
 
@@ -42,7 +43,7 @@ static void test_bootstrap_projection() {
     assert(response.value().projection.header.audience == pathfinder::h5_projection::ProjectionAudience::Player);
     assert(response.value().projection.object_cards.size() >= 4);
     assert(response.value().projection.actor_knowledge.empty());
-    assert(!response.value().projection.recipient_knowledge.empty());
+    assert(response.value().projection.recipient_knowledge.empty());
 }
 
 static void test_learning_teaching_projection() {
@@ -54,7 +55,7 @@ static void test_learning_teaching_projection() {
     auto eat = service.handleTurn(turn("s_p33_learning", 1, "吃红果"));
     assert(eat.is_ok());
     assert(!eat.value().projection.actor_knowledge.empty());
-    assert(!eat.value().projection.recipient_knowledge.empty());
+    assert(eat.value().projection.recipient_knowledge.empty());
     assert(eat.value().reply_text.zh_cn.find(" -> ") == std::string::npos);
 
     auto teach = service.handleTurn(turn("s_p33_learning", 2, "教同伴"));
@@ -344,7 +345,7 @@ static void test_p38_world_state_visible_consequences() {
     auto torch = service.handleTurn(turn("s_p38_world", 4, "制作火把"));
     assert(torch.is_ok());
     assert(torch.value().reply_text.zh_cn.find("做出了一支火把") != std::string::npos);
-    assert(cardDescriptionContains(torch.value(), "torch", "可用火把：1"));
+    assert(cardDescriptionContains(torch.value(), "torch", "你的火把：1"));
     assert(cardDescriptionContains(torch.value(), "wood", "已处理木材") == false || cardDescriptionContains(torch.value(), "wood", "已处理木材：0") == false);
 }
 
@@ -388,7 +389,42 @@ static void test_p38_beast_progresses_without_fake_fire() {
     assert(cardDescriptionContains(wait2.value(), "beast_shadow", "正在对峙") || cardDescriptionContains(wait2.value(), "beast_shadow", "正在靠近"));
 }
 
-static void test_companion_knows_torch_but_does_not_start_with_one() {
+static void test_h5_beast_reenters_after_flank_waits() {
+    H5PlayableTurnService service;
+    H5PlayableBootstrapRequest bootstrap;
+    bootstrap.session_id = "s_h5_beast_reentry";
+    bootstrap.reset = true;
+    assert(service.bootstrap(bootstrap).is_ok());
+
+    uint64_t index = 1;
+    const std::vector<std::string> setup_actions = {
+        "用斧头砍木头",
+        "用火种点燃干草",
+        "制作火把",
+        "用火把驱赶野兽"
+    };
+    for (const auto& input : setup_actions) {
+        auto response = service.handleTurn(turn("s_h5_beast_reentry", index++, input));
+        assert(response.is_ok());
+        assert(response.value().reply_text.zh_cn.find("feedback_not_found") == std::string::npos);
+    }
+
+    auto wait1 = service.handleTurn(turn("s_h5_beast_reentry", index++, "等待一会"));
+    assert(wait1.is_ok());
+    assert(projectionContainsText(wait1.value(), "徘徊") || projectionContainsText(wait1.value(), "暂时没有重新靠近"));
+
+    auto wait2 = service.handleTurn(turn("s_h5_beast_reentry", index++, "等待一会"));
+    assert(wait2.is_ok());
+    assert(projectionContainsText(wait2.value(), "徘徊") || projectionContainsText(wait2.value(), "暂时没有重新靠近"));
+
+    auto wait3 = service.handleTurn(turn("s_h5_beast_reentry", index++, "等待一会"));
+    assert(wait3.is_ok());
+    assert(projectionContainsText(wait3.value(), "重新靠近") || projectionContainsText(wait3.value(), "寻找新的接近路线"));
+    assert(!projectionContainsText(wait3.value(), "观察到火光后选择保持距离"));
+    assert(!projectionContainsText(wait3.value(), "野兽因为火光降低了靠近意图"));
+}
+
+static void test_companion_does_not_start_with_torch_knowledge() {
     H5PlayableTurnService service;
     H5PlayableBootstrapRequest bootstrap;
     bootstrap.session_id = "s_companion_torch_knowledge_only";
@@ -403,18 +439,74 @@ static void test_companion_knows_torch_but_does_not_start_with_one() {
             companion_knows_torch = true;
         }
     }
-    assert(companion_knows_torch);
+    assert(!companion_knows_torch);
 
     auto wait1 = service.handleTurn(turn("s_companion_torch_knowledge_only", 1, "等待一会"));
     assert(wait1.is_ok());
     assert(wait1.value().reply_text.zh_cn.find("世界变化") != std::string::npos);
-    assert(wait1.value().reply_text.zh_cn.find("同伴用火把逼退") == std::string::npos);
+    assert(wait1.value().reply_text.zh_cn.find("同伴根据已知经验使用火把") == std::string::npos);
     assert(!cardDescriptionContains(wait1.value(), "beast_shadow", "已退去"));
 
     auto wait2 = service.handleTurn(turn("s_companion_torch_knowledge_only", 2, "等待一会"));
     assert(wait2.is_ok());
     assert(wait2.value().reply_text.zh_cn.find("世界变化") != std::string::npos);
-    assert(wait2.value().reply_text.zh_cn.find("同伴用火把逼退") == std::string::npos);
+    assert(wait2.value().reply_text.zh_cn.find("同伴根据已知经验使用火把") == std::string::npos);
+}
+
+static bool recipientKnowledgeContains(const H5PlayableResponse& response, const std::string& subject, const std::string& effect) {
+    for (const auto& line : response.projection.recipient_knowledge) {
+        if (line.subject_label.zh_cn.find(subject) != std::string::npos &&
+            line.effect_summary.zh_cn.find(effect) != std::string::npos) return true;
+    }
+    return false;
+}
+
+static void test_companion_makes_torch_when_taught_and_missing_one() {
+    H5PlayableTurnService service;
+    H5PlayableBootstrapRequest bootstrap;
+    bootstrap.session_id = "s_companion_taught_torch_access";
+    bootstrap.reset = true;
+    assert(service.bootstrap(bootstrap).is_ok());
+
+    uint64_t index = 1;
+    const std::vector<std::string> learn_actions = {
+        "用斧头砍木头",
+        "用火种点燃干草",
+        "制作火把",
+        "用火把驱赶野兽"
+    };
+    for (const auto& input : learn_actions) {
+        auto response = service.handleTurn(turn("s_companion_taught_torch_access", index++, input));
+        assert(response.is_ok());
+        assert(response.value().reply_text.zh_cn.find("feedback_not_found") == std::string::npos);
+    }
+
+    H5PlayableResponse latest;
+    bool companion_learned_repel = false;
+    bool companion_learned_make_torch = false;
+    for (int teaches = 0; teaches < 8; ++teaches) {
+        auto teach = service.handleTurn(turn("s_companion_taught_torch_access", index++, "教同伴"));
+        assert(teach.is_ok());
+        latest = teach.value();
+        companion_learned_repel = recipientKnowledgeContains(latest, "火把", "驱赶");
+        companion_learned_make_torch = companion_learned_make_torch ||
+            recipientKnowledgeContains(latest, "木头", "火把") ||
+            recipientKnowledgeContains(latest, "火把", "制作");
+    }
+    assert(companion_learned_repel);
+    assert(companion_learned_make_torch);
+    bool companion_acted_without_permission = false;
+    for (int waits = 0; waits < 5; ++waits) {
+        auto wait = service.handleTurn(turn("s_companion_taught_torch_access", index++, "等待一会"));
+        assert(wait.is_ok());
+        const auto& text = wait.value().reply_text.zh_cn;
+        companion_acted_without_permission = companion_acted_without_permission ||
+            (text.find("Agent行动") != std::string::npos &&
+             text.find("同伴") != std::string::npos &&
+             text.find("火把") != std::string::npos &&
+             text.find("逼退") != std::string::npos);
+    }
+    assert(!companion_acted_without_permission);
 }
 
 static void test_p38_resource_failure_is_readable() {
@@ -537,7 +629,9 @@ int main(int argc, char* argv[]) {
     else if (name == "p38_world") test_p38_world_state_visible_consequences();
     else if (name == "p38_agent") test_p38_agent_fire_avoidance_visible();
     else if (name == "p38_beast_no_fake_fire") test_p38_beast_progresses_without_fake_fire();
-    else if (name == "companion_torch_knowledge_only") test_companion_knows_torch_but_does_not_start_with_one();
+    else if (name == "beast_reentry") test_h5_beast_reenters_after_flank_waits();
+    else if (name == "companion_torch_knowledge_only") test_companion_does_not_start_with_torch_knowledge();
+    else if (name == "companion_taught_torch_autonomy") test_companion_makes_torch_when_taught_and_missing_one();
     else if (name == "p38_failure") test_p38_resource_failure_is_readable();
     else return 2;
     std::cout << "h5_playable " << name << " passed\n";
