@@ -1,9 +1,9 @@
-#include "pathfinder/world_command/world_command_handler.h"
+#include "pathfinder/world_command/world_command_handlers.h"
 #include <memory>
 
 namespace pathfinder::world_command {
 
-class InspectCommandHandler : public IWorldCommandHandler {
+class InspectCommandHandlerStub : public IWorldCommandHandler {
 public:
     WorldCommandKind kind() const override {
         return WorldCommandKind::Inspect;
@@ -30,7 +30,7 @@ public:
 };
 
 std::shared_ptr<IWorldCommandHandler> createInspectCommandHandler() {
-    return std::make_shared<InspectCommandHandler>();
+    return std::make_shared<InspectCommandHandlerStub>();
 }
 
 } // namespace pathfinder::world_command

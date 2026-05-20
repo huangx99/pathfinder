@@ -5,6 +5,7 @@
 
 namespace pathfinder::world_command {
 
+// P43 stub handlers (no runtime dependency)
 std::shared_ptr<IWorldCommandHandler> createNoopCommandHandler();
 std::shared_ptr<IWorldCommandHandler> createWaitCommandHandler();
 std::shared_ptr<IWorldCommandHandler> createInspectCommandHandler();

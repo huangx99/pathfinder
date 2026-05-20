@@ -158,9 +158,26 @@ Result<WorldCommandResponseDto> WorldCommandPipeline::execute(
     // 18. BuildProjectionPatch
     trace_recorder_.recordStage("BuildProjectionPatch");
     uint64_t new_version = projection_version_ + 1;
-    auto patch_result = patch_builder_.setVersions(projection_version_, new_version).build();
-    if (patch_result.is_ok()) {
-        response.projection_patch = patch_result.value();
+
+    if (execution.projection_patch_override.has_value()) {
+        // Runtime-aware handler provided a full patch; merge versions
+        response.projection_patch = execution.projection_patch_override.value();
+        response.projection_patch.base_projection_version = projection_version_;
+        response.projection_patch.new_projection_version = new_version;
+    } else if (!execution.changed_cell_ids.empty() || !execution.changed_entity_ids.empty() || execution.requires_full_refresh) {
+        // Handler provided changed refs but no pre-built patch; build default patch with refs
+        auto patch_result = patch_builder_.setVersions(projection_version_, new_version)
+                                           .setRequiresFullRefresh(execution.requires_full_refresh)
+                                           .build();
+        if (patch_result.is_ok()) {
+            response.projection_patch = patch_result.value();
+        }
+    } else {
+        // Default empty patch
+        auto patch_result = patch_builder_.setVersions(projection_version_, new_version).build();
+        if (patch_result.is_ok()) {
+            response.projection_patch = patch_result.value();
+        }
     }
     projection_version_ = new_version;
     trace_recorder_.recordProjectionVersion(projection_version_);

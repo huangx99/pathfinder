@@ -1,9 +1,9 @@
-#include "pathfinder/world_command/world_command_handler.h"
+#include "pathfinder/world_command/world_command_handlers.h"
 #include <memory>
 
 namespace pathfinder::world_command {
 
-class GenerateWorldCommandHandler : public IWorldCommandHandler {
+class GenerateWorldCommandHandlerStub : public IWorldCommandHandler {
 public:
     WorldCommandKind kind() const override {
         return WorldCommandKind::GenerateWorld;
@@ -28,7 +28,7 @@ public:
 };
 
 std::shared_ptr<IWorldCommandHandler> createGenerateWorldCommandHandler() {
-    return std::make_shared<GenerateWorldCommandHandler>();
+    return std::make_shared<GenerateWorldCommandHandlerStub>();
 }
 
 } // namespace pathfinder::world_command

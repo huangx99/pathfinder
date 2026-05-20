@@ -358,6 +358,12 @@ struct WorldCommandExecutionResult {
     std::vector<WorldExperienceDto> experiences;
     std::vector<WorldFrontendHintDto> frontend_hints;
 
+    // P44: runtime projection patch support
+    std::optional<WorldProjectionPatchDto> projection_patch_override;
+    std::vector<std::string> changed_cell_ids;
+    std::vector<std::string> changed_entity_ids;
+    bool requires_full_refresh = false;
+
     pathfinder::foundation::Result<void> validateBasic() const;
 };
 

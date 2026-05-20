@@ -879,7 +879,24 @@ target_link_libraries(pathfinder_h5_playable_server_exe PRIVATE
     pathfinder_h5_playable
 )
 
-# World Command library (P43)
+# World Runtime library (P44)
+add_library(pathfinder_world_runtime STATIC
+    src/world_runtime/world_runtime_types.cpp
+    src/world_runtime/world_grid_runtime.cpp
+    src/world_runtime/world_projection_adapter.cpp
+    src/world_runtime/world_command_runtime_bridge.cpp
+)
+
+target_include_directories(pathfinder_world_runtime PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(pathfinder_world_runtime PUBLIC
+    pathfinder_foundation
+    pathfinder_world_command
+)
+
+# World Command library (P43 only, no runtime dependency)
 add_library(pathfinder_world_command STATIC
     src/world_command/world_command_types.cpp
     src/world_command/world_command_registry.cpp
@@ -900,6 +917,52 @@ target_include_directories(pathfinder_world_command PUBLIC
 
 target_link_libraries(pathfinder_world_command PUBLIC
     pathfinder_foundation
+)
+
+# World Command Runtime library (P44 runtime-aware handlers, depends on both)
+add_library(pathfinder_world_command_runtime STATIC
+    src/world_runtime/world_runtime_command_handlers.cpp
+)
+
+target_include_directories(pathfinder_world_command_runtime PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(pathfinder_world_command_runtime PUBLIC
+    pathfinder_world_command
+    pathfinder_world_runtime
+)
+
+# World Inventory library (P45)
+add_library(pathfinder_world_inventory STATIC
+    src/world_inventory/world_inventory_types.cpp
+    src/world_inventory/world_inventory_runtime.cpp
+    src/world_inventory/inventory_projection_adapter.cpp
+)
+
+target_include_directories(pathfinder_world_inventory PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(pathfinder_world_inventory PUBLIC
+    pathfinder_foundation
+    pathfinder_world_command
+    pathfinder_world_runtime
+)
+
+# World Inventory Command library (P45 runtime-aware inventory handlers)
+add_library(pathfinder_world_inventory_command STATIC
+    src/world_inventory/world_inventory_command_handlers.cpp
+)
+
+target_include_directories(pathfinder_world_inventory_command PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(pathfinder_world_inventory_command PUBLIC
+    pathfinder_world_command
+    pathfinder_world_runtime
+    pathfinder_world_inventory
 )
 
 # H5 Dialog Server executable (P22)
