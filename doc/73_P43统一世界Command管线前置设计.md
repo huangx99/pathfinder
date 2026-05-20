@@ -1354,6 +1354,77 @@ parameters["shape"] = "circle_radius"
 
 ## 14. 与现有系统接入
 
+### 14.0 P43 与 P42 JSON 的阶段关系
+
+P42 JSON 负责“内容怎么被定义”，P43 Command 负责“世界动作怎么使用这些内容”。
+
+P43 不能推翻或重写 P42：
+
+```text
+不能重写 JsonContentLoader。
+不能重写一套 ContentRegistry。
+不能让前端直接读取 JSON。
+不能为了演示在 Handler 里写死红果、狼、火把、斧头。
+不能让 JSON 直接修改运行时状态。
+不能让 effect 执行任意脚本。
+```
+
+P43 应该通过以下字段为 P42 内容预留运行入口：
+
+```text
+action_key
+effect_key
+reaction_key
+area_effect_key
+object_key
+actor_key
+knowledge_key
+```
+
+当前 JSON 已经能提供：
+
+```text
+对象定义。
+效果定义。
+反馈定义。
+反应定义。
+Agent 模板。
+危险定义。
+知识模板。
+场景初始内容。
+中文文案。
+```
+
+P43 最小实现阶段不要求完整执行复杂 JSON effect。P43 只需要保证：
+
+```text
+WorldCommandDto 能携带 action_key / effect_key / reaction_key 等内容引用。
+WorldCommandPipeline 不破坏 ContentRegistry 边界。
+WorldCommandDispatcher 和 HandlerRegistry 是注册式分发。
+AvailableCommandBuilder 后续可以读取 content action 生成 WorldCommandOptionDto。
+Handler 后续可以通过 ContentRegistry 查询对象、效果、反应和知识模板。
+```
+
+后续接入路线：
+
+```text
+P44：地图格子和实体开始承载 JSON 对象 / 地形 / 资源定义。
+P45：背包与物品实例把 JSON 对象变成具体 runtime instance。
+P46：世界生成器读取 JSON worldgen / resource 配置。
+P47：采集、砍伐、挖掘读取 JSON action / resource / effect。
+P48：制作和对象反应读取 JSON reaction / recipe。
+P49：探索经验读取 JSON knowledge template。
+P50-P52：NPC / 野兽读取 JSON agent / threat / effect。
+```
+
+一句话边界：
+
+```text
+P42 是内容仓库。
+P43 是动作入口。
+P43 让 JSON 变得可被世界行为使用，但不会把 P42 推倒重做。
+```
+
 | 现有系统 | P43 接入方式 |
 |---|---|
 | P1 Command / Config | 复用命令思想，V2 新增 WorldCommand 专用 DTO |
