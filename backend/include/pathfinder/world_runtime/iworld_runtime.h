@@ -38,6 +38,9 @@ public:
     virtual foundation::Result<void> upsertGeneratedResourceNode(const WorldResourceNodeRuntime& node) = 0;
     virtual foundation::Result<const WorldResourceNodeRuntime*> findResourceNode(const std::string& node_id) const = 0;
 
+    // P47: Update resource node after harvest (semantic alias for upsert, but clearly for state updates)
+    virtual foundation::Result<void> updateResourceNodeRuntime(const WorldResourceNodeRuntime& node) = 0;
+
     // P46: Region generation tracking
     virtual bool isRegionGenerated(const std::string& region_id) const = 0;
     virtual void markRegionGenerated(const std::string& region_id) = 0;

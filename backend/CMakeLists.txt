@@ -974,6 +974,25 @@ target_link_libraries(pathfinder_world_inventory PUBLIC
     pathfinder_world_runtime
 )
 
+# World Harvest library (P47)
+add_library(pathfinder_world_harvest STATIC
+    src/world_harvest/world_harvest_types.cpp
+    src/world_harvest/resource_harvest_service.cpp
+    src/world_harvest/harvest_command_handler.cpp
+    src/world_harvest/harvest_projection_bridge.cpp
+)
+
+target_include_directories(pathfinder_world_harvest PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(pathfinder_world_harvest PUBLIC
+    pathfinder_foundation
+    pathfinder_world_runtime
+    pathfinder_world_inventory
+    pathfinder_world_command
+)
+
 # World Inventory Command library (P45 runtime-aware inventory handlers)
 add_library(pathfinder_world_inventory_command STATIC
     src/world_inventory/world_inventory_command_handlers.cpp

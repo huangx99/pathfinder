@@ -39,6 +39,9 @@ public:
     foundation::Result<void> upsertGeneratedResourceNode(const WorldResourceNodeRuntime& node) override;
     foundation::Result<const WorldResourceNodeRuntime*> findResourceNode(const std::string& node_id) const override;
 
+    // P47: Update resource node after harvest
+    foundation::Result<void> updateResourceNodeRuntime(const WorldResourceNodeRuntime& node) override;
+
     // P46: Region generation tracking
     bool isRegionGenerated(const std::string& region_id) const override;
     void markRegionGenerated(const std::string& region_id) override;

@@ -465,6 +465,13 @@ Result<const WorldResourceNodeRuntime*> WorldGridRuntime::findResourceNode(const
     return Result<const WorldResourceNodeRuntime*>::ok(&it->second);
 }
 
+Result<void> WorldGridRuntime::updateResourceNodeRuntime(const WorldResourceNodeRuntime& node) {
+    // P47 semantic: same as upsert, but clearly marks harvest state updates
+    resource_nodes_[node.node_id] = node;
+    incrementStateVersion();
+    return Result<void>::ok();
+}
+
 // ---------------------------------------------------------------------------
 // P46: Region generation tracking
 // ---------------------------------------------------------------------------
