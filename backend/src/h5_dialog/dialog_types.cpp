@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <sstream>
 #include <cctype>
+#include <cmath>
 
 namespace pathfinder::h5_dialog {
 
@@ -272,6 +273,14 @@ Result<void> DialogScenarioObject::validateBasic() const {
     }
     if (containsDialogForbiddenKey(input_aliases)) {
         return Result<void>::fail(makeError(ErrorCode::validation_failed, "scenario object aliases contain forbidden key"));
+    }
+    if (!std::isfinite(initial_quantity) || initial_quantity < 0.0) {
+        return Result<void>::fail(makeError(ErrorCode::validation_failed, "scenario object initial quantity invalid"));
+    }
+    for (const auto& [key, value] : initial_numeric_states) {
+        if (key.empty() || containsDialogForbiddenKey(key) || !std::isfinite(value)) {
+            return Result<void>::fail(makeError(ErrorCode::validation_failed, "scenario object initial numeric state invalid"));
+        }
     }
     return Result<void>::ok();
 }

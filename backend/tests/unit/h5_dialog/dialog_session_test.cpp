@@ -13,6 +13,11 @@ static void test_session_create() {
     assert(state.session_id == "session_1");
     assert(!state.visible_object_keys.empty());
     assert(state.recipient_claims.empty());
+    assert(state.object_runtime_states.at("red_berry").numeric_states.at("quantity") == 3.0);
+    assert(state.object_runtime_states.at("decayed_red_berry").numeric_states.at("quantity") == 6.0);
+    assert(state.object_runtime_states.at("camp_fire").numeric_states.at("quantity") == 0.0);
+    assert(state.object_runtime_states.at("axe").numeric_states.at("sharpness") == 3.0);
+    assert(state.object_runtime_states.at("wood").numeric_states.at("processed") == 0.0);
     std::cout << "session_create passed" << std::endl;
 }
 

@@ -5819,3 +5819,53 @@ add_test(NAME goal_execution_tick_order COMMAND pathfinder_tests_goal_execution 
 add_test(NAME goal_execution_player_delay COMMAND pathfinder_tests_goal_execution player_delay)
 add_test(NAME goal_execution_capability_filter COMMAND pathfinder_tests_goal_execution capability_filter)
 add_test(NAME goal_execution_context_roundtrip COMMAND pathfinder_tests_goal_execution context_roundtrip)
+
+# Content tests (P42)
+add_executable(pathfinder_tests_content
+    unit/content/content_loader_test.cpp
+    unit/content/content_registry_test.cpp
+    unit/content/content_validation_test.cpp
+    unit/content/content_runtime_adapter_test.cpp
+)
+
+target_include_directories(pathfinder_tests_content PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/nlohmann
+)
+
+target_link_libraries(pathfinder_tests_content PRIVATE
+    pathfinder_content
+    pathfinder_content_runtime_adapter
+    pathfinder_h5_dialog
+    pathfinder_config
+    pathfinder_foundation
+)
+
+add_test(NAME content_loader COMMAND pathfinder_tests_content loader)
+add_test(NAME content_registry COMMAND pathfinder_tests_content registry)
+add_test(NAME content_validation COMMAND pathfinder_tests_content validation)
+add_test(NAME content_runtime_adapter COMMAND pathfinder_tests_content runtime_adapter)
+
+# Content integration test (P42)
+add_executable(pathfinder_tests_content_integration
+    integration/p42/json_content_h5_flow_test.cpp
+)
+
+target_include_directories(pathfinder_tests_content_integration PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/nlohmann
+)
+
+target_compile_definitions(pathfinder_tests_content_integration PRIVATE
+    PATHFINDER_CONTENT_ROOT="${CMAKE_SOURCE_DIR}/../content"
+)
+
+target_link_libraries(pathfinder_tests_content_integration PRIVATE
+    pathfinder_content
+    pathfinder_content_runtime_adapter
+    pathfinder_h5_dialog
+    pathfinder_config
+    pathfinder_foundation
+)
+
+add_test(NAME content_integration_flow COMMAND pathfinder_tests_content_integration flow)

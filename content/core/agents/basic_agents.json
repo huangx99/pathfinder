@@ -1,0 +1,34 @@
+{
+  "agents": [
+    {
+      "agent_key": "beast_shadow",
+      "display_key": "agent.beast_shadow.name",
+      "scale": "small_agent",
+      "cognition_band": "instinctive",
+      "embodiment": "wildlife",
+      "default_needs": {
+        "fear": 0,
+        "hunger": 50
+      },
+      "instinct_effect_keys": ["fire_is_dangerous"],
+      "default_policy_key": "wildlife_cautious_probe",
+      "can_learn": true,
+      "can_teach": false
+    },
+    {
+      "agent_key": "companion",
+      "display_key": "agent.companion.name",
+      "scale": "small_agent",
+      "cognition_band": "social",
+      "embodiment": "humanoid",
+      "default_needs": {
+        "hunger": 50,
+        "trust": 80
+      },
+      "instinct_effect_keys": [],
+      "default_policy_key": "companion_helpful",
+      "can_learn": true,
+      "can_teach": true
+    }
+  ]
+}

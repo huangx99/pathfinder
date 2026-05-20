@@ -12,6 +12,7 @@
 #include <vector>
 #include <optional>
 #include <unordered_map>
+#include <map>
 
 namespace pathfinder::h5_dialog {
 
@@ -141,6 +142,8 @@ struct DialogScenarioObject {
     DialogActionKind default_action = DialogActionKind::Unknown;
     std::vector<std::string> input_aliases;
     std::vector<std::string> safe_tags;
+    double initial_quantity = 1.0;
+    std::map<std::string, double> initial_numeric_states;
 
     pathfinder::foundation::Result<void> validateBasic() const;
 };

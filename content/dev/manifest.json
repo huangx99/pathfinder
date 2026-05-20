@@ -1,0 +1,9 @@
+{
+  "package_key": "dev",
+  "display_name": "开发测试内容包",
+  "content_version": "0.1.0",
+  "schema_version": "content_schema_1",
+  "locale_default": "zh_cn",
+  "load_order": 100,
+  "files": []
+}

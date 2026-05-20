@@ -1,0 +1,28 @@
+{
+  "threats": [
+    {
+      "threat_key": "beast_shadow",
+      "display_key": "threat.beast_shadow.name",
+      "agent_key": "beast_shadow",
+      "initial_level": 0,
+      "progression": {
+        "wait_delta": 25,
+        "phases": [
+          { "min": 25, "phase": "foreshadowing", "summary_key": "threat.beast.foreshadow" },
+          { "min": 50, "phase": "approaching", "summary_key": "threat.beast.approach" },
+          { "min": 75, "phase": "confronting", "summary_key": "threat.beast.confront" },
+          { "min": 100, "phase": "attack", "summary_key": "threat.beast.attack" }
+        ]
+      },
+      "countermeasures": [
+        { "effect_key": "repel_beast", "level_delta": -100 }
+      ],
+      "reentry": {
+        "enabled": true,
+        "waits": 3,
+        "level": 50,
+        "tag": "flanking_probe"
+      }
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "package_key": "core",
+  "display_name": "先驱者核心内容包",
+  "content_version": "0.1.0",
+  "schema_version": "content_schema_1",
+  "locale_default": "zh_cn",
+  "load_order": 0,
+  "files": [
+    { "path": "objects/basic_survival.json", "category": "objects", "required": true },
+    { "path": "effects/basic_effects.json", "category": "effects", "required": true },
+    { "path": "feedbacks/basic_feedbacks.json", "category": "feedbacks", "required": true },
+    { "path": "reactions/basic_reactions.json", "category": "reactions", "required": true },
+    { "path": "agents/basic_agents.json", "category": "agents", "required": true },
+    { "path": "threats/basic_threats.json", "category": "threats", "required": true },
+    { "path": "knowledge/basic_knowledge.json", "category": "knowledge", "required": true },
+    { "path": "scenarios/first_night.json", "category": "scenarios", "required": true },
+    { "path": "locales/zh_cn.json", "category": "locales", "required": true }
+  ]
+}

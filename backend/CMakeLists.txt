@@ -745,6 +745,39 @@ target_link_libraries(pathfinder_world_interaction PUBLIC
     pathfinder_goal_execution
 )
 
+# Content library (P42)
+add_library(pathfinder_content STATIC
+    src/content/content_types.cpp
+    src/content/content_registry.cpp
+    src/content/content_validation.cpp
+    src/content/json_content_loader.cpp
+)
+
+target_include_directories(pathfinder_content PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/nlohmann
+)
+
+target_link_libraries(pathfinder_content PUBLIC
+    pathfinder_foundation
+    pathfinder_config
+)
+
+# Content Runtime Adapter (P42) - bridges content and h5_dialog
+add_library(pathfinder_content_runtime_adapter STATIC
+    src/content/content_runtime_adapter.cpp
+)
+
+target_include_directories(pathfinder_content_runtime_adapter PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(pathfinder_content_runtime_adapter PUBLIC
+    pathfinder_content
+    pathfinder_agent_reasoning
+    pathfinder_h5_dialog
+)
+
 # H5 Dialog library (P22)
 add_library(pathfinder_h5_dialog STATIC
     src/h5_dialog/dialog_types.cpp
@@ -762,6 +795,10 @@ target_include_directories(pathfinder_h5_dialog PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
+target_compile_definitions(pathfinder_h5_dialog PRIVATE
+    PATHFINDER_CONTENT_ROOT="${CMAKE_SOURCE_DIR}/../content"
+)
+
 target_link_libraries(pathfinder_h5_dialog PUBLIC
     pathfinder_foundation
     pathfinder_world_interaction
@@ -770,6 +807,7 @@ target_link_libraries(pathfinder_h5_dialog PUBLIC
     pathfinder_memory
     pathfinder_knowledge
     pathfinder_learning
+    pathfinder_content
 )
 
 

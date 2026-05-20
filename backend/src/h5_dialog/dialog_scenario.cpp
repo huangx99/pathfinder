@@ -1,11 +1,17 @@
 #include "pathfinder/h5_dialog/dialog_scenario.h"
+#include "pathfinder/content/json_content_loader.h"
+#include "pathfinder/content/content_registry.h"
+#include "pathfinder/cognition/cognition_v2_types.h"
 #include <algorithm>
+#include <iostream>
+#include <set>
 
 namespace pathfinder::h5_dialog {
 
 using pathfinder::foundation::ErrorCode;
 using pathfinder::foundation::makeError;
 using pathfinder::foundation::Result;
+using pathfinder::content::ContentRegistry;
 
 namespace {
 
@@ -39,6 +45,151 @@ Result<void> validateDialogScenario(const DialogScenario& scenario) {
         if (valid.is_error()) return valid;
     }
     return Result<void>::ok();
+}
+
+// Compatibility bridge: maps content action keys to legacy DialogActionKind enum.
+// This is a temporary mapping for P42 phase 1. New actions MUST NOT be added here.
+DialogActionKind mapContentAction(const std::string& action_key) {
+    if (action_key == "eat") return DialogActionKind::Eat;
+    if (action_key == "use") return DialogActionKind::Use;
+    if (action_key == "inspect") return DialogActionKind::Inspect;
+    if (action_key == "wait") return DialogActionKind::Wait;
+    if (action_key == "teach") return DialogActionKind::Teach;
+    if (action_key == "observe") return DialogActionKind::Observe;
+    return DialogActionKind::Unknown;
+}
+
+DialogObjectVisibility mapContentVisibility(pathfinder::content::ContentVisibility vis) {
+    using pathfinder::content::ContentVisibility;
+    switch (vis) {
+        case ContentVisibility::RuntimeVisible:
+            return DialogObjectVisibility::Visible;
+        case ContentVisibility::HiddenUntilDiscovered:
+            return DialogObjectVisibility::HiddenFromPlayer;
+        case ContentVisibility::SystemOnly:
+            return DialogObjectVisibility::HiddenFromPlayer;
+        case ContentVisibility::TestOnly:
+            return DialogObjectVisibility::Unknown;
+    }
+    return DialogObjectVisibility::Unknown;
+}
+
+// Build DialogScenario from ContentRegistry, inline to avoid cycle with content_runtime_adapter
+Result<DialogScenario> buildFromContent(const ContentRegistry& registry, const std::string& scenario_key) {
+    const auto* scenario_def = registry.findScenario(scenario_key);
+    if (!scenario_def) {
+        return Result<DialogScenario>::fail(
+            makeError(ErrorCode::id_not_found, "scenario not found: " + scenario_key));
+    }
+
+    DialogScenario scenario;
+    scenario.scenario_key = scenario_def->key.value();
+    scenario.display_name = registry.translate("zh_cn", scenario_def->display_key);
+
+    if (!scenario_def->welcome_text_key.empty()) {
+        scenario.welcome_text = registry.translate("zh_cn", scenario_def->welcome_text_key);
+    }
+    if (scenario.welcome_text.empty()) {
+        scenario.welcome_text = registry.translate("zh_cn", scenario_def->display_key);
+    }
+
+    for (const auto& init_obj : scenario_def->initial_objects) {
+        const auto* obj_def = registry.findObject(init_obj.object_key);
+        if (!obj_def) continue;
+
+        DialogScenarioObject obj;
+        obj.object_key = obj_def->key.value();
+        obj.display_name = registry.translate("zh_cn", obj_def->display_key);
+        obj.player_description = registry.translate("zh_cn", obj_def->description_key);
+        obj.visibility = mapContentVisibility(obj_def->visibility);
+
+        for (const auto& action_str : obj_def->allowed_actions) {
+            auto kind = mapContentAction(action_str);
+            if (kind != DialogActionKind::Unknown) {
+                obj.allowed_actions.push_back(kind);
+            }
+        }
+        if (!obj.allowed_actions.empty()) {
+            obj.default_action = obj.allowed_actions[0];
+        }
+
+        obj.input_aliases.push_back(obj_def->key.value());
+        for (const auto& tag : obj_def->safe_tags) {
+            obj.input_aliases.push_back(tag);
+        }
+        obj.safe_tags = obj_def->safe_trait_keys;
+        obj.initial_quantity = static_cast<double>(init_obj.quantity);
+        obj.initial_numeric_states = init_obj.numeric;
+
+        scenario.objects.push_back(std::move(obj));
+    }
+
+    std::set<std::string> scenario_object_keys;
+    for (const auto& init_obj : scenario_def->initial_objects) {
+        scenario_object_keys.insert(init_obj.object_key);
+    }
+
+    for (const auto& fb : registry.allFeedbacks()) {
+        if (scenario_object_keys.count(fb->object_key) > 0) {
+            DialogFeedbackTemplate tmpl;
+            tmpl.feedback_key = fb->key.value();
+            tmpl.object_key = fb->object_key;
+            tmpl.target_object_key = fb->target_object_key;
+            tmpl.action = mapContentAction(fb->action_key);
+            tmpl.effect_key = fb->effect_key;
+            tmpl.condition_keys = fb->conditions;
+            tmpl.utility_delta = fb->utility_delta;
+            tmpl.risk_delta = fb->risk_delta;
+            tmpl.reason_keys = fb->causal_tags;
+            for (const auto& sig_str : fb->outcome_signal_keys) {
+                auto sig = pathfinder::cognition::cognitionOutcomeSignalFromString(sig_str);
+                if (sig.is_ok()) {
+                    tmpl.outcome_signals.push_back(sig.value());
+                }
+            }
+            scenario.feedbacks.push_back(std::move(tmpl));
+        }
+    }
+
+    scenario.quick_action_input_texts = scenario_def->quick_action_input_texts;
+
+    for (const auto& act_tmpl : scenario_def->suggested_action_templates) {
+        DialogScenarioActionTemplate dst;
+        dst.action_key = act_tmpl.action_key;
+        dst.label_text = act_tmpl.label_text;
+        dst.input_text = act_tmpl.input_text;
+        dst.object_key = act_tmpl.object_key;
+        dst.required_effect_key = act_tmpl.required_effect_key;
+        dst.target_object_key = act_tmpl.target_object_key;
+        dst.reason_keys = act_tmpl.reason_keys;
+        scenario.suggested_action_templates.push_back(std::move(dst));
+    }
+
+    for (const auto& thr_tmpl : scenario_def->threat_knowledge_templates) {
+        DialogScenarioThreatKnowledgeTemplate dst;
+        dst.template_key = thr_tmpl.template_key;
+        dst.threat_object_key = thr_tmpl.threat_object_key;
+        dst.required_effect_key = thr_tmpl.required_effect_key;
+        dst.fallback_effect_keys = thr_tmpl.fallback_effect_keys;
+        scenario.threat_knowledge_templates.push_back(std::move(dst));
+    }
+
+    for (const auto& kt_key : scenario_def->default_player_knowledge) {
+        const auto* kt = registry.findKnowledgeTemplate(kt_key);
+        if (!kt) continue;
+        DialogDefaultKnowledgeTemplate dkt;
+        dkt.template_key = kt->key.value();
+        dkt.subject_object_key = kt->subject_object_key;
+        dkt.target_object_key = kt->target_object_key;
+        dkt.action_key = kt->action_key;
+        dkt.effect_key = kt->effect_key;
+        dkt.usable_by_ai = kt->usable_by_ai;
+        dkt.usable_for_action = true;
+        dkt.visible_to_player = true;
+        scenario.default_knowledge_templates.push_back(std::move(dkt));
+    }
+
+    return Result<DialogScenario>::ok(std::move(scenario));
 }
 
 DialogScenario buildDefaultScenario() {
@@ -380,6 +531,44 @@ DialogScenario buildDefaultScenario() {
 } // namespace
 
 Result<DialogScenario> DialogScenarioCatalog::defaultScenario() const {
+    // P42: Try loading from JSON content first
+    pathfinder::content::ContentLoadOptions options;
+#ifdef PATHFINDER_CONTENT_ROOT
+    options.root_path = PATHFINDER_CONTENT_ROOT;
+#else
+    options.root_path = "content";
+#endif
+    options.enabled_package_keys = {"core"};
+    options.load_mode = pathfinder::content::ContentLoadMode::StrictContentRequired;
+
+    pathfinder::content::JsonContentLoader loader;
+    auto load_result = loader.load(options);
+
+    if (load_result.is_ok()) {
+        const auto& result = load_result.value();
+        if (result.registry && !result.validation_report.hasFatal()
+            && !result.validation_report.hasErrors()) {
+            auto scenario = buildFromContent(*result.registry, "first_night");
+            if (scenario.is_ok()) {
+                auto valid = validateDialogScenario(scenario.value());
+                if (valid.is_ok()) {
+                    return scenario;
+                }
+            }
+        }
+        // Structured trace: JSON content not usable, falling back to builtin
+        if (result.validation_report.hasFatal()) {
+            std::cerr << "[P42] Content has fatal errors, using built-in fallback" << std::endl;
+        } else if (result.validation_report.hasErrors()) {
+            std::cerr << "[P42] Content has validation errors, using built-in fallback" << std::endl;
+        } else {
+            std::cerr << "[P42] Content loaded but scenario build failed, using built-in fallback" << std::endl;
+        }
+    } else {
+        std::cerr << "[P42] Content load failed, using built-in fallback" << std::endl;
+    }
+
+    // Fallback: use built-in scenario
     auto scenario = buildDefaultScenario();
     auto valid = validateDialogScenario(scenario);
     if (valid.is_error()) return Result<DialogScenario>::fail(valid.errors());

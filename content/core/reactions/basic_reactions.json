@@ -1,0 +1,21 @@
+{
+  "reactions": [
+    {
+      "reaction_key": "wood_plus_fire_make_torch",
+      "inputs": [
+        { "object_key": "wood", "state": "processed", "min": 1 },
+        { "object_key": "camp_fire", "quantity": 1 }
+      ],
+      "action_key": "use",
+      "effect_key": "make_torch",
+      "outputs": [
+        { "object_key": "torch", "quantity_delta": 1 }
+      ],
+      "consume": [
+        { "object_key": "wood", "state": "processed", "delta": -1 }
+      ],
+      "summary_key": "reaction.make_torch.summary",
+      "knowledge_templates": ["knowledge_make_torch"]
+    }
+  ]
+}

@@ -1,0 +1,76 @@
+{
+  "scenario_key": "first_night",
+  "display_key": "scenario.first_night.name",
+  "welcome_text_key": "scenario.first_night.welcome",
+  "initial_objects": [
+    { "object_key": "red_berry", "quantity": 3, "visible": true },
+    { "object_key": "decayed_red_berry", "quantity": 6, "visible": true },
+    { "object_key": "bitter_leaf", "quantity": 2, "visible": true },
+    { "object_key": "stone_flake", "quantity": 1, "visible": true },
+    { "object_key": "axe", "quantity": 1, "visible": true, "numeric": { "sharpness": 3 } },
+    { "object_key": "wood", "quantity": 2, "visible": true, "numeric": { "processed": 0 } },
+    { "object_key": "whetstone", "quantity": 1, "visible": true },
+    { "object_key": "dry_grass", "quantity": 2, "visible": true },
+    { "object_key": "fire_seed", "quantity": 1, "visible": true },
+    { "object_key": "camp_fire", "quantity": 0, "visible": true },
+    { "object_key": "torch", "quantity": 0, "visible": true },
+    { "object_key": "beast_shadow", "quantity": 1, "visible": true }
+  ],
+  "initial_agents": [
+    { "agent_key": "companion", "visible": true, "trust": 0.8 },
+    { "agent_key": "beast_shadow", "visible": true }
+  ],
+  "initial_threats": [
+    { "threat_key": "beast_shadow", "level": 0 }
+  ],
+  "quick_action_input_texts": [
+    "观察", "吃红果", "等待一会", "用斧头砍木头", "用磨石打磨斧头",
+    "用火种点燃干草", "制作火把", "用火把驱赶野兽", "教同伴",
+    "查看知识", "查看同伴", "吃腐烂红果", "帮助", "重开"
+  ],
+  "suggested_action_templates": [
+    {
+      "action_key": "make_torch",
+      "label_text": "制作火把",
+      "input_text": "制作火把",
+      "object_key": "wood",
+      "required_effect_key": "make_torch",
+      "target_object_key": "camp_fire",
+      "reason_keys": ["scenario.action.fire_counter"]
+    },
+    {
+      "action_key": "light_fire",
+      "label_text": "点燃火源",
+      "input_text": "点燃火源",
+      "object_key": "fire_seed",
+      "required_effect_key": "ignite_fire",
+      "target_object_key": "dry_grass",
+      "reason_keys": ["scenario.action.fire_counter"]
+    },
+    {
+      "action_key": "repel_beast",
+      "label_text": "用火把驱赶野兽",
+      "input_text": "用火把驱赶野兽",
+      "object_key": "torch",
+      "required_effect_key": "repel_beast",
+      "target_object_key": "beast_shadow",
+      "reason_keys": ["scenario.action.threat_counter"]
+    },
+    {
+      "action_key": "inspect_objective",
+      "label_text": "查看目标",
+      "input_text": "查看目标",
+      "reason_keys": ["scenario.action.inspect"]
+    }
+  ],
+  "threat_knowledge_templates": [
+    {
+      "template_key": "threat_beast_counter_fire",
+      "threat_object_key": "beast_shadow",
+      "required_effect_key": "repel_beast",
+      "fallback_effect_keys": ["ignite_fire", "make_torch"]
+    }
+  ],
+  "default_player_knowledge": [],
+  "default_agent_knowledge": []
+}

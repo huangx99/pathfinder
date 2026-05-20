@@ -83,13 +83,10 @@ DialogSessionState createNewSession(const std::string& session_id) {
         DialogObjectRuntimeState runtime;
         runtime.object_key = obj.object_key;
         runtime.tag_states = obj.safe_tags;
-        runtime.numeric_states["quantity"] = 1.0;
-        if (obj.object_key == "red_berry") runtime.numeric_states["quantity"] = 3.0;
-        if (obj.object_key == "decayed_red_berry") runtime.numeric_states["quantity"] = 6.0;
-        if (obj.object_key == "bitter_leaf") runtime.numeric_states["quantity"] = 2.0;
-        if (obj.object_key == "wood") runtime.numeric_states["quantity"] = 2.0;
-        if (obj.object_key == "dry_grass") runtime.numeric_states["quantity"] = 2.0;
-        if (obj.object_key == "torch" || obj.object_key == "camp_fire") runtime.numeric_states["quantity"] = 0.0;
+        runtime.numeric_states["quantity"] = obj.initial_quantity;
+        for (const auto& [state_key, value] : obj.initial_numeric_states) {
+            runtime.numeric_states[state_key] = value;
+        }
         if (obj.object_key == "beast_shadow") {
             runtime.numeric_states["threat_level"] = 0.0;
             runtime.numeric_states["observed_fire"] = 0.0;
@@ -97,9 +94,6 @@ DialogSessionState createNewSession(const std::string& session_id) {
             runtime.numeric_states["flank_waits"] = 0.0;
             runtime.tag_states.push_back("dormant");
             runtime.tag_states.push_back("agent_wildlife");
-        }
-        if (obj.object_key == "axe") {
-            runtime.numeric_states["sharpness"] = 3.0;
         }
         state.object_runtime_states[obj.object_key] = runtime;
     }

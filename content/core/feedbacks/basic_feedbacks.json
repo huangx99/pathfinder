@@ -1,0 +1,198 @@
+{
+  "feedbacks": [
+    {
+      "feedback_key": "red_berry_eat_restore_hunger",
+      "object_key": "red_berry",
+      "action_key": "eat",
+      "target_object_key": "",
+      "effect_key": "restore_hunger",
+      "priority": 100,
+      "conditions": [
+        "condition:test:eq:object.quantity.red_berry.gte.1"
+      ],
+      "reply_key": "feedback.red_berry.eat.restore",
+      "utility_delta": 0.6,
+      "risk_delta": 0,
+      "causal_tags": ["food", "hunger"],
+      "outcome_signal_keys": ["need_improved", "object_consumed"],
+      "knowledge": {
+        "subject_object_key": "red_berry",
+        "action_key": "eat",
+        "effect_key": "restore_hunger"
+      }
+    },
+    {
+      "feedback_key": "decayed_red_berry_eat_no_effect",
+      "object_key": "decayed_red_berry",
+      "action_key": "eat",
+      "target_object_key": "",
+      "effect_key": "no_visible_effect",
+      "priority": 100,
+      "conditions": [
+        "condition:test:eq:object.quantity.decayed_red_berry.gte.1"
+      ],
+      "reply_key": "feedback.decayed_red_berry.eat.no_effect",
+      "utility_delta": -0.2,
+      "risk_delta": 0.3,
+      "causal_tags": ["food", "decayed"],
+      "outcome_signal_keys": ["health_worsened", "damage_taken"],
+      "knowledge": {
+        "subject_object_key": "decayed_red_berry",
+        "action_key": "eat",
+        "effect_key": "no_visible_effect"
+      }
+    },
+    {
+      "feedback_key": "bitter_leaf_eat_no_effect",
+      "object_key": "bitter_leaf",
+      "action_key": "eat",
+      "target_object_key": "",
+      "effect_key": "no_visible_effect",
+      "priority": 100,
+      "conditions": [
+        "condition:test:eq:object.quantity.bitter_leaf.gte.1"
+      ],
+      "reply_key": "feedback.bitter_leaf.eat.no_effect",
+      "utility_delta": -0.3,
+      "risk_delta": 0.2,
+      "causal_tags": ["food", "bitter"],
+      "outcome_signal_keys": ["no_visible_effect"],
+      "knowledge": {
+        "subject_object_key": "bitter_leaf",
+        "action_key": "eat",
+        "effect_key": "no_visible_effect"
+      }
+    },
+    {
+      "feedback_key": "stone_flake_use_hint",
+      "object_key": "stone_flake",
+      "action_key": "use",
+      "target_object_key": "",
+      "effect_key": "use_hint",
+      "priority": 100,
+      "conditions": [
+        "condition:test:eq:object.quantity.stone_flake.gte.1"
+      ],
+      "reply_key": "feedback.stone_flake.use.hint",
+      "utility_delta": 0.1,
+      "risk_delta": 0,
+      "causal_tags": ["tool", "hint"],
+      "outcome_signal_keys": ["tool_activated"],
+      "knowledge": {
+        "subject_object_key": "stone_flake",
+        "action_key": "use",
+        "effect_key": "use_hint"
+      }
+    },
+    {
+      "feedback_key": "axe_cut_wood",
+      "object_key": "axe",
+      "action_key": "use",
+      "target_object_key": "wood",
+      "effect_key": "cut_wood",
+      "priority": 100,
+      "conditions": [
+        "condition:test:eq:object.quantity.axe.gte.1",
+        "condition:test:eq:object.quantity.wood.gte.1"
+      ],
+      "reply_key": "feedback.axe.use.cut_wood",
+      "utility_delta": 0.5,
+      "risk_delta": 0,
+      "causal_tags": ["tool", "material", "craft"],
+      "outcome_signal_keys": ["tool_activated", "need_improved"],
+      "knowledge": {
+        "subject_object_key": "axe",
+        "action_key": "use",
+        "effect_key": "cut_wood"
+      }
+    },
+    {
+      "feedback_key": "whetstone_restore_sharpness",
+      "object_key": "whetstone",
+      "action_key": "use",
+      "target_object_key": "axe",
+      "effect_key": "restore_sharpness",
+      "priority": 100,
+      "conditions": [
+        "condition:test:eq:object.quantity.whetstone.gte.1",
+        "condition:test:eq:object.quantity.axe.gte.1"
+      ],
+      "reply_key": "feedback.whetstone.use.restore_sharpness",
+      "utility_delta": 0.4,
+      "risk_delta": 0,
+      "causal_tags": ["tool", "maintenance"],
+      "outcome_signal_keys": ["tool_activated", "need_improved"],
+      "knowledge": {
+        "subject_object_key": "whetstone",
+        "action_key": "use",
+        "effect_key": "restore_sharpness"
+      }
+    },
+    {
+      "feedback_key": "fire_seed_ignite_fire",
+      "object_key": "fire_seed",
+      "action_key": "use",
+      "target_object_key": "dry_grass",
+      "effect_key": "ignite_fire",
+      "priority": 100,
+      "conditions": [
+        "condition:test:eq:object.quantity.fire_seed.gte.1",
+        "condition:test:eq:object.quantity.dry_grass.gte.1"
+      ],
+      "reply_key": "feedback.fire_seed.use.ignite",
+      "utility_delta": 0.5,
+      "risk_delta": 0.2,
+      "causal_tags": ["fire", "tool", "craft"],
+      "outcome_signal_keys": ["tool_activated", "need_improved"],
+      "knowledge": {
+        "subject_object_key": "fire_seed",
+        "action_key": "use",
+        "effect_key": "ignite_fire"
+      }
+    },
+    {
+      "feedback_key": "make_torch",
+      "object_key": "wood",
+      "action_key": "use",
+      "target_object_key": "camp_fire",
+      "effect_key": "make_torch",
+      "priority": 100,
+      "conditions": [
+        "condition:test:eq:object.quantity.wood.gte.1",
+        "condition:test:eq:object.state.wood.processed.gte.1",
+        "condition:test:eq:object.quantity.camp_fire.gte.1"
+      ],
+      "reply_key": "feedback.make_torch.summary",
+      "utility_delta": 0.5,
+      "risk_delta": 0.1,
+      "causal_tags": ["fire", "craft", "tool"],
+      "outcome_signal_keys": ["tool_activated", "need_improved"],
+      "knowledge": {
+        "subject_object_key": "wood",
+        "action_key": "use",
+        "effect_key": "make_torch"
+      }
+    },
+    {
+      "feedback_key": "torch_repel_beast",
+      "object_key": "torch",
+      "action_key": "use",
+      "target_object_key": "beast_shadow",
+      "effect_key": "repel_beast",
+      "priority": 100,
+      "conditions": [
+        "condition:test:eq:object.quantity.torch.gte.1"
+      ],
+      "reply_key": "feedback.torch.use.repel_beast",
+      "utility_delta": 0.7,
+      "risk_delta": 0.0,
+      "causal_tags": ["fire", "defense", "tool"],
+      "outcome_signal_keys": ["tool_activated", "need_improved"],
+      "knowledge": {
+        "subject_object_key": "torch",
+        "action_key": "use",
+        "effect_key": "repel_beast"
+      }
+    }
+  ]
+}

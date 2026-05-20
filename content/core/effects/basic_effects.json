@@ -1,0 +1,320 @@
+{
+  "effects": [
+    {
+      "effect_key": "restore_hunger",
+      "display_key": "effect.restore_hunger.name",
+      "semantic_kind": "actor_need_delta",
+      "goal_kinds": ["satisfy_need"],
+      "target_kind": "actor_self",
+      "preconditions": [
+        "condition:test:eq:object.quantity.$object.gte.1"
+      ],
+      "operations": [
+        {
+          "op": "consume_object_quantity",
+          "target": "$object",
+          "quantity": 1,
+          "summary_key": "effect.restore_hunger.consume"
+        },
+        {
+          "op": "change_actor_need",
+          "target": "$actor",
+          "need_key": "hunger",
+          "delta": -30,
+          "summary_key": "effect.restore_hunger.need"
+        }
+      ],
+      "learning": {
+        "knowledge_effect_key": "restore_hunger",
+        "confidence_delta": 0.35,
+        "teachable": true
+      },
+      "agent": {
+        "usable_by_ai": true,
+        "risk_score": 1,
+        "time_cost": 1
+      }
+    },
+    {
+      "effect_key": "poison",
+      "display_key": "effect.poison.name",
+      "semantic_kind": "actor_need_delta",
+      "goal_kinds": [],
+      "target_kind": "actor_self",
+      "preconditions": [
+        "condition:test:eq:object.quantity.$object.gte.1"
+      ],
+      "operations": [
+        {
+          "op": "consume_object_quantity",
+          "target": "$object",
+          "quantity": 1,
+          "summary_key": "effect.poison.consume"
+        },
+        {
+          "op": "change_actor_need",
+          "target": "$actor",
+          "need_key": "health",
+          "delta": -40,
+          "summary_key": "effect.poison.need"
+        }
+      ],
+      "learning": {
+        "knowledge_effect_key": "poison",
+        "confidence_delta": 0.35,
+        "teachable": true
+      },
+      "agent": {
+        "usable_by_ai": true,
+        "risk_score": 8,
+        "time_cost": 1
+      }
+    },
+    {
+      "effect_key": "no_visible_effect",
+      "display_key": "effect.no_visible_effect.name",
+      "semantic_kind": "actor_need_delta",
+      "goal_kinds": [],
+      "target_kind": "actor_self",
+      "preconditions": [
+        "condition:test:eq:object.quantity.$object.gte.1"
+      ],
+      "operations": [
+        {
+          "op": "consume_object_quantity",
+          "target": "$object",
+          "quantity": 1,
+          "summary_key": "effect.no_visible_effect.consume"
+        }
+      ],
+      "learning": {
+        "knowledge_effect_key": "no_visible_effect",
+        "confidence_delta": 0.15,
+        "teachable": true
+      },
+      "agent": {
+        "usable_by_ai": true,
+        "risk_score": 2,
+        "time_cost": 1
+      }
+    },
+    {
+      "effect_key": "use_hint",
+      "display_key": "effect.use_hint.name",
+      "semantic_kind": "actor_need_delta",
+      "goal_kinds": [],
+      "target_kind": "actor_self",
+      "preconditions": [],
+      "operations": [
+        {
+          "op": "hint_object_use",
+          "target": "$object",
+          "summary_key": "effect.use_hint.hint"
+        }
+      ],
+      "learning": {
+        "knowledge_effect_key": "use_hint",
+        "confidence_delta": 0.1,
+        "teachable": false
+      },
+      "agent": {
+        "usable_by_ai": false,
+        "risk_score": 0,
+        "time_cost": 0
+      }
+    },
+    {
+      "effect_key": "cut_wood",
+      "display_key": "effect.cut_wood.name",
+      "semantic_kind": "world_state_delta",
+      "goal_kinds": [],
+      "target_kind": "target_object",
+      "preconditions": [
+        "condition:test:eq:object.quantity.wood.gte.1",
+        "condition:test:eq:object.quantity.axe.gte.1",
+        "condition:test:eq:object.state.axe.sharpness.gte.1"
+      ],
+      "operations": [
+        {
+          "op": "produce_object_quantity",
+          "target": "wood",
+          "quantity": 1,
+          "state_key": "processed",
+          "summary_key": "effect.cut_wood.produce"
+        },
+        {
+          "op": "add_object_state_number",
+          "target": "axe",
+          "state_key": "sharpness",
+          "delta": -1,
+          "summary_key": "effect.cut_wood.wear"
+        }
+      ],
+      "learning": {
+        "knowledge_effect_key": "cut_wood",
+        "confidence_delta": 0.4,
+        "teachable": true
+      },
+      "agent": {
+        "usable_by_ai": true,
+        "risk_score": 2,
+        "time_cost": 2
+      }
+    },
+    {
+      "effect_key": "restore_sharpness",
+      "display_key": "effect.restore_sharpness.name",
+      "semantic_kind": "world_state_delta",
+      "goal_kinds": [],
+      "target_kind": "target_object",
+      "preconditions": [
+        "condition:test:eq:object.quantity.axe.gte.1",
+        "condition:test:eq:object.quantity.whetstone.gte.1"
+      ],
+      "operations": [
+        {
+          "op": "set_object_state_number",
+          "target": "axe",
+          "state_key": "sharpness",
+          "value": 3,
+          "summary_key": "effect.restore_sharpness.restore"
+        }
+      ],
+      "learning": {
+        "knowledge_effect_key": "restore_sharpness",
+        "confidence_delta": 0.3,
+        "teachable": true
+      },
+      "agent": {
+        "usable_by_ai": true,
+        "risk_score": 1,
+        "time_cost": 1
+      }
+    },
+    {
+      "effect_key": "ignite_fire",
+      "display_key": "effect.ignite_fire.name",
+      "semantic_kind": "world_state_delta",
+      "goal_kinds": [],
+      "target_kind": "target_object",
+      "preconditions": [
+        "condition:test:eq:object.quantity.fire_seed.gte.1",
+        "condition:test:eq:object.quantity.dry_grass.gte.1"
+      ],
+      "operations": [
+        {
+          "op": "consume_object_quantity",
+          "target": "dry_grass",
+          "quantity": 1,
+          "summary_key": "effect.ignite_fire.consume_grass"
+        },
+        {
+          "op": "produce_object_quantity",
+          "target": "camp_fire",
+          "quantity": 1,
+          "summary_key": "effect.ignite_fire.produce_fire"
+        }
+      ],
+      "learning": {
+        "knowledge_effect_key": "ignite_fire",
+        "confidence_delta": 0.4,
+        "teachable": true
+      },
+      "agent": {
+        "usable_by_ai": true,
+        "risk_score": 5,
+        "time_cost": 2
+      }
+    },
+    {
+      "effect_key": "make_torch",
+      "display_key": "effect.make_torch.name",
+      "semantic_kind": "world_state_delta",
+      "goal_kinds": [],
+      "target_kind": "target_object",
+      "preconditions": [
+        "condition:test:eq:object.quantity.wood.gte.1",
+        "condition:test:eq:object.state.wood.processed.gte.1",
+        "condition:test:eq:object.quantity.camp_fire.gte.1"
+      ],
+      "operations": [
+        {
+          "op": "consume_object_quantity",
+          "target": "wood",
+          "quantity": 1,
+          "state_key": "processed",
+          "summary_key": "effect.make_torch.consume_wood"
+        },
+        {
+          "op": "produce_object_quantity",
+          "target": "torch",
+          "quantity": 1,
+          "summary_key": "effect.make_torch.produce"
+        }
+      ],
+      "learning": {
+        "knowledge_effect_key": "make_torch",
+        "confidence_delta": 0.4,
+        "teachable": true
+      },
+      "agent": {
+        "usable_by_ai": true,
+        "risk_score": 3,
+        "time_cost": 1
+      }
+    },
+    {
+      "effect_key": "repel_beast",
+      "display_key": "effect.repel_beast.name",
+      "semantic_kind": "world_state_delta",
+      "goal_kinds": [],
+      "target_kind": "target_object",
+      "preconditions": [
+        "condition:test:eq:object.quantity.torch.gte.1"
+      ],
+      "operations": [
+        {
+          "op": "remove_threat",
+          "target": "beast_shadow",
+          "summary_key": "effect.repel_beast.repel"
+        }
+      ],
+      "learning": {
+        "knowledge_effect_key": "repel_beast",
+        "confidence_delta": 0.4,
+        "teachable": true
+      },
+      "agent": {
+        "usable_by_ai": true,
+        "risk_score": 4,
+        "time_cost": 1
+      }
+    },
+    {
+      "effect_key": "fire_is_dangerous",
+      "display_key": "effect.fire_is_dangerous.name",
+      "semantic_kind": "world_state_delta",
+      "goal_kinds": [],
+      "target_kind": "actor_self",
+      "preconditions": [],
+      "operations": [
+        {
+          "op": "instinct_fear_response",
+          "target": "$actor",
+          "source": "fire",
+          "summary_key": "effect.fire_is_dangerous.fear"
+        }
+      ],
+      "learning": {
+        "knowledge_effect_key": "fire_is_dangerous",
+        "confidence_delta": 0.5,
+        "teachable": true
+      },
+      "agent": {
+        "usable_by_ai": true,
+        "risk_score": 2,
+        "time_cost": 0
+      }
+    }
+  ]
+}

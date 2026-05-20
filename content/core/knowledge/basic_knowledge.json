@@ -1,0 +1,37 @@
+{
+  "knowledge_templates": [
+    {
+      "knowledge_key": "knowledge_red_berry_eat_restore_hunger",
+      "subject_object_key": "red_berry",
+      "action_key": "eat",
+      "effect_key": "restore_hunger",
+      "target_object_key": "",
+      "default_status": "hypothesis",
+      "teachable": true,
+      "usable_by_ai": true,
+      "summary_key": "knowledge.red_berry.eat.restore_hunger.summary"
+    },
+    {
+      "knowledge_key": "knowledge_decayed_red_berry_eat_no_effect",
+      "subject_object_key": "decayed_red_berry",
+      "action_key": "eat",
+      "effect_key": "no_visible_effect",
+      "target_object_key": "",
+      "default_status": "hypothesis",
+      "teachable": true,
+      "usable_by_ai": true,
+      "summary_key": "knowledge.decayed_red_berry.eat.no_effect.summary"
+    },
+    {
+      "knowledge_key": "knowledge_make_torch",
+      "subject_object_key": "wood",
+      "action_key": "use",
+      "effect_key": "make_torch",
+      "target_object_key": "camp_fire",
+      "default_status": "hypothesis",
+      "teachable": true,
+      "usable_by_ai": true,
+      "summary_key": "knowledge.make_torch"
+    }
+  ]
+}

@@ -1,0 +1,223 @@
+{
+  "objects": [
+    {
+      "object_key": "red_berry",
+      "display_key": "object.red_berry.name",
+      "description_key": "object.red_berry.desc",
+      "kind": "food",
+      "visibility": "runtime_visible",
+      "safe_tags": ["food_like", "plant", "fruit"],
+      "allowed_actions": ["eat", "use", "inspect"],
+      "initial_state": {
+        "quantity": 3,
+        "numeric": {},
+        "tags": []
+      },
+      "knowledge_hints": ["can_be_eaten_unknown"],
+      "projection": {
+        "safe_trait_keys": ["可尝试食用", "植物果实"],
+        "unknown_use_text_key": "object.common.unknown_use"
+      }
+    },
+    {
+      "object_key": "decayed_red_berry",
+      "display_key": "object.decayed_red_berry.name",
+      "description_key": "object.decayed_red_berry.desc",
+      "kind": "food",
+      "visibility": "runtime_visible",
+      "safe_tags": ["food_like", "plant", "fruit", "decayed"],
+      "allowed_actions": ["eat", "use", "inspect"],
+      "initial_state": {
+        "quantity": 6,
+        "numeric": {},
+        "tags": []
+      },
+      "knowledge_hints": ["can_be_eaten_unknown"],
+      "projection": {
+        "safe_trait_keys": ["腐烂", "植物果实"],
+        "unknown_use_text_key": "object.common.unknown_use"
+      }
+    },
+    {
+      "object_key": "bitter_leaf",
+      "display_key": "object.bitter_leaf.name",
+      "description_key": "object.bitter_leaf.desc",
+      "kind": "food",
+      "visibility": "runtime_visible",
+      "safe_tags": ["food_like", "plant", "leaf", "bitter"],
+      "allowed_actions": ["eat", "use", "inspect"],
+      "initial_state": {
+        "quantity": 2,
+        "numeric": {},
+        "tags": []
+      },
+      "knowledge_hints": ["can_be_eaten_unknown"],
+      "projection": {
+        "safe_trait_keys": ["味苦", "植物叶片"],
+        "unknown_use_text_key": "object.common.unknown_use"
+      }
+    },
+    {
+      "object_key": "stone_flake",
+      "display_key": "object.stone_flake.name",
+      "description_key": "object.stone_flake.desc",
+      "kind": "tool",
+      "visibility": "runtime_visible",
+      "safe_tags": ["tool", "stone", "sharp"],
+      "allowed_actions": ["use", "inspect"],
+      "initial_state": {
+        "quantity": 1,
+        "numeric": {},
+        "tags": []
+      },
+      "projection": {
+        "safe_trait_keys": ["锋利", "石制工具"],
+        "unknown_use_text_key": "object.common.unknown_use"
+      }
+    },
+    {
+      "object_key": "axe",
+      "display_key": "object.axe.name",
+      "description_key": "object.axe.desc",
+      "kind": "tool",
+      "visibility": "runtime_visible",
+      "safe_tags": ["tool", "sharp", "weapon"],
+      "allowed_actions": ["use", "inspect"],
+      "initial_state": {
+        "quantity": 1,
+        "numeric": { "sharpness": 3 },
+        "tags": []
+      },
+      "projection": {
+        "safe_trait_keys": ["锋利", "伐木工具"],
+        "unknown_use_text_key": "object.common.unknown_use"
+      }
+    },
+    {
+      "object_key": "wood",
+      "display_key": "object.wood.name",
+      "description_key": "object.wood.desc",
+      "kind": "material",
+      "visibility": "runtime_visible",
+      "safe_tags": ["material", "fuel", "plant"],
+      "allowed_actions": ["use", "inspect"],
+      "initial_state": {
+        "quantity": 2,
+        "numeric": { "processed": 0 },
+        "tags": []
+      },
+      "projection": {
+        "safe_trait_keys": ["可燃", "建筑材料"],
+        "unknown_use_text_key": "object.common.unknown_use"
+      }
+    },
+    {
+      "object_key": "whetstone",
+      "display_key": "object.whetstone.name",
+      "description_key": "object.whetstone.desc",
+      "kind": "tool",
+      "visibility": "runtime_visible",
+      "safe_tags": ["tool", "stone"],
+      "allowed_actions": ["use", "inspect"],
+      "initial_state": {
+        "quantity": 1,
+        "numeric": {},
+        "tags": []
+      },
+      "projection": {
+        "safe_trait_keys": ["打磨工具"],
+        "unknown_use_text_key": "object.common.unknown_use"
+      }
+    },
+    {
+      "object_key": "dry_grass",
+      "display_key": "object.dry_grass.name",
+      "description_key": "object.dry_grass.desc",
+      "kind": "material",
+      "visibility": "runtime_visible",
+      "safe_tags": ["material", "fuel", "plant", "dry"],
+      "allowed_actions": ["use", "inspect"],
+      "initial_state": {
+        "quantity": 2,
+        "numeric": {},
+        "tags": []
+      },
+      "projection": {
+        "safe_trait_keys": ["干燥", "易燃"],
+        "unknown_use_text_key": "object.common.unknown_use"
+      }
+    },
+    {
+      "object_key": "fire_seed",
+      "display_key": "object.fire_seed.name",
+      "description_key": "object.fire_seed.desc",
+      "kind": "tool",
+      "visibility": "runtime_visible",
+      "safe_tags": ["tool", "fire_source"],
+      "allowed_actions": ["use", "inspect"],
+      "initial_state": {
+        "quantity": 1,
+        "numeric": {},
+        "tags": []
+      },
+      "projection": {
+        "safe_trait_keys": ["可产生火花"],
+        "unknown_use_text_key": "object.common.unknown_use"
+      }
+    },
+    {
+      "object_key": "camp_fire",
+      "display_key": "object.camp_fire.name",
+      "description_key": "object.camp_fire.desc",
+      "kind": "tool",
+      "visibility": "runtime_visible",
+      "safe_tags": ["fire", "light", "heat"],
+      "allowed_actions": ["use", "inspect"],
+      "initial_state": {
+        "quantity": 0,
+        "numeric": {},
+        "tags": []
+      },
+      "projection": {
+        "safe_trait_keys": ["提供光和热"],
+        "unknown_use_text_key": "object.common.unknown_use"
+      }
+    },
+    {
+      "object_key": "torch",
+      "display_key": "object.torch.name",
+      "description_key": "object.torch.desc",
+      "kind": "tool",
+      "visibility": "runtime_visible",
+      "safe_tags": ["tool", "fire", "light", "weapon"],
+      "allowed_actions": ["use", "inspect"],
+      "initial_state": {
+        "quantity": 0,
+        "numeric": {},
+        "tags": []
+      },
+      "projection": {
+        "safe_trait_keys": ["火焰光源", "可驱赶野兽"],
+        "unknown_use_text_key": "object.common.unknown_use"
+      }
+    },
+    {
+      "object_key": "beast_shadow",
+      "display_key": "object.beast_shadow.name",
+      "description_key": "object.beast_shadow.desc",
+      "kind": "hazard",
+      "visibility": "hidden_until_discovered",
+      "safe_tags": ["creature", "danger", "predator"],
+      "allowed_actions": ["inspect"],
+      "initial_state": {
+        "quantity": 1,
+        "numeric": {},
+        "tags": []
+      },
+      "projection": {
+        "safe_trait_keys": ["未知威胁"],
+        "unknown_use_text_key": "object.common.unknown_use"
+      }
+    }
+  ]
+}
