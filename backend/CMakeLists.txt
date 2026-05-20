@@ -919,6 +919,30 @@ target_link_libraries(pathfinder_world_command PUBLIC
     pathfinder_foundation
 )
 
+# World Generation library (P46)
+add_library(pathfinder_world_generation STATIC
+    src/world_generation/world_generation_types.cpp
+    src/world_generation/world_generation_rng.cpp
+    src/world_generation/terrain_generator.cpp
+    src/world_generation/resource_distribution_generator.cpp
+    src/world_generation/spawn_safety_planner.cpp
+    src/world_generation/world_generation_service.cpp
+    src/world_generation/world_generation_applier.cpp
+    src/world_generation/world_generation_projection_bridge.cpp
+    src/world_generation/generate_world_command_handler.cpp
+)
+
+target_include_directories(pathfinder_world_generation PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(pathfinder_world_generation PUBLIC
+    pathfinder_foundation
+    pathfinder_world_command
+    pathfinder_world_runtime
+    pathfinder_world_inventory
+)
+
 # World Command Runtime library (P44 runtime-aware handlers, depends on both)
 add_library(pathfinder_world_command_runtime STATIC
     src/world_runtime/world_runtime_command_handlers.cpp

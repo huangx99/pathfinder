@@ -118,6 +118,20 @@ struct WorldExplorationState {
     std::map<std::string, WorldCellVisibility> cell_visibility_by_id;
 };
 
+struct WorldResourceNodeRuntime {
+    std::string node_id;
+    std::string resource_key;
+    WorldCellCoord coord;
+    std::string node_kind_str;
+    std::string node_state_str;
+    int remaining_charges = 1;
+    int max_charges = 1;
+    std::string required_action_key;
+    std::string required_tool_key;
+    std::vector<std::string> output_entity_keys;
+    std::vector<std::string> tag_keys;
+};
+
 struct WorldRuntimeSnapshot {
     std::string world_id;
     uint64_t seed = 0;
@@ -126,6 +140,7 @@ struct WorldRuntimeSnapshot {
     std::map<std::string, WorldCellRuntime> cells;
     std::map<std::string, WorldEntityInstance> entities;
     std::map<std::string, WorldActorRuntime> actors;
+    std::map<std::string, WorldResourceNodeRuntime> resource_nodes;
 };
 
 // ---------------------------------------------------------------------------

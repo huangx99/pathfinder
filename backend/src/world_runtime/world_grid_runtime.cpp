@@ -407,7 +407,74 @@ Result<WorldRuntimeSnapshot> WorldGridRuntime::snapshotForDebug() const {
     snapshot.cells = cells_;
     snapshot.entities = entities_;
     snapshot.actors = actors_;
+    snapshot.resource_nodes = resource_nodes_;
     return Result<WorldRuntimeSnapshot>::ok(std::move(snapshot));
+}
+
+// ---------------------------------------------------------------------------
+// P46: Generated cell creation/updating
+// ---------------------------------------------------------------------------
+
+Result<void> WorldGridRuntime::createOrUpdateGeneratedCell(
+    const WorldCellCoord& coord,
+    const std::string& terrain_key,
+    const std::string& region_id,
+    bool blocks_movement,
+    int movement_cost,
+    const std::vector<std::string>& tag_keys) {
+    std::string cell_id = coord.cellId();
+    auto it = cells_.find(cell_id);
+    if (it != cells_.end()) {
+        it->second.terrain_key = terrain_key;
+        it->second.region_id = region_id;
+        it->second.blocks_movement = blocks_movement;
+        it->second.movement_cost = movement_cost;
+        it->second.tag_keys = tag_keys;
+    } else {
+        WorldCellRuntime cell;
+        cell.cell_id = cell_id;
+        cell.coord = coord;
+        cell.terrain_key = terrain_key;
+        cell.region_id = region_id;
+        cell.generated = true;
+        cell.blocks_movement = blocks_movement;
+        cell.movement_cost = movement_cost;
+        cell.tag_keys = tag_keys;
+        cells_[cell_id] = std::move(cell);
+    }
+    incrementStateVersion();
+    return Result<void>::ok();
+}
+
+// ---------------------------------------------------------------------------
+// P46: Resource node runtime
+// ---------------------------------------------------------------------------
+
+Result<void> WorldGridRuntime::upsertGeneratedResourceNode(const WorldResourceNodeRuntime& node) {
+    resource_nodes_[node.node_id] = node;
+    incrementStateVersion();
+    return Result<void>::ok();
+}
+
+Result<const WorldResourceNodeRuntime*> WorldGridRuntime::findResourceNode(const std::string& node_id) const {
+    auto it = resource_nodes_.find(node_id);
+    if (it == resource_nodes_.end()) {
+        return Result<const WorldResourceNodeRuntime*>::fail(
+            makeError(ErrorCode::id_not_found, "resource_node_not_found", "Resource node not found: " + node_id));
+    }
+    return Result<const WorldResourceNodeRuntime*>::ok(&it->second);
+}
+
+// ---------------------------------------------------------------------------
+// P46: Region generation tracking
+// ---------------------------------------------------------------------------
+
+bool WorldGridRuntime::isRegionGenerated(const std::string& region_id) const {
+    return generated_regions_.find(region_id) != generated_regions_.end();
+}
+
+void WorldGridRuntime::markRegionGenerated(const std::string& region_id) {
+    generated_regions_.insert(region_id);
 }
 
 // ---------------------------------------------------------------------------
@@ -538,6 +605,13 @@ Result<void> WorldGridRuntime::spawnEntityOnMap(
     const std::map<std::string, double>& numeric_states,
     const std::vector<std::string>& tag_keys) {
 
+    // P46: Reject spawning on non-existent cells to prevent ghost entities
+    auto cell_it = cells_.find(coord.cellId());
+    if (cell_it == cells_.end()) {
+        return Result<void>::fail(
+            makeError(ErrorCode::id_not_found, "cell_not_found", "Cannot spawn entity on missing cell: " + coord.cellId()));
+    }
+
     auto ent_it = entities_.find(entity_id);
     if (ent_it != entities_.end()) {
         // Entity already exists: update
@@ -570,12 +644,9 @@ Result<void> WorldGridRuntime::spawnEntityOnMap(
         entities_[entity_id] = std::move(entity);
     }
 
-    auto cell_it = cells_.find(coord.cellId());
-    if (cell_it != cells_.end()) {
-        auto& entity_ids = cell_it->second.entity_ids;
-        if (std::find(entity_ids.begin(), entity_ids.end(), entity_id) == entity_ids.end()) {
-            entity_ids.push_back(entity_id);
-        }
+    auto& entity_ids = cell_it->second.entity_ids;
+    if (std::find(entity_ids.begin(), entity_ids.end(), entity_id) == entity_ids.end()) {
+        entity_ids.push_back(entity_id);
     }
 
     incrementStateVersion();

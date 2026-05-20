@@ -24,6 +24,23 @@ public:
     virtual foundation::Result<AdvanceWorldTimeResult> advanceWorldTime(uint64_t tick_delta) = 0;
 
     virtual foundation::Result<WorldRuntimeSnapshot> snapshotForDebug() const = 0;
+
+    // P46: Generated cell creation/updating
+    virtual foundation::Result<void> createOrUpdateGeneratedCell(
+        const WorldCellCoord& coord,
+        const std::string& terrain_key,
+        const std::string& region_id,
+        bool blocks_movement,
+        int movement_cost,
+        const std::vector<std::string>& tag_keys) = 0;
+
+    // P46: Resource node runtime
+    virtual foundation::Result<void> upsertGeneratedResourceNode(const WorldResourceNodeRuntime& node) = 0;
+    virtual foundation::Result<const WorldResourceNodeRuntime*> findResourceNode(const std::string& node_id) const = 0;
+
+    // P46: Region generation tracking
+    virtual bool isRegionGenerated(const std::string& region_id) const = 0;
+    virtual void markRegionGenerated(const std::string& region_id) = 0;
 };
 
 } // namespace pathfinder::world_runtime
