@@ -533,6 +533,295 @@ Command 必须记录：
 | FrontendHintBuilder | 前端表现提示 | 生成表现建议 | command/result/event | frontend_hints | 不决定规则 |
 | AvailableCommandBuilder | 可用命令构建 | 输出下一步按钮 | current state/projection | command options | 不让前端推导 |
 | CommandTraceRecorder | 命令追踪 | 记录复盘信息 | pipeline stages | trace records | 不参与裁决 |
+| WorldCommandDispatcher | 命令分发器 | 从注册表找到对应 Handler | validated command | handler result | 不写玩法规则 if/else |
+| WorldCommandHandlerRegistry | Handler 注册表 | 管理 command/action 到 Handler 的映射 | handler registrations | handler lookup | 不执行命令 |
+| IWorldCommandHandler | 命令处理器接口 | 处理一类命令并调用对应系统 | command context | execution result | 不绕过 Pipeline 提交状态 |
+| ContentActionAdapter | 内容动作适配器 | 把 P42 action 定义接入 CommandOption 和 Handler | content action | command option / binding | 不让前端读 JSON |
+| EffectOperationRegistry | 效果操作注册表 | 管理 effect operation 到 applier 的映射 | operation kind | applier lookup | 不写物品特例 |
+| IEffectOperationApplier | 效果操作执行器 | 执行一种白名单状态变化 | effect operation | state delta | 不读取 UI 状态 |
+
+### 7.1 Command 如何触发具体逻辑
+
+P43 必须明确：`WorldCommand` 不是靠无数个 `if/else` 触发玩法逻辑。
+
+正确实现方式是：
+
+```text
+WorldCommandPipeline
+  + WorldCommandDispatcher
+  + WorldCommandHandlerRegistry
+  + IWorldCommandHandler
+  + ContentActionAdapter
+  + EffectOperationRegistry
+  + IEffectOperationApplier
+```
+
+也就是：
+
+```text
+前端 / NPC / 野兽 / 系统 / 世界生成 / 区域事件
+  -> WorldCommandDto
+  -> WorldCommandPipeline
+  -> normalize / validate / gate
+  -> WorldCommandDispatcher
+  -> handler_registry.find(command_kind 或 action_key)
+  -> IWorldCommandHandler::execute(context, command)
+  -> handler 调用具体领域服务
+  -> EffectOperationRegistry 执行白名单状态变化
+  -> Event / Experience / ProjectionPatch / AvailableCommands
+```
+
+#### 7.1.1 允许的少量分发判断
+
+允许存在少量边界层分发：
+
+```text
+字符串 <-> enum 转换。
+WorldCommandKind 注册到 IWorldCommandHandler。
+action_key 注册到 IWorldCommandHandler。
+EffectExecutionOpKind 注册到 IEffectOperationApplier。
+Content category 注册到 loader/parser。
+```
+
+这些判断属于工程分发，不属于玩法规则。
+
+#### 7.1.2 禁止的错误实现
+
+禁止在 Pipeline、Dispatcher、前端或大函数里写玩法特例：
+
+```cpp
+if (target == "red_berry") addHunger();
+if (target == "poison_mushroom") addPoison();
+if (target == "wolf" && item == "torch") fleeWolf();
+if (item == "axe" && target == "tree") addWood();
+```
+
+这些逻辑必须拆到：
+
+```text
+content action：声明可执行动作。
+content effect：声明效果和白名单 operation。
+content reaction：声明材料、条件、产物。
+content threat：声明危险和 countermeasure。
+Command Handler：连接领域服务。
+EffectOperationApplier：执行通用状态变化。
+```
+
+规则：
+
+```text
+C++ 写机制。
+JSON 写内容。
+Pipeline 串流程。
+Dispatcher 找 Handler。
+Handler 调领域服务。
+EffectOperationApplier 改状态。
+Event / Experience / Projection 统一输出。
+```
+
+#### 7.1.3 Handler 注册方式
+
+第一版推荐接口：
+
+```cpp
+class IWorldCommandHandler {
+public:
+    virtual ~IWorldCommandHandler() = default;
+    virtual WorldCommandKind kind() const = 0;
+    virtual foundation::Result<WorldCommandExecutionResult> execute(
+        WorldCommandContext& context,
+        const WorldCommandDto& command) const = 0;
+};
+
+class WorldCommandHandlerRegistry {
+public:
+    foundation::Result<void> registerHandler(std::shared_ptr<IWorldCommandHandler> handler);
+    const IWorldCommandHandler* findByKind(WorldCommandKind kind) const;
+    const IWorldCommandHandler* findByActionKey(const std::string& action_key) const;
+};
+```
+
+P43 第一版可以只注册：
+
+```text
+NoopCommandHandler
+WaitCommandHandler
+InspectCommandHandler
+SystemTickCommandHandler
+GenerateWorldCommandHandler stub
+```
+
+P44 以后逐步注册：
+
+```text
+MoveCommandHandler
+GatherCommandHandler
+ChopCommandHandler
+MineCommandHandler
+PickupCommandHandler
+DropCommandHandler
+EatCommandHandler
+UseCommandHandler
+CraftCommandHandler
+TeachCommandHandler
+AttackCommandHandler
+FleeCommandHandler
+AreaEffectCommandHandler
+```
+
+#### 7.1.4 Handler 只连接模块，不堆玩法规则
+
+例如 `GatherCommandHandler` 不应该知道“红果是什么”。
+
+它只负责：
+
+```text
+读取 actor、target、action_key。
+校验目标是否为可采集资源节点。
+调用 WorldGridQuery 判断距离和 layer。
+调用 ResourceNodeRuntime 计算采集结果。
+调用 InventoryService 写入产物归属。
+调用 EffectExecutionService 执行 content effect。
+调用 DiscoveryBridge 生成世界经验。
+调用 WorldEventBuilder 生成事件。
+返回 WorldCommandExecutionResult。
+```
+
+例如 `CraftCommandHandler` 只负责：
+
+```text
+调用 CraftMaterialResolver 找材料。
+调用 InventoryService 扣材料。
+调用 ReactionRuleAdapter 解析 content reaction / recipe。
+调用 ObjectInstanceFactory 生成具体实例。
+调用 DiscoveryBridge 生成制作知识。
+返回状态变化和事件。
+```
+
+例如 `TeachCommandHandler` 只负责：
+
+```text
+调用 KnowledgeQueryService 查询可传播知识。
+调用 TeachingBridge 执行传播。
+调用 KnowledgeStore 写入接收者知识。
+调用 EventWriter 记录教学事件。
+返回教学结果。
+```
+
+#### 7.1.5 Content Action 与 CommandOption 的关系
+
+P42 的 `ActionDefinitionDto` 不直接执行动作，它用于描述动作：
+
+```json
+{
+  "action_key": "gather",
+  "command_kind": "Gather",
+  "display_key": "action.gather",
+  "targeting": "resource_node",
+  "default_time_cost": 1
+}
+```
+
+`AvailableCommandBuilder` 读取 content action、当前投影、距离、知识门禁、材料门禁后生成：
+
+```text
+WorldCommandOptionDto
+```
+
+前端只能显示 `available_commands`，不能自己根据对象类型生成按钮。
+
+玩家点击按钮后，前端只提交：
+
+```text
+WorldCommandDto(command_kind=Gather, action_key=gather, target_entity_id=...)
+```
+
+后端通过 Dispatcher 找到 `GatherCommandHandler`。
+
+#### 7.1.6 EffectOperation 也必须注册式执行
+
+`EffectExecutionService` 不允许写物品特例。
+
+推荐结构：
+
+```cpp
+class IEffectOperationApplier {
+public:
+    virtual ~IEffectOperationApplier() = default;
+    virtual EffectExecutionOpKind kind() const = 0;
+    virtual foundation::Result<StateDeltaPlan> apply(
+        EffectApplyContext& context,
+        const EffectExecutionOperation& operation) const = 0;
+};
+
+class EffectOperationRegistry {
+public:
+    foundation::Result<void> registerApplier(std::shared_ptr<IEffectOperationApplier> applier);
+    const IEffectOperationApplier* find(EffectExecutionOpKind kind) const;
+};
+```
+
+P42/P43/P44 以后可逐步注册：
+
+```text
+ChangeActorNeedApplier
+ConsumeObjectQuantityApplier
+ProduceObjectQuantityApplier
+AddObjectStateNumberApplier
+SetObjectStateNumberApplier
+RemoveThreatApplier
+MoveEntityApplier
+TransferItemApplier
+SpawnEntityApplier
+DespawnEntityApplier
+ApplyAreaStatusApplier
+AddKnowledgeCandidateApplier
+```
+
+新增红果、毒蘑菇、火把、狼、房子时，通常只扩展 JSON；只有新增“全新状态变化机制”时，才新增 Applier。
+
+#### 7.1.7 未来复杂场景扩展原则
+
+高级文明：
+
+```text
+激光炮、护盾、无人机、机器人生产线 = WorldCommand + content action + effect operation + reaction chain。
+如果出现电力网络，新增 EnergyGridService / EnergyEffectApplier，不改 Pipeline。
+```
+
+魔法世界：
+
+```text
+区域魔法、诅咒、召唤、传送 = CastAreaEffect / ApplyAreaEffectTick + AreaEffectRegistry + EffectOperationApplier。
+```
+
+机械危机：
+
+```text
+机器人自主行动 = AgentDecision command。
+机器人生产 = Craft / Reaction / SpawnEntity operation。
+机器人感染区域 = AreaEffectTick command。
+```
+
+NPC 学习后行动：
+
+```text
+NPC 推理层只产生 WorldCommand，不直接改状态。
+解决饥饿 -> Move -> Gather -> Eat，每一步都进 WorldCommandPipeline。
+```
+
+#### 7.1.8 本阶段验收门禁
+
+P43 实现时必须有测试证明：
+
+```text
+Dispatcher 能根据 WorldCommandKind 找到 Handler。
+未知 command 返回 Failed / unknown_command，不崩溃。
+HandlerRegistry 重复注册同一 kind 会失败。
+Pipeline 不包含红果、狼、火把、斧头等内容特例。
+AvailableCommandBuilder 不让前端推导按钮。
+EffectOperationRegistry 未注册 operation 时返回明确错误。
+```
 
 ## 8. 核心枚举
 
@@ -1084,13 +1373,23 @@ P43 建议新增：
 ```text
 backend/include/pathfinder/world_command/world_command_types.h
 backend/include/pathfinder/world_command/world_command_pipeline.h
+backend/include/pathfinder/world_command/world_command_dispatcher.h
+backend/include/pathfinder/world_command/world_command_handler.h
+backend/include/pathfinder/world_command/world_command_registry.h
 backend/include/pathfinder/world_command/world_command_projection.h
 backend/include/pathfinder/world_command/world_command_trace.h
 backend/src/world_command/world_command_types.cpp
 backend/src/world_command/world_command_pipeline.cpp
+backend/src/world_command/world_command_dispatcher.cpp
+backend/src/world_command/world_command_registry.cpp
 backend/src/world_command/world_command_projection.cpp
 backend/src/world_command/world_command_trace.cpp
+backend/src/world_command/handlers/noop_command_handler.cpp
+backend/src/world_command/handlers/wait_command_handler.cpp
+backend/src/world_command/handlers/inspect_command_handler.cpp
+backend/src/world_command/handlers/system_tick_command_handler.cpp
 backend/tests/unit/world_command/world_command_test.cpp
+backend/tests/unit/world_command/world_command_dispatcher_test.cpp
 backend/tests/integration/world_command/world_command_flow_test.cpp
 ```
 
@@ -1125,10 +1424,14 @@ WorldCommandKind / Source / ResultKind / TargetKind / PatchOp / FrontendHintKind
 WorldCommandDto
 WorldCommandResponseDto
 WorldCommandPipeline::execute
+WorldCommandDispatcher
+WorldCommandHandlerRegistry
+IWorldCommandHandler
 NoopCommandHandler
 WaitCommandHandler stub
 InspectCommandHandler stub
 SystemTickCommandHandler stub
+GenerateWorldCommandHandler stub
 ProjectionPatch empty builder
 AvailableCommand empty builder
 Trace recorder
