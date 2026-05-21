@@ -660,4 +660,60 @@ Result<void> WorldGridRuntime::spawnEntityOnMap(
     return Result<void>::ok();
 }
 
+Result<void> WorldGridRuntime::spawnEntityInInventory(
+    const std::string& entity_id,
+    const std::string& entity_key,
+    const std::string& display_name_key,
+    const std::string& owner_ref,
+    int quantity,
+    const std::string& stack_key,
+    bool stackable,
+    const std::vector<std::string>& state_keys,
+    const std::map<std::string, double>& numeric_states,
+    const std::vector<std::string>& tag_keys) {
+
+    auto ent_it = entities_.find(entity_id);
+    if (ent_it != entities_.end()) {
+        // Entity already exists: update stack data and location
+        auto& entity = ent_it->second;
+        entity.entity_key = entity_key;
+        entity.display_name_key = display_name_key;
+        entity.coord = std::nullopt;
+        entity.location_kind = WorldEntityLocationKind::InInventory;
+        entity.owner_ref = owner_ref;
+        entity.quantity = quantity;
+        entity.stack_key = stack_key;
+        entity.stackable = stackable;
+        entity.state_keys = state_keys;
+        entity.numeric_states = numeric_states;
+        entity.tag_keys = tag_keys;
+    } else {
+        // Create new entity
+        WorldEntityInstance entity;
+        entity.entity_id = entity_id;
+        entity.entity_key = entity_key;
+        entity.display_name_key = display_name_key;
+        entity.coord = std::nullopt;
+        entity.location_kind = WorldEntityLocationKind::InInventory;
+        entity.owner_ref = owner_ref;
+        entity.quantity = quantity;
+        entity.stack_key = stack_key;
+        entity.stackable = stackable;
+        entity.state_keys = state_keys;
+        entity.numeric_states = numeric_states;
+        entity.tag_keys = tag_keys;
+        entity.visible_by_default = true;
+        entities_[entity_id] = std::move(entity);
+    }
+
+    // Remove from any cell entity list if previously on map
+    for (auto& [cid, cell] : cells_) {
+        auto& eids = cell.entity_ids;
+        eids.erase(std::remove(eids.begin(), eids.end(), entity_id), eids.end());
+    }
+
+    incrementStateVersion();
+    return Result<void>::ok();
+}
+
 } // namespace pathfinder::world_runtime

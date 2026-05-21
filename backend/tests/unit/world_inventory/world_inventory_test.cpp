@@ -1615,6 +1615,285 @@ void run_stack_key_blocks_merge_tests() {
 }
 
 // ---------------------------------------------------------------------------
+// ConsumeToNowhere reduces stack
+// ---------------------------------------------------------------------------
+
+void run_consume_to_nowhere_reduces_stack_tests() {
+    TestFixture f;
+    f.setup(1);
+
+    // Spawn wood x3 on map and pickup
+    auto spawn = f.world_runtime.spawnEntityOnMap(
+        "wood_001", "wood", "entity.wood",
+        WorldCellCoord{0, 0, "surface"}, 3, "wood:default", true,
+        std::vector<std::string>{}, {}, {});
+    assert(spawn.is_ok());
+
+    InventoryTransferRequest pickup;
+    pickup.transfer_id = "test_pickup";
+    pickup.transfer_kind = InventoryTransferKind::PickupFromMap;
+    pickup.actor_key = "player";
+    pickup.entity_id = "wood_001";
+    pickup.quantity = 3;
+    auto pres = f.inventory_runtime->transfer(pickup);
+    assert(pres.is_ok() && pres.value().ok);
+
+    // Consume 1
+    InventoryTransferRequest req;
+    req.transfer_id = "test_consume";
+    req.transfer_kind = InventoryTransferKind::ConsumeToNowhere;
+    req.actor_key = "player";
+    req.entity_id = "wood_001";
+    req.quantity = 1;
+    auto res = f.inventory_runtime->transfer(req);
+    assert(res.is_ok() && res.value().ok);
+    assert(!res.value().changed_inventory_ids.empty());
+    assert(!res.value().changed_entity_ids.empty());
+
+    auto inv_id = f.inventory_runtime->ensureActorInventory("player");
+    auto inv_res = f.inventory_runtime->findInventory(inv_id.value());
+    assert(inv_res.is_ok());
+    assert(inv_res.value()->entries.size() == 1);
+    assert(inv_res.value()->entries[0].quantity == 2);
+
+    std::cout << "world_inventory_consume_to_nowhere_reduces_stack: passed" << std::endl;
+}
+
+// ---------------------------------------------------------------------------
+// ConsumeToNowhere removes stack at zero
+// ---------------------------------------------------------------------------
+
+void run_consume_to_nowhere_removes_stack_at_zero_tests() {
+    TestFixture f;
+    f.setup(1);
+
+    // Spawn wood x1 on map and pickup
+    auto spawn = f.world_runtime.spawnEntityOnMap(
+        "wood_001", "wood", "entity.wood",
+        WorldCellCoord{0, 0, "surface"}, 1, "wood:default", true,
+        std::vector<std::string>{}, {}, {});
+    assert(spawn.is_ok());
+
+    InventoryTransferRequest pickup;
+    pickup.transfer_id = "test_pickup";
+    pickup.transfer_kind = InventoryTransferKind::PickupFromMap;
+    pickup.actor_key = "player";
+    pickup.entity_id = "wood_001";
+    pickup.quantity = 1;
+    auto pres = f.inventory_runtime->transfer(pickup);
+    assert(pres.is_ok() && pres.value().ok);
+
+    // Consume all
+    InventoryTransferRequest req;
+    req.transfer_id = "test_consume";
+    req.transfer_kind = InventoryTransferKind::ConsumeToNowhere;
+    req.actor_key = "player";
+    req.entity_id = "wood_001";
+    req.quantity = 1;
+    auto res = f.inventory_runtime->transfer(req);
+    assert(res.is_ok() && res.value().ok);
+
+    auto inv_id = f.inventory_runtime->ensureActorInventory("player");
+    auto inv_res = f.inventory_runtime->findInventory(inv_id.value());
+    assert(inv_res.is_ok());
+    assert(inv_res.value()->entries.empty());
+
+    // Item location should be gone or nowhere
+    auto loc_res = f.inventory_runtime->findItemLocation("wood_001");
+    assert(loc_res.is_error());
+
+    std::cout << "world_inventory_consume_to_nowhere_removes_stack_at_zero: passed" << std::endl;
+}
+
+// ---------------------------------------------------------------------------
+// ConsumeToNowhere insufficient fails
+// ---------------------------------------------------------------------------
+
+void run_consume_to_nowhere_insufficient_fails_tests() {
+    TestFixture f;
+    f.setup(1);
+
+    // Spawn wood x1 on map and pickup
+    auto spawn = f.world_runtime.spawnEntityOnMap(
+        "wood_001", "wood", "entity.wood",
+        WorldCellCoord{0, 0, "surface"}, 1, "wood:default", true,
+        std::vector<std::string>{}, {}, {});
+    assert(spawn.is_ok());
+
+    InventoryTransferRequest pickup;
+    pickup.transfer_id = "test_pickup";
+    pickup.transfer_kind = InventoryTransferKind::PickupFromMap;
+    pickup.actor_key = "player";
+    pickup.entity_id = "wood_001";
+    pickup.quantity = 1;
+    auto pres = f.inventory_runtime->transfer(pickup);
+    assert(pres.is_ok() && pres.value().ok);
+
+    // Consume 2 (should fail)
+    InventoryTransferRequest req;
+    req.transfer_id = "test_consume";
+    req.transfer_kind = InventoryTransferKind::ConsumeToNowhere;
+    req.actor_key = "player";
+    req.entity_id = "wood_001";
+    req.quantity = 2;
+    auto res = f.inventory_runtime->transfer(req);
+    assert(res.is_ok());
+    assert(!res.value().ok);
+    assert(res.value().failure_kind == InventoryFailureKind::QuantityInsufficient);
+
+    auto inv_id = f.inventory_runtime->ensureActorInventory("player");
+    auto inv_res = f.inventory_runtime->findInventory(inv_id.value());
+    assert(inv_res.is_ok());
+    assert(inv_res.value()->entries.size() == 1);
+    assert(inv_res.value()->entries[0].quantity == 1);
+
+    std::cout << "world_inventory_consume_to_nowhere_insufficient_fails: passed" << std::endl;
+}
+
+// ---------------------------------------------------------------------------
+// SpawnToInventory adds item
+// ---------------------------------------------------------------------------
+
+void run_spawn_to_inventory_adds_item_tests() {
+    TestFixture f;
+    f.setup(1);
+
+    // Ensure inventory exists
+    auto inv_id = f.inventory_runtime->ensureActorInventory("player");
+    assert(inv_id.is_ok());
+
+    // Spawn torch
+    InventoryTransferRequest req;
+    req.transfer_id = "test_spawn";
+    req.transfer_kind = InventoryTransferKind::SpawnToInventory;
+    req.actor_key = "player";
+    req.entity_key = "torch";
+    req.quantity = 1;
+    req.parameters["stack_key"] = "torch:crafted";
+    req.parameters["state_keys"] = "crafted";
+    auto res = f.inventory_runtime->transfer(req);
+    assert(res.is_ok() && res.value().ok);
+    assert(!res.value().changed_inventory_ids.empty());
+    assert(!res.value().changed_entity_ids.empty());
+
+    auto inv_res = f.inventory_runtime->findInventory(inv_id.value());
+    assert(inv_res.is_ok());
+    assert(inv_res.value()->entries.size() == 1);
+    assert(inv_res.value()->entries[0].entity_key == "torch");
+    assert(inv_res.value()->entries[0].quantity == 1);
+
+    // Verify location tracking
+    auto loc_res = f.inventory_runtime->findItemLocation(res.value().changed_entity_ids[0]);
+    assert(loc_res.is_ok());
+    assert(loc_res.value().location_kind == InventoryLocationKind::InInventory);
+
+    std::cout << "world_inventory_spawn_to_inventory_adds_item: passed" << std::endl;
+}
+
+// ---------------------------------------------------------------------------
+// SpawnToInventory merges stack
+// ---------------------------------------------------------------------------
+
+void run_spawn_to_inventory_merges_stack_tests() {
+    TestFixture f;
+    f.setup(1);
+
+    // Spawn torch x1 first
+    InventoryTransferRequest req1;
+    req1.transfer_id = "test_spawn1";
+    req1.transfer_kind = InventoryTransferKind::SpawnToInventory;
+    req1.actor_key = "player";
+    req1.entity_key = "torch";
+    req1.quantity = 1;
+    req1.parameters["stack_key"] = "torch:crafted";
+    auto res1 = f.inventory_runtime->transfer(req1);
+    assert(res1.is_ok() && res1.value().ok);
+
+    // Spawn torch x2 with same stack_key
+    InventoryTransferRequest req2;
+    req2.transfer_id = "test_spawn2";
+    req2.transfer_kind = InventoryTransferKind::SpawnToInventory;
+    req2.actor_key = "player";
+    req2.entity_key = "torch";
+    req2.quantity = 2;
+    req2.parameters["stack_key"] = "torch:crafted";
+    auto res2 = f.inventory_runtime->transfer(req2);
+    assert(res2.is_ok() && res2.value().ok);
+
+    auto inv_id = f.inventory_runtime->ensureActorInventory("player");
+    auto inv_res = f.inventory_runtime->findInventory(inv_id.value());
+    assert(inv_res.is_ok());
+    assert(inv_res.value()->entries.size() == 1);
+    assert(inv_res.value()->entries[0].quantity == 3);
+
+    std::cout << "world_inventory_spawn_to_inventory_merges_stack: passed" << std::endl;
+}
+
+// ---------------------------------------------------------------------------
+// SpawnToInventory creates WorldEntityInstance
+// ---------------------------------------------------------------------------
+
+void run_spawn_to_inventory_creates_world_entity_tests() {
+    TestFixture f;
+    f.setup(1);
+
+    InventoryTransferRequest req;
+    req.transfer_id = "test_spawn";
+    req.transfer_kind = InventoryTransferKind::SpawnToInventory;
+    req.actor_key = "player";
+    req.entity_key = "torch";
+    req.entity_id = "my_torch_001";
+    req.quantity = 1;
+    req.parameters["stack_key"] = "torch:crafted";
+    req.parameters["state_keys"] = "crafted";
+    req.parameters["display_name_key"] = "entity.torch";
+    req.parameters["tag_keys"] = "reaction_output";
+    auto res = f.inventory_runtime->transfer(req);
+    assert(res.is_ok() && res.value().ok);
+
+    // WorldEntityInstance must exist
+    auto ent_res = f.world_runtime.findEntity("my_torch_001");
+    assert(ent_res.is_ok());
+    const auto* entity = ent_res.value();
+    assert(entity->location_kind == WorldEntityLocationKind::InInventory);
+    assert(entity->entity_key == "torch");
+    assert(entity->quantity == 1);
+    assert(entity->owner_ref == "player");
+
+    bool has_crafted = false;
+    for (const auto& sk : entity->state_keys) {
+        if (sk == "crafted") has_crafted = true;
+    }
+    assert(has_crafted);
+
+    std::cout << "world_inventory_spawn_to_inventory_creates_world_entity: passed" << std::endl;
+}
+
+// ---------------------------------------------------------------------------
+// SpawnToInventory uses request.entity_id
+// ---------------------------------------------------------------------------
+
+void run_spawn_to_inventory_uses_request_entity_id_tests() {
+    TestFixture f;
+    f.setup(1);
+
+    InventoryTransferRequest req;
+    req.transfer_id = "test_spawn";
+    req.transfer_kind = InventoryTransferKind::SpawnToInventory;
+    req.actor_key = "player";
+    req.entity_key = "torch";
+    req.entity_id = "custom_id_42";
+    req.quantity = 1;
+    auto res = f.inventory_runtime->transfer(req);
+    assert(res.is_ok() && res.value().ok);
+
+    auto ent_res = f.world_runtime.findEntity("custom_id_42");
+    assert(ent_res.is_ok());
+
+    std::cout << "world_inventory_spawn_to_inventory_uses_request_entity_id: passed" << std::endl;
+}
+
+// ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 
@@ -1726,6 +2005,20 @@ int main(int argc, char* argv[]) {
         run_drop_merge_ground_changed_entity_ids_tests();
     } else if (test_name == "stack_key_blocks_merge") {
         run_stack_key_blocks_merge_tests();
+    } else if (test_name == "consume_to_nowhere_reduces_stack") {
+        run_consume_to_nowhere_reduces_stack_tests();
+    } else if (test_name == "consume_to_nowhere_removes_stack_at_zero") {
+        run_consume_to_nowhere_removes_stack_at_zero_tests();
+    } else if (test_name == "consume_to_nowhere_insufficient_fails") {
+        run_consume_to_nowhere_insufficient_fails_tests();
+    } else if (test_name == "spawn_to_inventory_adds_item") {
+        run_spawn_to_inventory_adds_item_tests();
+    } else if (test_name == "spawn_to_inventory_merges_stack") {
+        run_spawn_to_inventory_merges_stack_tests();
+    } else if (test_name == "spawn_to_inventory_creates_world_entity") {
+        run_spawn_to_inventory_creates_world_entity_tests();
+    } else if (test_name == "spawn_to_inventory_uses_request_entity_id") {
+        run_spawn_to_inventory_uses_request_entity_id_tests();
     } else {
         std::cout << "Unknown test: " << test_name << std::endl;
         return 1;

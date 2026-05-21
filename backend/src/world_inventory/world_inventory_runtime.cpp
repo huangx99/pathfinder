@@ -2,6 +2,7 @@
 #include "pathfinder/foundation/error.h"
 #include <algorithm>
 #include <cmath>
+#include <sstream>
 
 namespace pathfinder::world_inventory {
 
@@ -281,6 +282,10 @@ Result<InventoryTransferDraft> WorldInventoryRuntime::validateTransfer(const Inv
             return validatePickupFromMap(request);
         case InventoryTransferKind::DropToMap:
             return validateDropToMap(request);
+        case InventoryTransferKind::ConsumeToNowhere:
+            return validateConsumeToNowhere(request);
+        case InventoryTransferKind::SpawnToInventory:
+            return validateSpawnToInventory(request);
         default:
             return Result<InventoryTransferDraft>::fail(
                 makeError(ErrorCode::command_invalid_argument, "unsupported_transfer_kind",
@@ -294,6 +299,10 @@ Result<void> WorldInventoryRuntime::applyTransfer(InventoryTransferDraft& draft)
             return applyPickupFromMap(draft);
         case InventoryTransferKind::DropToMap:
             return applyDropToMap(draft);
+        case InventoryTransferKind::ConsumeToNowhere:
+            return applyConsumeToNowhere(draft);
+        case InventoryTransferKind::SpawnToInventory:
+            return applySpawnToInventory(draft);
         default:
             return Result<void>::fail(
                 makeError(ErrorCode::command_invalid_argument, "unsupported_transfer_kind",
@@ -754,6 +763,323 @@ Result<void> WorldInventoryRuntime::applyDropToMap(InventoryTransferDraft& draft
 
         // Add new entity to changed ids for projection
         draft.changed_entity_ids.push_back(dropped_entity_id);
+    }
+
+    return Result<void>::ok();
+}
+
+// ---------------------------------------------------------------------------
+// ConsumeToNowhere validation
+// ---------------------------------------------------------------------------
+
+Result<InventoryTransferDraft> WorldInventoryRuntime::validateConsumeToNowhere(const InventoryTransferRequest& request) {
+    InventoryTransferDraft draft;
+    draft.draft_id = request.transfer_id + "_draft";
+    draft.request = request;
+    draft.validated = false;
+
+    // Validate actor exists
+    auto actor_res = world_port_.findActor(request.actor_key);
+    if (actor_res.is_error()) {
+        return Result<InventoryTransferDraft>::fail(
+            makeError(ErrorCode::id_not_found, "actor_missing", "Actor not found: " + request.actor_key));
+    }
+
+    // Determine source inventory
+    std::string source_inventory_id;
+    if (!request.from.inventory_id.empty()) {
+        source_inventory_id = request.from.inventory_id;
+    } else {
+        source_inventory_id = makeInventoryId(InventoryOwnerRef{InventoryOwnerKind::Actor, request.actor_key});
+    }
+
+    auto inv_ptr_res = findInventory(source_inventory_id);
+    if (inv_ptr_res.is_error()) {
+        return Result<InventoryTransferDraft>::fail(
+            makeError(ErrorCode::id_not_found, "inventory_missing", "Inventory not found: " + source_inventory_id));
+    }
+    auto* inv = inv_ptr_res.value();
+
+    // Find target entry by entity_id or entity_key
+    InventoryItemEntry* target_entry = nullptr;
+    for (auto& entry : inv->entries) {
+        if ((!request.entity_id.empty() && entry.entity_id == request.entity_id) ||
+            (!request.entity_key.empty() && entry.entity_key == request.entity_key)) {
+            target_entry = &entry;
+            break;
+        }
+    }
+    if (target_entry == nullptr) {
+        return Result<InventoryTransferDraft>::fail(
+            makeError(ErrorCode::id_not_found, "item_not_in_inventory",
+                      "Item not in inventory: " + request.entity_id + "/" + request.entity_key));
+    }
+
+    // Validate quantity
+    if (request.quantity <= 0) {
+        return Result<InventoryTransferDraft>::fail(
+            makeError(ErrorCode::command_invalid_argument, "quantity_invalid",
+                      "Invalid quantity: " + std::to_string(request.quantity)));
+    }
+    if (request.quantity > target_entry->quantity) {
+        return Result<InventoryTransferDraft>::fail(
+            makeError(ErrorCode::precondition_insufficient_cost, "quantity_insufficient",
+                      "Not enough quantity to consume"));
+    }
+
+    draft.source_inventory_ids.push_back(source_inventory_id);
+    draft.source_entity_ids.push_back(target_entry->entity_id);
+    draft.changed_inventory_ids.push_back(source_inventory_id);
+    draft.changed_entity_ids.push_back(target_entry->entity_id);
+    draft.validated = true;
+
+    return Result<InventoryTransferDraft>::ok(std::move(draft));
+}
+
+// ---------------------------------------------------------------------------
+// ConsumeToNowhere apply
+// ---------------------------------------------------------------------------
+
+Result<void> WorldInventoryRuntime::applyConsumeToNowhere(InventoryTransferDraft& draft) {
+    const auto& request = draft.request;
+
+    std::string source_inventory_id = draft.source_inventory_ids[0];
+    auto inv_ptr_res = findInventory(source_inventory_id);
+    if (inv_ptr_res.is_error()) {
+        return Result<void>::fail(inv_ptr_res.errors()[0]);
+    }
+    auto* inv = inv_ptr_res.value();
+
+    // Find and update/remove entry
+    InventoryItemEntry* target_entry = nullptr;
+    size_t target_index = 0;
+    for (size_t i = 0; i < inv->entries.size(); ++i) {
+        if (inv->entries[i].entity_id == draft.source_entity_ids[0]) {
+            target_entry = &inv->entries[i];
+            target_index = i;
+            break;
+        }
+    }
+    if (target_entry == nullptr) {
+        return Result<void>::fail(
+            makeError(ErrorCode::id_not_found, "item_not_in_inventory",
+                      "Item no longer in inventory during apply"));
+    }
+
+    if (request.quantity < target_entry->quantity) {
+        target_entry->quantity -= request.quantity;
+    } else {
+        // Full consume: remove entry
+        inv->entries.erase(inv->entries.begin() + target_index);
+        inv->used_slots -= 1;
+
+        // Destroy source entity if it still exists as an independent instance
+        auto destroy_res = world_port_.destroyEntity(target_entry->entity_id);
+        if (destroy_res.is_error()) {
+            // Non-fatal
+        }
+        item_locations_.erase(target_entry->entity_id);
+    }
+
+    return Result<void>::ok();
+}
+
+// ---------------------------------------------------------------------------
+// SpawnToInventory validation
+// ---------------------------------------------------------------------------
+
+Result<InventoryTransferDraft> WorldInventoryRuntime::validateSpawnToInventory(const InventoryTransferRequest& request) {
+    InventoryTransferDraft draft;
+    draft.draft_id = request.transfer_id + "_draft";
+    draft.request = request;
+    draft.validated = false;
+
+    // Validate actor exists
+    auto actor_res = world_port_.findActor(request.actor_key);
+    if (actor_res.is_error()) {
+        return Result<InventoryTransferDraft>::fail(
+            makeError(ErrorCode::id_not_found, "actor_missing", "Actor not found: " + request.actor_key));
+    }
+
+    // Validate entity_key is provided
+    if (request.entity_key.empty()) {
+        return Result<InventoryTransferDraft>::fail(
+            makeError(ErrorCode::command_invalid_argument, "item_missing",
+                      "SpawnToInventory requires entity_key"));
+    }
+
+    // Validate quantity
+    if (request.quantity <= 0) {
+        return Result<InventoryTransferDraft>::fail(
+            makeError(ErrorCode::command_invalid_argument, "quantity_invalid",
+                      "Invalid quantity: " + std::to_string(request.quantity)));
+    }
+
+    // Determine target inventory
+    std::string target_inventory_id;
+    if (!request.to.inventory_id.empty()) {
+        target_inventory_id = request.to.inventory_id;
+    } else {
+        target_inventory_id = makeInventoryId(InventoryOwnerRef{InventoryOwnerKind::Actor, request.actor_key});
+    }
+
+    // Check capacity (find only, do not create in validate)
+    int used_slots = 0;
+    int capacity_slots = 20;
+    auto inv_ptr_res = findInventory(target_inventory_id);
+    if (inv_ptr_res.is_ok()) {
+        used_slots = inv_ptr_res.value()->used_slots;
+        capacity_slots = inv_ptr_res.value()->capacity_slots;
+
+        // Check if mergeable into existing stack
+        std::string stack_key = request.entity_key + ":default";
+        auto sk_it = request.parameters.find("stack_key");
+        if (sk_it != request.parameters.end()) {
+            stack_key = sk_it->second;
+        }
+        bool stackable = true;
+        auto sb_it = request.parameters.find("stackable");
+        if (sb_it != request.parameters.end()) {
+            stackable = (sb_it->second == "true");
+        }
+        for (const auto& entry : inv_ptr_res.value()->entries) {
+            if (entry.entity_key == request.entity_key && entry.stack_key == stack_key && entry.stackable && stackable) {
+                // Mergeable: capacity not an issue
+                used_slots = -1;
+                break;
+            }
+        }
+    }
+    if (used_slots >= 0 && used_slots >= capacity_slots) {
+        return Result<InventoryTransferDraft>::fail(
+            makeError(ErrorCode::precondition_insufficient_cost, "capacity_exceeded",
+                      "Inventory capacity exceeded"));
+    }
+
+    draft.target_inventory_ids.push_back(target_inventory_id);
+    draft.changed_inventory_ids.push_back(target_inventory_id);
+    draft.validated = true;
+
+    return Result<InventoryTransferDraft>::ok(std::move(draft));
+}
+
+// ---------------------------------------------------------------------------
+// SpawnToInventory apply
+// ---------------------------------------------------------------------------
+
+Result<void> WorldInventoryRuntime::applySpawnToInventory(InventoryTransferDraft& draft) {
+    const auto& request = draft.request;
+
+    // Ensure target inventory exists
+    std::string target_inventory_id = draft.target_inventory_ids[0];
+    auto inv_ensure_res = findOrCreateActorInventory(request.actor_key);
+    if (inv_ensure_res.is_ok()) {
+        target_inventory_id = inv_ensure_res.value();
+    }
+
+    auto inv_ptr_res = findInventory(target_inventory_id);
+    if (inv_ptr_res.is_error()) {
+        return Result<void>::fail(inv_ptr_res.errors()[0]);
+    }
+    auto* inv = inv_ptr_res.value();
+
+    // Parse stack properties from parameters
+    std::string stack_key = request.entity_key + ":default";
+    auto sk_it = request.parameters.find("stack_key");
+    if (sk_it != request.parameters.end()) {
+        stack_key = sk_it->second;
+    }
+    bool stackable = true;
+    auto sb_it = request.parameters.find("stackable");
+    if (sb_it != request.parameters.end()) {
+        stackable = (sb_it->second == "true");
+    }
+    std::vector<std::string> state_keys;
+    auto st_it = request.parameters.find("state_keys");
+    if (st_it != request.parameters.end()) {
+        std::stringstream ss(st_it->second);
+        std::string token;
+        while (std::getline(ss, token, ',')) {
+            if (!token.empty()) state_keys.push_back(token);
+        }
+    }
+
+    std::string display_name_key;
+    auto dn_it = request.parameters.find("display_name_key");
+    if (dn_it != request.parameters.end()) {
+        display_name_key = dn_it->second;
+    } else {
+        display_name_key = "entity." + request.entity_key;
+    }
+    std::vector<std::string> tag_keys;
+    auto tk_it = request.parameters.find("tag_keys");
+    if (tk_it != request.parameters.end()) {
+        std::stringstream ss(tk_it->second);
+        std::string token;
+        while (std::getline(ss, token, ',')) {
+            if (!token.empty()) tag_keys.push_back(token);
+        }
+    }
+
+    // Try to merge with existing stack
+    bool merged = false;
+    for (auto& entry : inv->entries) {
+        if (entry.entity_key == request.entity_key && entry.stack_key == stack_key && entry.stackable && stackable) {
+            entry.quantity += request.quantity;
+            merged = true;
+            draft.changed_entity_ids.push_back(entry.entity_id);
+
+            // Sync quantity to WorldEntityInstance
+            auto set_res = world_port_.setEntityStackData(entry.entity_id, entry.quantity, entry.stack_key, entry.stackable);
+            if (set_res.is_error()) {
+                // Non-fatal, but log warning
+            }
+            break;
+        }
+    }
+
+    if (!merged) {
+        InventoryItemEntry entry;
+        entry.entry_id = request.transfer_id + "_entry";
+        entry.entity_key = request.entity_key;
+        entry.stack_key = stack_key;
+        entry.quantity = request.quantity;
+        entry.stackable = stackable;
+        entry.state_keys = std::move(state_keys);
+
+        // Deterministic entity id: prefer request.entity_id, fallback to transfer-based id
+        if (!request.entity_id.empty()) {
+            entry.entity_id = request.entity_id;
+        } else {
+            entry.entity_id = request.entity_key + "_spawn_" + request.transfer_id + "_" + stack_key;
+        }
+
+        inv->entries.push_back(std::move(entry));
+        inv->used_slots += 1;
+
+        ItemLocationRef loc;
+        loc.location_kind = InventoryLocationKind::InInventory;
+        loc.inventory_id = target_inventory_id;
+        loc.owner_key = request.actor_key;
+        item_locations_[inv->entries.back().entity_id] = std::move(loc);
+
+        draft.changed_entity_ids.push_back(inv->entries.back().entity_id);
+
+        // Sync creation of WorldEntityInstance via location port
+        auto spawn_res = world_port_.spawnEntityInInventory(
+            inv->entries.back().entity_id,
+            request.entity_key,
+            display_name_key,
+            request.actor_key,
+            request.quantity,
+            stack_key,
+            stackable,
+            inv->entries.back().state_keys,
+            inv->entries.back().numeric_states,
+            tag_keys);
+        if (spawn_res.is_error()) {
+            return Result<void>::fail(spawn_res.errors()[0]);
+        }
     }
 
     return Result<void>::ok();

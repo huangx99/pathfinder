@@ -60,6 +60,18 @@ public:
         const std::vector<std::string>& state_keys,
         const std::map<std::string, double>& numeric_states,
         const std::vector<std::string>& tag_keys) = 0;
+
+    virtual foundation::Result<void> spawnEntityInInventory(
+        const std::string& entity_id,
+        const std::string& entity_key,
+        const std::string& display_name_key,
+        const std::string& owner_ref,
+        int quantity,
+        const std::string& stack_key,
+        bool stackable,
+        const std::vector<std::string>& state_keys,
+        const std::map<std::string, double>& numeric_states,
+        const std::vector<std::string>& tag_keys) = 0;
 };
 
 } // namespace pathfinder::world_inventory

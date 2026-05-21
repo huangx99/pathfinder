@@ -993,6 +993,26 @@ target_link_libraries(pathfinder_world_harvest PUBLIC
     pathfinder_world_command
 )
 
+# World Reaction library (P48)
+add_library(pathfinder_world_reaction STATIC
+    src/world_reaction/world_reaction_types.cpp
+    src/world_reaction/world_reaction_service.cpp
+    src/world_reaction/craft_command_handler.cpp
+    src/world_reaction/world_reaction_projection_bridge.cpp
+)
+
+target_include_directories(pathfinder_world_reaction PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(pathfinder_world_reaction PUBLIC
+    pathfinder_foundation
+    pathfinder_content
+    pathfinder_world_runtime
+    pathfinder_world_inventory
+    pathfinder_world_command
+)
+
 # World Inventory Command library (P45 runtime-aware inventory handlers)
 add_library(pathfinder_world_inventory_command STATIC
     src/world_inventory/world_inventory_command_handlers.cpp

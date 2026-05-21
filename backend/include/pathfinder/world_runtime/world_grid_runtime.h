@@ -70,6 +70,18 @@ public:
         const std::map<std::string, double>& numeric_states,
         const std::vector<std::string>& tag_keys) override;
 
+    foundation::Result<void> spawnEntityInInventory(
+        const std::string& entity_id,
+        const std::string& entity_key,
+        const std::string& display_name_key,
+        const std::string& owner_ref,
+        int quantity,
+        const std::string& stack_key,
+        bool stackable,
+        const std::vector<std::string>& state_keys,
+        const std::map<std::string, double>& numeric_states,
+        const std::vector<std::string>& tag_keys) override;
+
 private:
     WorldRuntimeConfig config_;
     uint64_t world_tick_ = 0;

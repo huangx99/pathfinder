@@ -41,9 +41,13 @@ private:
 
     foundation::Result<InventoryTransferDraft> validatePickupFromMap(const InventoryTransferRequest& request);
     foundation::Result<InventoryTransferDraft> validateDropToMap(const InventoryTransferRequest& request);
+    foundation::Result<InventoryTransferDraft> validateConsumeToNowhere(const InventoryTransferRequest& request);
+    foundation::Result<InventoryTransferDraft> validateSpawnToInventory(const InventoryTransferRequest& request);
 
     foundation::Result<void> applyPickupFromMap(InventoryTransferDraft& draft);
     foundation::Result<void> applyDropToMap(InventoryTransferDraft& draft);
+    foundation::Result<void> applyConsumeToNowhere(InventoryTransferDraft& draft);
+    foundation::Result<void> applySpawnToInventory(InventoryTransferDraft& draft);
 
     foundation::Result<std::string> findOrCreateActorInventory(const std::string& actor_key);
     bool isContainerEntity(const world_runtime::WorldEntityInstance& entity) const;
