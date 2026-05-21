@@ -6572,3 +6572,89 @@ add_test(
     NAME architecture_client_protocol_no_runtime_mutation
     COMMAND bash -c "! grep -rni '\\.actors\\[\\|\\.entities\\[\\|\\.inventories\\[\\|\\.resource_nodes\\[\\|createOrUpdateGeneratedCell\\|upsertGeneratedResourceNode' ${CMAKE_CURRENT_SOURCE_DIR}/../include/pathfinder/client_protocol/ ${CMAKE_CURRENT_SOURCE_DIR}/../src/client_protocol/"
 )
+
+
+# Client HTTP unit tests (P54)
+add_executable(pathfinder_tests_client_http
+    unit/client_http/client_http_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_client_http PRIVATE
+    pathfinder_client_http
+    pathfinder_client_protocol
+    pathfinder_world_command
+    pathfinder_foundation
+)
+
+add_test(NAME client_http_parse_get_request COMMAND pathfinder_tests_client_http parse_get_request)
+add_test(NAME client_http_parse_post_json_request COMMAND pathfinder_tests_client_http parse_post_json_request)
+add_test(NAME client_http_reject_path_traversal COMMAND pathfinder_tests_client_http reject_path_traversal)
+add_test(NAME client_http_mime_type COMMAND pathfinder_tests_client_http mime_type)
+add_test(NAME client_http_error_response_json_shape COMMAND pathfinder_tests_client_http error_response_json_shape)
+add_test(NAME client_static_file_serves_index COMMAND pathfinder_tests_client_http static_file_serves_index)
+add_test(NAME client_static_file_rejects_content_core COMMAND pathfinder_tests_client_http static_file_rejects_content_core)
+
+# Client HTTP integration tests (P54)
+add_executable(pathfinder_tests_client_http_integration
+    integration/client_http/client_http_integration_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_client_http_integration PRIVATE
+    pathfinder_client_http
+    pathfinder_client_protocol
+    pathfinder_world_command
+    pathfinder_foundation
+)
+
+add_test(NAME client_http_bootstrap_roundtrip COMMAND pathfinder_tests_client_http_integration bootstrap_roundtrip)
+add_test(NAME client_http_command_option_roundtrip COMMAND pathfinder_tests_client_http_integration command_option_roundtrip)
+add_test(NAME client_http_refresh_roundtrip COMMAND pathfinder_tests_client_http_integration refresh_roundtrip)
+add_test(NAME client_http_reset_roundtrip COMMAND pathfinder_tests_client_http_integration reset_roundtrip)
+add_test(NAME client_http_stale_command_returns_full_refresh COMMAND pathfinder_tests_client_http_integration stale_command_returns_full_refresh)
+add_test(NAME client_http_bad_json_returns_400_json COMMAND pathfinder_tests_client_http_integration bad_json_returns_400_json)
+add_test(NAME client_http_api_get_returns_405_json COMMAND pathfinder_tests_client_http_integration api_get_returns_405_json)
+add_test(NAME client_http_static_index_app_style COMMAND pathfinder_tests_client_http_integration static_index_app_style)
+add_test(NAME client_http_no_content_json_exposure COMMAND pathfinder_tests_client_http_integration no_content_json_exposure)
+add_test(NAME client_http_socket_bootstrap_smoke COMMAND pathfinder_tests_client_http_integration socket_bootstrap_smoke)
+
+# Architecture guard: client_http must not contain H5 namespace
+add_test(
+    NAME architecture_client_http_no_h5_namespace
+    COMMAND bash -c "! grep -rni 'h5_playable::\\|h5_dialog::\\|H5Playable\\|H5Dialog' ${CMAKE_CURRENT_SOURCE_DIR}/../include/pathfinder/client_http/ ${CMAKE_CURRENT_SOURCE_DIR}/../src/client_http/ ${CMAKE_CURRENT_SOURCE_DIR}/unit/client_http/ ${CMAKE_CURRENT_SOURCE_DIR}/integration/client_http/"
+)
+
+# Architecture guard: client_http must not read content JSON
+add_test(
+    NAME architecture_client_http_no_content_json_read
+    COMMAND bash -c "! grep -rni 'content/core\\|recipes\\|reaction_rules\\|knowledge_templates\\|ContentRegistry' --exclude=client_static_file_service.cpp ${CMAKE_CURRENT_SOURCE_DIR}/../include/pathfinder/client_http/ ${CMAKE_CURRENT_SOURCE_DIR}/../src/client_http/"
+)
+
+# Architecture guard: client_http must not directly modify runtime arrays
+add_test(
+    NAME architecture_client_http_no_runtime_array_mutation
+    COMMAND bash -c "! grep -rni '\\.actors\\[\\|\\.entities\\[\\|\\.inventories\\[\\|resource_nodes\\[\\|createOrUpdateGeneratedCell\\|upsertGeneratedResourceNode' ${CMAKE_CURRENT_SOURCE_DIR}/../include/pathfinder/client_http/ ${CMAKE_CURRENT_SOURCE_DIR}/../src/client_http/"
+)
+
+# Architecture guard: client_http must not inject knowledge
+add_test(
+    NAME architecture_client_http_no_knowledge_injection
+    COMMAND bash -c "! grep -rni 'KnowledgeClaim\\|recipient_claim_json\\|knowledge_json\\|force_learn\\|force_teach\\|learned=true' ${CMAKE_CURRENT_SOURCE_DIR}/../include/pathfinder/client_http/ ${CMAKE_CURRENT_SOURCE_DIR}/../src/client_http/"
+)
+
+# Architecture guard: client_http must not introduce third-party HTTP framework
+add_test(
+    NAME architecture_client_http_no_third_party_http_framework
+    COMMAND bash -c "! grep -rni 'cpp-httplib\\|boost/beast\\|crow_all\\|crow::' ${CMAKE_CURRENT_SOURCE_DIR}/../include/pathfinder/client_http/ ${CMAKE_CURRENT_SOURCE_DIR}/../src/client_http/"
+)
+
+# Architecture guard: client_http must not generate frontend rules
+add_test(
+    NAME architecture_client_http_no_frontend_rule_generation
+    COMMAND bash -c "! grep -rni 'generateWorld\\|createWorld\\|spawnEntity\\|spawnActor' --exclude=client_server_runtime_factory.cpp ${CMAKE_CURRENT_SOURCE_DIR}/../include/pathfinder/client_http/ ${CMAKE_CURRENT_SOURCE_DIR}/../src/client_http/"
+)
+
+# Architecture guard: client_http transport boundary
+add_test(
+    NAME architecture_client_http_transport_boundary
+    COMMAND bash -c "! grep -rni 'sys/socket\\|netinet/in\\|arpa/inet' ${CMAKE_CURRENT_SOURCE_DIR}/../include/pathfinder/client_http/client_http_gateway.h ${CMAKE_CURRENT_SOURCE_DIR}/../src/client_http/client_http_gateway.cpp ${CMAKE_CURRENT_SOURCE_DIR}/../include/pathfinder/client_http/client_http_router.h ${CMAKE_CURRENT_SOURCE_DIR}/../src/client_http/client_http_router_impl.cpp"
+)

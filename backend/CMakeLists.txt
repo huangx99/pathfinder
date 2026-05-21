@@ -1147,6 +1147,43 @@ target_link_libraries(pathfinder_client_protocol PUBLIC
     pathfinder_world_command
 )
 
+# Client HTTP library (P54)
+add_library(pathfinder_client_http STATIC
+    src/client_http/client_http_types.cpp
+    src/client_http/client_static_file_service.cpp
+    src/client_http/client_http_gateway.cpp
+    src/client_http/client_http_router_impl.cpp
+    src/client_http/client_socket_http_transport.cpp
+    src/client_http/client_http_server.cpp
+    src/client_http/client_server_runtime_factory.cpp
+)
+
+target_include_directories(pathfinder_client_http PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/nlohmann
+)
+
+target_link_libraries(pathfinder_client_http PUBLIC
+    pathfinder_foundation
+    pathfinder_client_protocol
+    pathfinder_world_command
+)
+
+# Client Server executable (P54)
+add_executable(pathfinder_client_server_exe
+    apps/client_server_main.cpp
+)
+
+set_target_properties(pathfinder_client_server_exe PROPERTIES
+    OUTPUT_NAME pathfinder_client_server
+)
+
+target_link_libraries(pathfinder_client_server_exe PRIVATE
+    pathfinder_client_http
+    pathfinder_client_protocol
+    pathfinder_world_command
+)
+
 # World Inventory Command library (P45 runtime-aware inventory handlers)
 add_library(pathfinder_world_inventory_command STATIC
     src/world_inventory/world_inventory_command_handlers.cpp
