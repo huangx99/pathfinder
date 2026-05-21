@@ -2,16 +2,60 @@
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
   <title>先驱者客户端</title>
   <link rel="stylesheet" href="/style.css" />
 </head>
 <body>
-  <main id="app">
-    <h1>先驱者客户端</h1>
-    <p>旧 H5 原型已清理。P55 将在这里接入真实 Client Protocol。</p>
-    <p id="status">等待 P55 客户端真实协议接入。</p>
-  </main>
+  <div id="app" class="game-shell">
+    <canvas id="gameCanvas"></canvas>
+
+    <header class="top-hud">
+      <section class="status-panel">
+        <div class="mode-badge" id="modeBadge">连接中…</div>
+        <div class="status-line" id="sessionLine">—</div>
+        <div class="status-line" id="versionLine">—</div>
+        <div class="status-line" id="actorLine">—</div>
+      </section>
+      <section class="quest-panel" id="questPanel">
+        <div class="quest-title">世界状态</div>
+        <div class="quest-body" id="questBody">等待后端数据…</div>
+      </section>
+      <button class="reset-btn" id="resetBtn" title="重置世界">↻ 重置</button>
+    </header>
+
+    <aside class="command-panel" id="commandPanel">
+      <div class="panel-title">可用行动</div>
+      <div class="command-list" id="commandList"></div>
+    </aside>
+
+    <section class="event-log" id="eventLog">
+      <div class="log-title">事件日志</div>
+      <div class="log-entries" id="logEntries"></div>
+    </section>
+
+    <!-- 虚拟摇杆：手机显示，电脑隐藏 -->
+    <div class="joystick-zone" id="joystickZone">
+      <div class="joystick-base" id="joystickBase">
+        <div class="joystick-knob" id="joystickKnob"></div>
+      </div>
+      <div class="joystick-label">移动</div>
+    </div>
+
+    <!-- WASD 提示：电脑显示，手机隐藏 -->
+    <div class="wasd-hint" id="wasdHint">
+      <div class="wasd-row"><span class="wasd-key">W</span></div>
+      <div class="wasd-row"><span class="wasd-key">A</span><span class="wasd-key">S</span><span class="wasd-key">D</span></div>
+      <div class="wasd-label">移动</div>
+    </div>
+
+    <details class="debug-panel" id="debugPanel">
+      <summary>调试信息</summary>
+      <pre id="debugPre"></pre>
+    </details>
+
+    <div id="toastContainer"></div>
+  </div>
   <script src="/app.js"></script>
 </body>
 </html>
