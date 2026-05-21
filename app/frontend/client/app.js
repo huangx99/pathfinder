@@ -556,11 +556,12 @@
   // ---------------------------------------------------------------------------
   // 11. Rendering
   // ---------------------------------------------------------------------------
+  const TILE_SIZE = 16;
+  const VIEWPORT_TILES = 15;
+
   function resizeCanvas() {
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    canvas.width = Math.floor(canvas.clientWidth * dpr);
-    canvas.height = Math.floor(canvas.clientHeight * dpr);
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    canvas.width = VIEWPORT_TILES * TILE_SIZE;
+    canvas.height = VIEWPORT_TILES * TILE_SIZE;
     renderMap();
   }
 
@@ -592,15 +593,15 @@
   }
 
   function renderMap() {
-    const w = canvas.clientWidth;
-    const h = canvas.clientHeight;
+    const w = canvas.width;
+    const h = canvas.height;
     ctx.clearRect(0, 0, w, h);
 
     if (!state.projection) {
-      ctx.fillStyle = '#0b1220';
+      ctx.fillStyle = '#05070a';
       ctx.fillRect(0, 0, w, h);
       ctx.fillStyle = '#475569';
-      ctx.font = '14px system-ui';
+      ctx.font = '10px monospace';
       ctx.textAlign = 'center';
       ctx.fillText('等待世界投影…', w / 2, h / 2);
       return;
@@ -608,73 +609,98 @@
 
     const cells = state.projection.visible_cells;
     const entities = state.projection.visible_entities;
+    const actorCoord = getActorCoord();
 
     if (!cells.length && !entities.length) {
-      ctx.fillStyle = '#0b1220';
+      ctx.fillStyle = '#05070a';
       ctx.fillRect(0, 0, w, h);
       ctx.fillStyle = '#475569';
-      ctx.font = '14px system-ui';
+      ctx.font = '10px monospace';
       ctx.textAlign = 'center';
       ctx.fillText('世界投影为空', w / 2, h / 2);
-      ctx.font = '12px system-ui';
-      ctx.fillText('后端尚未返回可见格子和实体', w / 2, h / 2 + 22);
+      ctx.font = '9px monospace';
+      ctx.fillText('后端尚未返回可见格子和实体', w / 2, h / 2 + 18);
       return;
     }
 
-    // Compute bounding box
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    for (const c of cells) {
-      const f = c.fields || {};
-      const x = parseInt(f.x, 10);
-      const y = parseInt(f.y, 10);
-      if (!isNaN(x)) { minX = Math.min(minX, x); maxX = Math.max(maxX, x); }
-      if (!isNaN(y)) { minY = Math.min(minY, y); maxY = Math.max(maxY, y); }
+    const half = Math.floor(VIEWPORT_TILES / 2);
+    let viewMinX, viewMinY;
+    if (actorCoord) {
+      viewMinX = actorCoord.x - half;
+      viewMinY = actorCoord.y - half;
+    } else {
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (const c of cells) {
+        const f = c.fields || {};
+        const x = parseInt(f.x, 10); const y = parseInt(f.y, 10);
+        if (!isNaN(x)) { minX = Math.min(minX, x); maxX = Math.max(maxX, x); }
+        if (!isNaN(y)) { minY = Math.min(minY, y); maxY = Math.max(maxY, y); }
+      }
+      for (const e of entities) {
+        const f = e.fields || {};
+        const x = parseInt(f.x, 10); const y = parseInt(f.y, 10);
+        if (!isNaN(x)) { minX = Math.min(minX, x); maxX = Math.max(maxX, x); }
+        if (!isNaN(y)) { minY = Math.min(minY, y); maxY = Math.max(maxY, y); }
+      }
+      if (!isFinite(minX)) { minX = 0; maxX = 0; }
+      if (!isFinite(minY)) { minY = 0; maxY = 0; }
+      const centerX = Math.floor((minX + maxX) / 2);
+      const centerY = Math.floor((minY + maxY) / 2);
+      viewMinX = centerX - half;
+      viewMinY = centerY - half;
     }
-    for (const e of entities) {
-      const f = e.fields || {};
-      const x = parseInt(f.x, 10);
-      const y = parseInt(f.y, 10);
-      if (!isNaN(x)) { minX = Math.min(minX, x); maxX = Math.max(maxX, x); }
-      if (!isNaN(y)) { minY = Math.min(minY, y); maxY = Math.max(maxY, y); }
-    }
-    if (!isFinite(minX)) { minX = 0; maxX = 0; }
-    if (!isFinite(minY)) { minY = 0; maxY = 0; }
 
-    const cols = maxX - minX + 1;
-    const rows = maxY - minY + 1;
-    const tileW = Math.max(16, Math.floor(w / Math.max(cols, 8)));
-    const tileH = Math.max(16, Math.floor(h / Math.max(rows, 8)));
-    const tileSize = Math.min(tileW, tileH);
-    const offsetX = Math.floor((w - cols * tileSize) / 2);
-    const offsetY = Math.floor((h - rows * tileSize) / 2);
+    ctx.fillStyle = '#05070a';
+    ctx.fillRect(0, 0, w, h);
 
-    // Draw cells
     for (const c of cells) {
       const f = c.fields || {};
       const x = parseInt(f.x, 10);
       const y = parseInt(f.y, 10);
       if (isNaN(x) || isNaN(y)) continue;
-      const px = offsetX + (x - minX) * tileSize;
-      const py = offsetY + (y - minY) * tileSize;
+      const px = (x - viewMinX) * TILE_SIZE;
+      const py = (y - viewMinY) * TILE_SIZE;
+      if (px < -TILE_SIZE || px >= w || py < -TILE_SIZE || py >= h) continue;
+
       const terrain = f.terrain_key || f.terrain || 'unknown';
-      ctx.fillStyle = terrainColor(terrain);
-      ctx.fillRect(px, py, tileSize + 0.5, tileSize + 0.5);
-      // Grid line
-      ctx.strokeStyle = 'rgba(148,163,184,0.08)';
-      ctx.strokeRect(px, py, tileSize, tileSize);
+      const sprite = window.SPRITES && window.SPRITES[terrain];
+      if (sprite) {
+        ctx.drawImage(sprite, px, py);
+      } else {
+        ctx.fillStyle = terrainColor(terrain);
+        ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+      }
     }
 
-    // Draw entities
     const actorKey = state.projection.actor_key;
     for (const e of entities) {
       const f = e.fields || {};
       const x = parseInt(f.x, 10);
       const y = parseInt(f.y, 10);
       if (isNaN(x) || isNaN(y)) continue;
-      const px = offsetX + (x - minX) * tileSize;
-      const py = offsetY + (y - minY) * tileSize;
+      const px = (x - viewMinX) * TILE_SIZE;
+      const py = (y - viewMinY) * TILE_SIZE;
+      if (px < -TILE_SIZE || px >= w || py < -TILE_SIZE || py >= h) continue;
+
       const isActor = f.actor_key === actorKey || e.entity_id === actorKey || e.entity_id.startsWith(actorKey);
-      drawEntity(ctx, px + tileSize / 2, py + tileSize / 2, tileSize * 0.7, f, isActor);
+      if (isActor) {
+        const sprite = window.SPRITES && window.SPRITES.player;
+        if (sprite) ctx.drawImage(sprite, px, py);
+        else drawEntityFallback(ctx, px + TILE_SIZE / 2, py + TILE_SIZE / 2, TILE_SIZE * 0.7, f, true);
+      } else {
+        const kind = f.entity_kind || f.kind || f.object_key || 'unknown';
+        let spriteKey = null;
+        if (kind.includes('tree') || kind.includes('Tree')) spriteKey = 'tree';
+        else if (kind.includes('beast') || kind.includes('wolf') || kind.includes('Beast') || kind.includes('Wolf')) spriteKey = 'wolf';
+        else if (kind.includes('item') || kind.includes('berry') || kind.includes('Berry') || kind.includes('rock') || kind.includes('Rock')) spriteKey = 'berry';
+        else if (kind.includes('npc') || kind.includes('NPC') || kind.includes('companion') || kind.includes('Companion')) spriteKey = 'npc';
+        else if (kind.includes('campfire') || kind.includes('Campfire') || kind.includes('fire') || kind.includes('Fire')) spriteKey = 'campfire';
+        else spriteKey = 'unknown';
+
+        const sprite = window.SPRITES && window.SPRITES[spriteKey];
+        if (sprite) ctx.drawImage(sprite, px, py);
+        else drawEntityFallback(ctx, px + TILE_SIZE / 2, py + TILE_SIZE / 2, TILE_SIZE * 0.7, f, false);
+      }
     }
   }
 
@@ -691,9 +717,8 @@
     return map[key] || map.unknown;
   }
 
-  function drawEntity(ctx, cx, cy, size, fields, isActor) {
+  function drawEntityFallback(ctx, cx, cy, size, fields, isActor) {
     ctx.save();
-    // Shadow
     ctx.fillStyle = 'rgba(0,0,0,0.3)';
     ctx.beginPath();
     ctx.ellipse(cx, cy + size * 0.4, size * 0.35, size * 0.12, 0, 0, Math.PI * 2);
@@ -701,14 +726,12 @@
 
     const kind = fields.entity_kind || fields.kind || fields.object_key || 'unknown';
     if (isActor) {
-      // Player
       ctx.fillStyle = '#38bdf8';
       ctx.fillRect(cx - size * 0.2, cy - size * 0.35, size * 0.4, size * 0.55);
       ctx.fillStyle = '#bae6fd';
       ctx.beginPath();
       ctx.arc(cx, cy - size * 0.35, size * 0.18, 0, Math.PI * 2);
       ctx.fill();
-      // Eyes
       ctx.fillStyle = '#0f172a';
       ctx.fillRect(cx - size * 0.06, cy - size * 0.38, size * 0.04, size * 0.04);
       ctx.fillRect(cx + size * 0.02, cy - size * 0.38, size * 0.04, size * 0.04);
