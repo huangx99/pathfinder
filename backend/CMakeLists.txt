@@ -1013,6 +1013,33 @@ target_link_libraries(pathfinder_world_reaction PUBLIC
     pathfinder_world_command
 )
 
+# World Teaching library (P50)
+add_library(pathfinder_world_teaching STATIC
+    src/world_teaching/world_teaching_types.cpp
+    src/world_teaching/world_teaching_owner_resolver.cpp
+    src/world_teaching/world_teaching_eligibility_service.cpp
+    src/world_teaching/world_teaching_loop_bridge.cpp
+    src/world_teaching/world_teaching_store_port.cpp
+    src/world_teaching/world_teaching_projection_bridge.cpp
+    src/world_teaching/teach_command_handler.cpp
+    src/world_teaching/npc_basic_action_knowledge_gate.cpp
+)
+
+target_include_directories(pathfinder_world_teaching PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(pathfinder_world_teaching PUBLIC
+    pathfinder_foundation
+    pathfinder_world_command
+    pathfinder_world_runtime
+    pathfinder_knowledge
+    pathfinder_learning
+    pathfinder_memory
+    pathfinder_cognition
+    pathfinder_condition
+)
+
 # World Learning library (P49)
 add_library(pathfinder_world_learning STATIC
     src/world_learning/world_learning_types.cpp

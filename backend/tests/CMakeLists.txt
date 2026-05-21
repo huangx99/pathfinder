@@ -6241,6 +6241,65 @@ add_test(NAME world_generation_harvest_pickup_then_craft_torch COMMAND pathfinde
 add_test(NAME world_command_craft_drop_on_map_projection_patch COMMAND pathfinder_tests_world_reaction_integration craft_drop_on_map_projection_patch)
 add_test(NAME world_command_craft_projection_version_advances COMMAND pathfinder_tests_world_reaction_integration craft_projection_version_advances)
 
+# World Teaching unit tests (P50)
+add_executable(pathfinder_tests_world_teaching
+    unit/world_teaching/world_teaching_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_world_teaching PRIVATE
+    pathfinder_world_teaching
+    pathfinder_world_command
+    pathfinder_world_runtime
+    pathfinder_knowledge
+    pathfinder_learning
+    pathfinder_foundation
+)
+
+add_test(NAME world_teaching_enum_roundtrip COMMAND pathfinder_tests_world_teaching enum_roundtrip)
+add_test(NAME world_teaching_owner_resolver_maps_actor COMMAND pathfinder_tests_world_teaching owner_resolver_maps_actor)
+add_test(NAME world_teaching_eligibility_rejects_missing_source_claim COMMAND pathfinder_tests_world_teaching eligibility_rejects_missing_source_claim)
+add_test(NAME world_teaching_eligibility_rejects_owner_mismatch COMMAND pathfinder_tests_world_teaching eligibility_rejects_owner_mismatch)
+add_test(NAME world_teaching_eligibility_rejects_not_teachable COMMAND pathfinder_tests_world_teaching eligibility_rejects_not_teachable)
+add_test(NAME world_teaching_eligibility_rejects_out_of_range COMMAND pathfinder_tests_world_teaching eligibility_rejects_out_of_range)
+add_test(NAME world_teaching_loop_creates_recipient_claim COMMAND pathfinder_tests_world_teaching loop_creates_recipient_claim)
+add_test(NAME world_teaching_existing_claim_reinforces_or_updates COMMAND pathfinder_tests_world_teaching existing_claim_reinforces_or_updates)
+add_test(NAME world_teaching_action_gate_blocks_unknown_npc COMMAND pathfinder_tests_world_teaching action_gate_blocks_unknown_npc)
+add_test(NAME world_teaching_action_gate_allows_known_action COMMAND pathfinder_tests_world_teaching action_gate_allows_known_action)
+add_test(NAME world_teaching_action_gate_blocks_ai_disabled_claim COMMAND pathfinder_tests_world_teaching action_gate_blocks_ai_disabled_claim)
+add_test(NAME world_teaching_action_gate_blocks_risk_without_goal COMMAND pathfinder_tests_world_teaching action_gate_blocks_risk_without_goal)
+
+# World Teaching integration tests (P50)
+add_executable(pathfinder_tests_world_teaching_integration
+    integration/world_teaching/world_teaching_integration_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_world_teaching_integration PRIVATE
+    pathfinder_world_teaching
+    pathfinder_world_command
+    pathfinder_world_runtime
+    pathfinder_knowledge
+    pathfinder_learning
+    pathfinder_foundation
+)
+
+add_test(NAME world_teaching_command_player_to_npc COMMAND pathfinder_tests_world_teaching_integration teach_command_player_to_npc)
+add_test(NAME world_teaching_command_npc_to_player COMMAND pathfinder_tests_world_teaching_integration teach_command_npc_to_player)
+add_test(NAME world_teaching_command_out_of_range_no_patch COMMAND pathfinder_tests_world_teaching_integration teach_command_out_of_range_no_patch)
+add_test(NAME world_teaching_command_missing_actor_query_port_blocks COMMAND pathfinder_tests_world_teaching_integration teach_command_missing_actor_query_port_blocks)
+add_test(NAME world_teaching_handler_registers_in_registry COMMAND pathfinder_tests_world_teaching_integration teach_handler_registers_in_registry)
+add_test(NAME world_teaching_teach_then_action_gate COMMAND pathfinder_tests_world_teaching_integration teach_then_action_gate)
+add_test(NAME world_teaching_no_h5_dependency_scan COMMAND pathfinder_tests_world_teaching_integration no_h5_dependency_scan)
+add_test(NAME world_teaching_no_content_hardcode_scan COMMAND pathfinder_tests_world_teaching_integration no_content_hardcode_scan)
+# Architecture guard tests for P50
+add_test(
+    NAME architecture_world_teaching_no_h5_dependency
+    COMMAND bash -c "! grep -riE 'h5|dialog|playable' ${CMAKE_CURRENT_SOURCE_DIR}/../src/world_teaching/ ${CMAKE_CURRENT_SOURCE_DIR}/../include/pathfinder/world_teaching/"
+)
+add_test(
+    NAME architecture_world_teaching_no_content_hardcode
+    COMMAND bash -c "! grep -riE 'red_berry|torch|wood|beast|wolf|mushroom' ${CMAKE_CURRENT_SOURCE_DIR}/../src/world_teaching/ ${CMAKE_CURRENT_SOURCE_DIR}/../include/pathfinder/world_teaching/"
+)
+
 # World Learning unit tests (P49)
 add_executable(pathfinder_tests_world_learning
     unit/world_learning/world_learning_main.cpp
