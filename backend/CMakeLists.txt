@@ -1013,6 +1013,34 @@ target_link_libraries(pathfinder_world_reaction PUBLIC
     pathfinder_world_command
 )
 
+# World Learning library (P49)
+add_library(pathfinder_world_learning STATIC
+    src/world_learning/world_learning_types.cpp
+    src/world_learning/world_experience_extractor.cpp
+    src/world_learning/world_knowledge_learning_service.cpp
+    src/world_learning/world_knowledge_projection_bridge.cpp
+    src/world_learning/world_knowledge_store_port.cpp
+    src/world_learning/world_knowledge_template_resolver.cpp
+    src/world_learning/world_learning_loop_bridge.cpp
+    src/world_learning/world_safe_feedback_builder.cpp
+)
+
+target_include_directories(pathfinder_world_learning PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(pathfinder_world_learning PUBLIC
+    pathfinder_foundation
+    pathfinder_world_command
+    pathfinder_world_runtime
+    pathfinder_content
+    pathfinder_knowledge
+    pathfinder_learning
+    pathfinder_memory
+    pathfinder_cognition
+    pathfinder_condition
+)
+
 # World Inventory Command library (P45 runtime-aware inventory handlers)
 add_library(pathfinder_world_inventory_command STATIC
     src/world_inventory/world_inventory_command_handlers.cpp
