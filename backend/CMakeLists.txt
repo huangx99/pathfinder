@@ -1068,6 +1068,30 @@ target_link_libraries(pathfinder_world_agent_execution PUBLIC
     pathfinder_goal_execution
 )
 
+# World Beast Ecology library (P52)
+add_library(pathfinder_world_beast_ecology STATIC
+    src/world_beast_ecology/world_beast_ecology_types.cpp
+    src/world_beast_ecology/beast_perception_builder.cpp
+    src/world_beast_ecology/beast_instinct_gate.cpp
+    src/world_beast_ecology/beast_decision_policy.cpp
+    src/world_beast_ecology/beast_command_compiler.cpp
+    src/world_beast_ecology/beast_interrupt_projector.cpp
+    src/world_beast_ecology/beast_projection_bridge.cpp
+    src/world_beast_ecology/beast_ecology_coordinator.cpp
+)
+
+target_include_directories(pathfinder_world_beast_ecology PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(pathfinder_world_beast_ecology PUBLIC
+    pathfinder_foundation
+    pathfinder_world_command
+    pathfinder_world_runtime
+    pathfinder_knowledge
+    pathfinder_goal_execution
+)
+
 # World Learning library (P49)
 add_library(pathfinder_world_learning STATIC
     src/world_learning/world_learning_types.cpp

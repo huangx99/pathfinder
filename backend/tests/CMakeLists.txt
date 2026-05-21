@@ -6370,6 +6370,69 @@ add_test(
     COMMAND bash -c "! grep -riE 'recipient_claim_json|learned=true|force_learn|force_teach|knowledge_json' ${CMAKE_CURRENT_SOURCE_DIR}/../src/world_agent_execution/ ${CMAKE_CURRENT_SOURCE_DIR}/../include/pathfinder/world_agent_execution/"
 )
 
+# World Beast Ecology unit tests (P52)
+add_executable(pathfinder_tests_world_beast_ecology
+    unit/world_beast_ecology/world_beast_ecology_main.cpp
+    unit/world_beast_ecology/world_beast_ecology_types_test.cpp
+    unit/world_beast_ecology/beast_perception_test.cpp
+    unit/world_beast_ecology/beast_instinct_gate_test.cpp
+    unit/world_beast_ecology/beast_decision_policy_test.cpp
+    unit/world_beast_ecology/beast_command_compiler_test.cpp
+    unit/world_beast_ecology/beast_ecology_coordinator_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_world_beast_ecology PRIVATE
+    pathfinder_world_beast_ecology
+    pathfinder_foundation
+    pathfinder_world_command
+    pathfinder_world_runtime
+    pathfinder_knowledge
+    pathfinder_goal_execution
+)
+
+add_test(NAME world_beast_ecology_enum_roundtrip COMMAND pathfinder_tests_world_beast_ecology enum_roundtrip)
+add_test(NAME world_beast_ecology_profile_validate COMMAND pathfinder_tests_world_beast_ecology profile_validate)
+add_test(NAME world_beast_ecology_perception COMMAND pathfinder_tests_world_beast_ecology perception)
+add_test(NAME world_beast_ecology_instinct_gate COMMAND pathfinder_tests_world_beast_ecology instinct_gate)
+add_test(NAME world_beast_ecology_policy COMMAND pathfinder_tests_world_beast_ecology policy)
+add_test(NAME world_beast_ecology_compiler COMMAND pathfinder_tests_world_beast_ecology compiler)
+add_test(NAME world_beast_ecology_coordinator COMMAND pathfinder_tests_world_beast_ecology coordinator)
+
+# World Beast Ecology integration tests (P52)
+add_executable(pathfinder_tests_world_beast_ecology_integration
+    integration/world_beast_ecology/world_beast_ecology_integration_main.cpp
+    integration/world_beast_ecology/world_beast_ecology_integration_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_world_beast_ecology_integration PRIVATE
+    pathfinder_world_beast_ecology
+    pathfinder_foundation
+    pathfinder_world_command
+    pathfinder_world_runtime
+    pathfinder_knowledge
+    pathfinder_goal_execution
+)
+
+add_test(NAME world_beast_ecology_integration COMMAND pathfinder_tests_world_beast_ecology_integration integration)
+
+# Architecture guard tests for P52
+add_test(
+    NAME architecture_world_beast_ecology_no_h5_dependency
+    COMMAND bash -c "! grep -riE 'h5|dialog|playable' ${CMAKE_CURRENT_SOURCE_DIR}/../src/world_beast_ecology/ ${CMAKE_CURRENT_SOURCE_DIR}/../include/pathfinder/world_beast_ecology/"
+)
+add_test(
+    NAME architecture_world_beast_ecology_no_content_hardcode
+    COMMAND bash -c "! grep -riE 'wolf|torch|fire|red_berry|berry|wood|beast_shadow|companion' ${CMAKE_CURRENT_SOURCE_DIR}/../src/world_beast_ecology/ ${CMAKE_CURRENT_SOURCE_DIR}/../include/pathfinder/world_beast_ecology/"
+)
+add_test(
+    NAME architecture_world_beast_ecology_no_direct_runtime_mutation
+    COMMAND bash -c "! grep -riE '\.actors\[|\.entities\[|\.resource_nodes\[|\.inventories\[|\.put\(|createOrUpdateGeneratedCell|upsertGeneratedResourceNode' ${CMAKE_CURRENT_SOURCE_DIR}/../src/world_beast_ecology/ ${CMAKE_CURRENT_SOURCE_DIR}/../include/pathfinder/world_beast_ecology/"
+)
+add_test(
+    NAME architecture_world_beast_ecology_no_frontend_claim_injection
+    COMMAND bash -c "! grep -riE 'recipient_claim_json|learned=true|force_learn|force_teach|knowledge_json' ${CMAKE_CURRENT_SOURCE_DIR}/../src/world_beast_ecology/ ${CMAKE_CURRENT_SOURCE_DIR}/../include/pathfinder/world_beast_ecology/"
+)
+
 # World Learning unit tests (P49)
 add_executable(pathfinder_tests_world_learning
     unit/world_learning/world_learning_main.cpp
