@@ -1040,6 +1040,34 @@ target_link_libraries(pathfinder_world_teaching PUBLIC
     pathfinder_condition
 )
 
+# World Agent Execution library (P51)
+add_library(pathfinder_world_agent_execution STATIC
+    src/world_agent_execution/world_agent_execution_types.cpp
+    src/world_agent_execution/world_agent_execution_context_store.cpp
+    src/world_agent_execution/world_agent_context_builder.cpp
+    src/world_agent_execution/world_agent_goal_selector.cpp
+    src/world_agent_execution/world_agent_reasoning_bridge.cpp
+    src/world_agent_execution/agent_action_knowledge_guard.cpp
+    src/world_agent_execution/agent_plan_command_compiler.cpp
+    src/world_agent_execution/agent_execution_coordinator.cpp
+    src/world_agent_execution/world_agent_projection_bridge.cpp
+)
+
+target_include_directories(pathfinder_world_agent_execution PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(pathfinder_world_agent_execution PUBLIC
+    pathfinder_foundation
+    pathfinder_world_command
+    pathfinder_world_runtime
+    pathfinder_world_inventory
+    pathfinder_knowledge
+    pathfinder_world_teaching
+    pathfinder_agent_reasoning
+    pathfinder_goal_execution
+)
+
 # World Learning library (P49)
 add_library(pathfinder_world_learning STATIC
     src/world_learning/world_learning_types.cpp

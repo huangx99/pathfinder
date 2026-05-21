@@ -6300,6 +6300,76 @@ add_test(
     COMMAND bash -c "! grep -riE 'red_berry|torch|wood|beast|wolf|mushroom' ${CMAKE_CURRENT_SOURCE_DIR}/../src/world_teaching/ ${CMAKE_CURRENT_SOURCE_DIR}/../include/pathfinder/world_teaching/"
 )
 
+# World Agent Execution unit tests (P51)
+add_executable(pathfinder_tests_world_agent_execution
+    unit/world_agent_execution/world_agent_execution_main.cpp
+    unit/world_agent_execution/world_agent_execution_types_test.cpp
+    unit/world_agent_execution/world_agent_execution_store_test.cpp
+    unit/world_agent_execution/world_agent_execution_context_builder_test.cpp
+    unit/world_agent_execution/world_agent_execution_knowledge_guard_test.cpp
+    unit/world_agent_execution/world_agent_execution_command_compiler_test.cpp
+    unit/world_agent_execution/world_agent_execution_coordinator_test.cpp
+    unit/world_agent_execution/world_agent_execution_projection_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_world_agent_execution PRIVATE
+    pathfinder_world_agent_execution
+    pathfinder_world_teaching
+    pathfinder_world_command
+    pathfinder_world_runtime
+    pathfinder_world_inventory
+    pathfinder_knowledge
+    pathfinder_agent_reasoning
+    pathfinder_goal_execution
+    pathfinder_foundation
+)
+
+add_test(NAME world_agent_execution_enum_roundtrip COMMAND pathfinder_tests_world_agent_execution enum_roundtrip)
+add_test(NAME world_agent_execution_context_store COMMAND pathfinder_tests_world_agent_execution context_store)
+add_test(NAME world_agent_execution_context_builder COMMAND pathfinder_tests_world_agent_execution context_builder)
+add_test(NAME world_agent_execution_knowledge_guard COMMAND pathfinder_tests_world_agent_execution knowledge_guard)
+add_test(NAME world_agent_execution_command_compiler COMMAND pathfinder_tests_world_agent_execution command_compiler)
+add_test(NAME world_agent_execution_coordinator COMMAND pathfinder_tests_world_agent_execution coordinator)
+add_test(NAME world_agent_execution_projection COMMAND pathfinder_tests_world_agent_execution projection)
+
+# World Agent Execution integration tests (P51)
+add_executable(pathfinder_tests_world_agent_execution_integration
+    integration/world_agent_execution/world_agent_execution_integration_main.cpp
+    integration/world_agent_execution/world_agent_execution_integration_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_world_agent_execution_integration PRIVATE
+    pathfinder_world_agent_execution
+    pathfinder_world_teaching
+    pathfinder_world_command
+    pathfinder_world_runtime
+    pathfinder_world_inventory
+    pathfinder_knowledge
+    pathfinder_agent_reasoning
+    pathfinder_goal_execution
+    pathfinder_foundation
+)
+
+add_test(NAME world_agent_execution_integration COMMAND pathfinder_tests_world_agent_execution_integration integration)
+
+# Architecture guard tests for P51
+add_test(
+    NAME architecture_world_agent_execution_no_h5_dependency
+    COMMAND bash -c "! grep -riE 'h5|dialog|playable' ${CMAKE_CURRENT_SOURCE_DIR}/../src/world_agent_execution/ ${CMAKE_CURRENT_SOURCE_DIR}/../include/pathfinder/world_agent_execution/"
+)
+add_test(
+    NAME architecture_world_agent_execution_no_content_hardcode
+    COMMAND bash -c "! grep -riE 'red_berry|torch|wood|beast|wolf|mushroom|companion' ${CMAKE_CURRENT_SOURCE_DIR}/../src/world_agent_execution/ ${CMAKE_CURRENT_SOURCE_DIR}/../include/pathfinder/world_agent_execution/"
+)
+add_test(
+    NAME architecture_world_agent_execution_no_direct_runtime_mutation
+    COMMAND bash -c "! grep -riE '\.actors\[|\.entities\[|\.resource_nodes\[|\.inventories\[|\.put\(|createOrUpdateGeneratedCell|upsertGeneratedResourceNode' ${CMAKE_CURRENT_SOURCE_DIR}/../src/world_agent_execution/ ${CMAKE_CURRENT_SOURCE_DIR}/../include/pathfinder/world_agent_execution/"
+)
+add_test(
+    NAME architecture_world_agent_execution_no_frontend_claim_injection
+    COMMAND bash -c "! grep -riE 'recipient_claim_json|learned=true|force_learn|force_teach|knowledge_json' ${CMAKE_CURRENT_SOURCE_DIR}/../src/world_agent_execution/ ${CMAKE_CURRENT_SOURCE_DIR}/../include/pathfinder/world_agent_execution/"
+)
+
 # World Learning unit tests (P49)
 add_executable(pathfinder_tests_world_learning
     unit/world_learning/world_learning_main.cpp
