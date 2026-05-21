@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>溯境 Pathfinder</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app" class="game-shell">
+    <!-- 主游戏画布 -->
+    <canvas id="gameCanvas"></canvas>
+
+    <!-- 顶部 HUD -->
+    <header class="top-hud" id="topHud">
+      <section class="status-panel" id="statusPanel">
+        <div class="mock-badge" id="mockBadge" style="display:none">MOCK MODE</div>
+        <div class="status-row">
+          <span class="status-label">Session</span>
+          <span class="status-value" id="sessionId">-</span>
+        </div>
+        <div class="status-row">
+          <span class="status-label">Actor</span>
+          <span class="status-value" id="actorKey">-</span>
+        </div>
+        <div class="status-row">
+          <span class="status-label">Version</span>
+          <span class="status-value" id="projVersion">-</span>
+        </div>
+        <div class="status-row">
+          <span class="status-label">Sync</span>
+          <span class="sync-indicator" id="syncIndicator">
+            <span class="sync-dot" id="syncDot"></span>
+            <span class="sync-text" id="syncText">-</span>
+          </span>
+        </div>
+      </section>
+      <section class="quest-panel" id="questPanel">
+        <div class="quest-title">Current Objective</div>
+        <div class="quest-content" id="questContent">Explore the world</div>
+      </section>
+    </header>
+
+    <!-- 右侧操作面板 -->
+    <aside class="command-panel" id="commandPanel">
+      <div class="command-header">Actions</div>
+      <div class="command-list" id="commandList"></div>
+      <button class="reset-btn" id="resetBtn">Reset World</button>
+    </aside>
+
+    <!-- 底部事件日志 -->
+    <section class="event-log" id="eventLog">
+      <div class="event-header">Log</div>
+      <div class="event-list" id="eventList"></div>
+    </section>
+
+    <!-- 小地图 -->
+    <canvas id="minimapCanvas" class="minimap"></canvas>
+
+    <!-- 调试面板 -->
+    <details class="debug-panel" id="debugPanel">
+      <summary>Debug</summary>
+      <div class="debug-tabs">
+        <button class="debug-tab active" data-tab="bootstrap">Bootstrap</button>
+        <button class="debug-tab" data-tab="command">Command</button>
+        <button class="debug-tab" data-tab="refresh">Refresh</button>
+      </div>
+      <pre class="debug-content" id="debugContent"></pre>
+    </details>
+
+    <!-- Toast 容器 -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <!-- 加载画面 -->
+    <div id="loadingScreen" class="loading-screen">
+      <div class="loading-box">
+        <div class="loading-title">溯境 Pathfinder</div>
+        <div class="loading-spinner"></div>
+        <div class="loading-text" id="loadingText">Connecting...</div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
