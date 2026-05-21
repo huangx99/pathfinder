@@ -5767,3 +5767,81 @@ add_test(
     NAME architecture_client_http_transport_boundary
     COMMAND bash -c "! grep -rni 'sys/socket\\|netinet/in\\|arpa/inet' ${CMAKE_CURRENT_SOURCE_DIR}/../include/pathfinder/client_http/client_http_gateway.h ${CMAKE_CURRENT_SOURCE_DIR}/../src/client_http/client_http_gateway.cpp ${CMAKE_CURRENT_SOURCE_DIR}/../include/pathfinder/client_http/client_http_router.h ${CMAKE_CURRENT_SOURCE_DIR}/../src/client_http/client_http_router_impl.cpp"
 )
+
+# ---------------------------------------------------------------------------
+# P56 Client Runtime Bridge tests
+# ---------------------------------------------------------------------------
+
+add_executable(pathfinder_tests_client_runtime_bridge
+    unit/client_runtime_bridge/client_runtime_bridge_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_client_runtime_bridge PRIVATE
+    pathfinder_client_runtime_bridge
+    pathfinder_world_runtime
+    pathfinder_world_command_runtime
+    pathfinder_world_command
+    pathfinder_foundation
+)
+
+add_test(NAME client_runtime_bridge_enum COMMAND pathfinder_tests_client_runtime_bridge enum)
+add_test(NAME client_runtime_bridge_dto_validation COMMAND pathfinder_tests_client_runtime_bridge dto_validation)
+add_test(NAME client_runtime_bridge_projection_non_empty COMMAND pathfinder_tests_client_runtime_bridge projection_non_empty)
+add_test(NAME client_runtime_bridge_projection_security COMMAND pathfinder_tests_client_runtime_bridge projection_security)
+add_test(NAME client_runtime_bridge_movement_provider COMMAND pathfinder_tests_client_runtime_bridge movement_provider)
+add_test(NAME client_runtime_bridge_movement_disabled COMMAND pathfinder_tests_client_runtime_bridge movement_disabled)
+add_test(NAME client_runtime_bridge_wait_inspect_provider COMMAND pathfinder_tests_client_runtime_bridge wait_inspect_provider)
+add_test(NAME client_runtime_bridge_no_handler COMMAND pathfinder_tests_client_runtime_bridge no_handler)
+add_test(NAME client_runtime_bridge_diagnostics COMMAND pathfinder_tests_client_runtime_bridge diagnostics)
+
+# P56 integration tests
+add_executable(pathfinder_tests_client_runtime_bridge_integration
+    integration/client_runtime_bridge/client_runtime_bridge_integration_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_client_runtime_bridge_integration PRIVATE
+    pathfinder_client_runtime_bridge
+    pathfinder_client_http
+    pathfinder_client_protocol
+    pathfinder_world_runtime
+    pathfinder_world_command_runtime
+    pathfinder_world_command
+    pathfinder_foundation
+)
+
+add_test(NAME client_runtime_bridge_bootstrap_non_empty COMMAND pathfinder_tests_client_runtime_bridge_integration bootstrap_non_empty)
+add_test(NAME client_runtime_bridge_bootstrap_player_visible COMMAND pathfinder_tests_client_runtime_bridge_integration bootstrap_player_visible)
+add_test(NAME client_runtime_bridge_bootstrap_move_options COMMAND pathfinder_tests_client_runtime_bridge_integration bootstrap_move_options)
+add_test(NAME client_runtime_bridge_move_changes_position COMMAND pathfinder_tests_client_runtime_bridge_integration move_changes_position)
+add_test(NAME client_runtime_bridge_move_updates_version COMMAND pathfinder_tests_client_runtime_bridge_integration move_updates_version)
+add_test(NAME client_runtime_bridge_blocked_terrain_blocked COMMAND pathfinder_tests_client_runtime_bridge_integration blocked_terrain_blocked)
+add_test(NAME client_runtime_bridge_forged_option_blocked COMMAND pathfinder_tests_client_runtime_bridge_integration forged_option_blocked)
+add_test(NAME client_runtime_bridge_stale_version_blocked COMMAND pathfinder_tests_client_runtime_bridge_integration stale_version_blocked)
+add_test(NAME client_runtime_bridge_refresh_after_move COMMAND pathfinder_tests_client_runtime_bridge_integration refresh_after_move)
+add_test(NAME client_runtime_bridge_bootstrap_version_matches COMMAND pathfinder_tests_client_runtime_bridge_integration bootstrap_version_matches)
+add_test(NAME client_runtime_bridge_refresh_version_matches COMMAND pathfinder_tests_client_runtime_bridge_integration refresh_version_matches)
+add_test(NAME client_runtime_bridge_command_with_full_projection_version COMMAND pathfinder_tests_client_runtime_bridge_integration command_with_full_projection_version)
+
+# Architecture guard: P56 production factory must use runtime-backed bridge
+add_test(
+    NAME architecture_client_runtime_bridge_no_production_stub
+    COMMAND bash -c "grep -rn 'RuntimeBacked' ${CMAKE_CURRENT_SOURCE_DIR}/../src/client_http/client_server_runtime_factory.cpp"
+)
+
+# Architecture guard: client_http factory must not be stub mode
+add_test(
+    NAME architecture_client_server_factory_runtime_backed
+    COMMAND bash -c "! grep -rni 'StubForProtocolTest\|Disabled.*mode' ${CMAKE_CURRENT_SOURCE_DIR}/../src/client_http/client_server_runtime_factory.cpp"
+)
+
+# Architecture guard: client_projection_adapter.cpp production path must not return empty success
+add_test(
+    NAME architecture_client_projection_adapter_no_empty_stub
+    COMMAND bash -c "grep -rn 'bridge_port_' ${CMAKE_CURRENT_SOURCE_DIR}/../src/client_protocol/client_projection_adapter.cpp"
+)
+
+# Architecture guard: client_available_command_adapter.cpp production path must not only return Wait/Inspect
+add_test(
+    NAME architecture_client_available_command_adapter_no_wait_inspect_stub
+    COMMAND bash -c "grep -rn 'option_bridge_' ${CMAKE_CURRENT_SOURCE_DIR}/../src/client_protocol/client_available_command_adapter.cpp"
+)

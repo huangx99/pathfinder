@@ -1,7 +1,9 @@
 #pragma once
 
 #include "pathfinder/client_protocol/client_protocol_types.h"
+#include "pathfinder/client_runtime_bridge/client_runtime_bridge_port.h"
 #include "pathfinder/foundation/result.h"
+#include <memory>
 #include <vector>
 
 namespace pathfinder::client_protocol {
@@ -11,9 +13,11 @@ namespace pathfinder::client_protocol {
 class ClientAvailableCommandAdapter {
 public:
     ClientAvailableCommandAdapter();
+    explicit ClientAvailableCommandAdapter(
+        std::shared_ptr<pathfinder::client_runtime_bridge::IClientRuntimeBridgePort> option_bridge);
 
     // Build available commands for the given actor context.
-    // P53 stub: returns a minimal set (Wait, Inspect) for protocol testing.
+    // P56: uses runtime option bridge if injected; otherwise falls back to stub for tests.
     pathfinder::foundation::Result<std::vector<WorldCommandOptionDto>> buildOptions(
         const std::string& actor_key,
         const std::string& layer_key) const;
@@ -30,6 +34,13 @@ public:
     pathfinder::foundation::Result<WorldCommandDto> materializeOption(
         const std::string& option_id,
         const std::string& actor_key) const;
+
+private:
+    std::shared_ptr<pathfinder::client_runtime_bridge::IClientRuntimeBridgePort> option_bridge_;
+
+    pathfinder::foundation::Result<std::vector<WorldCommandOptionDto>> buildFromBridge(
+        const std::string& actor_key,
+        const std::string& layer_key) const;
 };
 
 } // namespace pathfinder::client_protocol

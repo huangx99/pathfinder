@@ -988,6 +988,23 @@ target_link_libraries(pathfinder_world_learning PUBLIC
     pathfinder_condition
 )
 
+# Client Runtime Bridge library (P56)
+add_library(pathfinder_client_runtime_bridge STATIC
+    src/client_runtime_bridge/client_runtime_bridge_types.cpp
+    src/client_runtime_bridge/client_runtime_projection_bridge.cpp
+    src/client_runtime_bridge/client_runtime_command_option_bridge.cpp
+)
+
+target_include_directories(pathfinder_client_runtime_bridge PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(pathfinder_client_runtime_bridge PUBLIC
+    pathfinder_foundation
+    pathfinder_world_runtime
+    pathfinder_world_command
+)
+
 # Client Protocol library (P53)
 add_library(pathfinder_client_protocol STATIC
     src/client_protocol/client_protocol_types.cpp
@@ -1008,6 +1025,7 @@ target_include_directories(pathfinder_client_protocol PUBLIC
 target_link_libraries(pathfinder_client_protocol PUBLIC
     pathfinder_foundation
     pathfinder_world_command
+    pathfinder_client_runtime_bridge
 )
 
 # Client HTTP library (P54)
@@ -1030,6 +1048,9 @@ target_link_libraries(pathfinder_client_http PUBLIC
     pathfinder_foundation
     pathfinder_client_protocol
     pathfinder_world_command
+    pathfinder_world_runtime
+    pathfinder_world_command_runtime
+    pathfinder_world_generation
 )
 
 # Client Server executable (P54)
@@ -1045,6 +1066,9 @@ target_link_libraries(pathfinder_client_server_exe PRIVATE
     pathfinder_client_http
     pathfinder_client_protocol
     pathfinder_world_command
+    pathfinder_world_runtime
+    pathfinder_world_command_runtime
+    pathfinder_world_generation
 )
 
 # World Inventory Command library (P45 runtime-aware inventory handlers)

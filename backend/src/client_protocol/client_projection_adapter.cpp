@@ -7,17 +7,58 @@ using pathfinder::foundation::Result;
 
 ClientProjectionAdapter::ClientProjectionAdapter() = default;
 
+ClientProjectionAdapter::ClientProjectionAdapter(
+    std::shared_ptr<pathfinder::client_runtime_bridge::IClientRuntimeBridgePort> bridge_port)
+    : bridge_port_(std::move(bridge_port)) {}
+
+Result<ClientWorldProjection> ClientProjectionAdapter::buildFromBridge(
+    const std::string& actor_key,
+    const std::string& layer_key,
+    uint64_t projection_version,
+    pathfinder::client_runtime_bridge::ClientProjectionBuildReason reason) const {
+
+    pathfinder::client_runtime_bridge::ClientRuntimeViewRequest req;
+    req.actor_key = actor_key;
+    req.layer_key = layer_key.empty() ? "surface" : layer_key;
+    req.projection_version_hint = projection_version;
+    req.reason = reason;
+
+    auto view_res = bridge_port_->buildRuntimeView(req);
+    if (view_res.is_error()) {
+        return Result<ClientWorldProjection>::fail(view_res.errors());
+    }
+
+    const auto& view = view_res.value();
+    ClientWorldProjection proj;
+    proj.projection_version = view.projection_version;
+    proj.actor_key = view.actor_key;
+    proj.active_layer_key = view.active_layer_key;
+    proj.visible_cells = std::move(view.visible_cells);
+    proj.visible_entities = std::move(view.visible_entities);
+    proj.inventories = std::move(view.inventories);
+    proj.knowledge = std::move(view.knowledge);
+    proj.area_effects = std::move(view.area_effects);
+    proj.safe_summary_keys = std::move(view.safe_summary_keys);
+    // warning_keys from bridge are not exposed to client projection directly
+
+    return Result<ClientWorldProjection>::ok(std::move(proj));
+}
+
 Result<ClientWorldProjection> ClientProjectionAdapter::buildFullProjection(
     const std::string& actor_key,
     const std::string& layer_key,
     uint64_t projection_version) const {
 
+    if (bridge_port_) {
+        return buildFromBridge(actor_key, layer_key, projection_version,
+            pathfinder::client_runtime_bridge::ClientProjectionBuildReason::Bootstrap);
+    }
+
+    // P53 stub fallback: visible_cells, visible_entities are intentionally empty until runtime bridges are wired.
     ClientWorldProjection proj;
     proj.projection_version = projection_version;
     proj.actor_key = actor_key;
     proj.active_layer_key = layer_key.empty() ? "surface" : layer_key;
-    // P53 stub: visible_cells, visible_entities, inventories, knowledge,
-    // area_effects are intentionally empty until runtime bridges are wired.
     return Result<ClientWorldProjection>::ok(std::move(proj));
 }
 
@@ -27,8 +68,11 @@ Result<ClientWorldProjection> ClientProjectionAdapter::buildScopedProjection(
     uint64_t projection_version,
     const std::vector<ClientProjectionScope>& /*scopes*/) const {
 
-    // P53: scopes are advisory; for now return full safe projection.
-    // Future phases will filter by scope.
+    // P56: scopes are advisory; for now return full safe projection via bridge if available.
+    if (bridge_port_) {
+        return buildFromBridge(actor_key, layer_key, projection_version,
+            pathfinder::client_runtime_bridge::ClientProjectionBuildReason::Refresh);
+    }
     return buildFullProjection(actor_key, layer_key, projection_version);
 }
 

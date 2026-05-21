@@ -22,13 +22,38 @@ namespace {
 
 ClientAvailableCommandAdapter::ClientAvailableCommandAdapter() = default;
 
+ClientAvailableCommandAdapter::ClientAvailableCommandAdapter(
+    std::shared_ptr<pathfinder::client_runtime_bridge::IClientRuntimeBridgePort> option_bridge)
+    : option_bridge_(std::move(option_bridge)) {}
+
+Result<std::vector<WorldCommandOptionDto>> ClientAvailableCommandAdapter::buildFromBridge(
+    const std::string& actor_key,
+    const std::string& layer_key) const {
+
+    pathfinder::client_runtime_bridge::ClientRuntimeCommandOptionRequest req;
+    req.actor_key = actor_key;
+    req.layer_key = layer_key.empty() ? "surface" : layer_key;
+    // Use all providers by default (empty provider_kinds means all)
+
+    auto opts_res = option_bridge_->buildRuntimeOptions(req);
+    if (opts_res.is_error()) {
+        return Result<std::vector<WorldCommandOptionDto>>::fail(opts_res.errors());
+    }
+
+    return Result<std::vector<WorldCommandOptionDto>>::ok(std::move(opts_res.value()));
+}
+
 Result<std::vector<WorldCommandOptionDto>> ClientAvailableCommandAdapter::buildOptions(
     const std::string& actor_key,
-    const std::string& /*layer_key*/) const {
+    const std::string& layer_key) const {
 
+    if (option_bridge_) {
+        return buildFromBridge(actor_key, layer_key);
+    }
+
+    // P53 stub fallback: returns a minimal set (Wait, Inspect) for protocol testing.
     std::vector<WorldCommandOptionDto> options;
 
-    // Wait option
     {
         WorldCommandOptionDto opt;
         opt.option_id = "opt_wait_" + actor_key;
@@ -40,7 +65,6 @@ Result<std::vector<WorldCommandOptionDto>> ClientAvailableCommandAdapter::buildO
         options.push_back(std::move(opt));
     }
 
-    // Inspect option
     {
         WorldCommandOptionDto opt;
         opt.option_id = "opt_inspect_" + actor_key;

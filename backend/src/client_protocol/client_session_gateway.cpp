@@ -52,6 +52,10 @@ Result<ClientBootstrapResponse> ClientSessionGateway::bootstrap(
         return Result<ClientBootstrapResponse>::fail(proj_result.errors());
     }
 
+    // P56: Sync session projection_version to runtime-backed full_projection version.
+    const uint64_t runtime_version = proj_result.value().projection_version;
+    session.projection_version = runtime_version;
+
     auto options_result = available_command_adapter_.buildOptions(
         session.actor_key, session.layer_key);
     if (options_result.is_error()) {
@@ -64,7 +68,7 @@ Result<ClientBootstrapResponse> ClientSessionGateway::bootstrap(
     ClientBootstrapResponse response;
     response.session_id = session.session_id;
     response.server_protocol_version = 1;
-    response.projection_version = session.projection_version;
+    response.projection_version = runtime_version;
     response.full_projection = proj_result.value();
     response.available_commands = options_result.value();
 
@@ -91,12 +95,16 @@ Result<ClientRefreshResponse> ClientSessionGateway::refresh(
         );
     }
 
-    const auto& session = it->second;
+    auto& session = it->second;
     auto proj_result = projection_adapter_.buildScopedProjection(
         session.actor_key, session.layer_key, session.projection_version, request.requested_scopes);
     if (proj_result.is_error()) {
         return Result<ClientRefreshResponse>::fail(proj_result.errors());
     }
+
+    // P56: Sync session projection_version to runtime-backed full_projection version.
+    const uint64_t runtime_version = proj_result.value().projection_version;
+    session.projection_version = runtime_version;
 
     auto options_result = available_command_adapter_.buildOptions(
         session.actor_key, session.layer_key);
@@ -105,11 +113,11 @@ Result<ClientRefreshResponse> ClientSessionGateway::refresh(
     }
 
     // Update the authoritative option snapshot.
-    it->second.last_available_commands = options_result.value();
+    session.last_available_commands = options_result.value();
 
     ClientRefreshResponse response;
     response.session_id = session.session_id;
-    response.projection_version = session.projection_version;
+    response.projection_version = runtime_version;
     response.full_projection = proj_result.value();
     response.available_commands = options_result.value();
 
