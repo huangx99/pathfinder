@@ -1,6 +1,4 @@
 #include "pathfinder/goal_execution/goal_execution_system.h"
-#include "pathfinder/h5_dialog/dialog_scenario.h"
-#include "pathfinder/world_interaction/world_services.h"
 #include <algorithm>
 #include <cassert>
 #include <iostream>
@@ -294,41 +292,6 @@ static void reaction_links() {
     assert(std::any_of(axe.value().begin(), axe.value().end(), [](const auto& link) { return link.condition_expression.find("sharp") != std::string::npos || link.reaction_rule_id.find("sharpen") != std::string::npos; }));
 }
 
-static void material_tags_from_dialog_runtime_snapshot() {
-    pathfinder::h5_dialog::DialogScenarioCatalog catalog;
-    auto scenario = catalog.defaultScenario();
-    assert(scenario.is_ok());
-    pathfinder::h5_dialog::DialogSessionState state;
-    state.session_id = "s_p40_material_tags";
-    state.scenario_key = scenario.value().scenario_key;
-    state.turn_index = 1;
-    pathfinder::h5_dialog::DialogObjectRuntimeState grass;
-    grass.object_key = "dry_grass";
-    grass.numeric_states["quantity"] = 1.0;
-    grass.tag_states = {"fuel", "wet"};
-    state.object_runtime_states["dry_grass"] = grass;
-    pathfinder::h5_dialog::DialogObjectRuntimeState axe;
-    axe.object_key = "axe";
-    axe.numeric_states["quantity"] = 1.0;
-    axe.numeric_states["sharpness"] = 0.0;
-    axe.tag_states = {"tool", "axe"};
-    state.object_runtime_states["axe"] = axe;
-
-    WorldSnapshotAdapter adapter;
-    auto snapshot = adapter.fromDialogSession(scenario.value(), state);
-    assert(snapshot.is_ok());
-    assert(std::find(snapshot.value().objects_by_key["axe"].state_tags.begin(), snapshot.value().objects_by_key["axe"].state_tags.end(), "dull") != snapshot.value().objects_by_key["axe"].state_tags.end());
-
-    MaterialRequirementSet set;
-    set.set_id = "set.real_adapter_state";
-    set.owner_step_id = "step.fire";
-    set.requirements.push_back(MaterialRequirement{"req.dry_grass", "dry_grass", 1, {"dry"}});
-    MaterialRequirementEvaluator evaluator;
-    auto evaluated = evaluator.evaluate({snapshot.value(), {}, set});
-    assert(evaluated.is_ok());
-    assert(!evaluated.value().satisfied);
-    assert(evaluated.value().availability.front().blocked_by_state);
-}
 
 static void reaction_material_resolver_no_unknown_material_for_core_rules() {
     ReactionMaterialResolver resolver;
@@ -454,7 +417,6 @@ int main(int argc, char* argv[]) {
     else if (name == "projection_safe") projection_safe();
     else if (name == "materials") materials();
     else if (name == "reaction_links") reaction_links();
-    else if (name == "material_tags_from_dialog_runtime_snapshot") material_tags_from_dialog_runtime_snapshot();
     else if (name == "reaction_material_resolver_no_unknown_material_for_core_rules") reaction_material_resolver_no_unknown_material_for_core_rules();
     else if (name == "known_claims") known_claims();
     else if (name == "build_recipe") build_recipe();

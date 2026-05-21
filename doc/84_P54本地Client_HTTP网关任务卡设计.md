@@ -4,7 +4,7 @@
 
 P54 是 V2.0 开放世界路线中“本地客户端接入后端引擎”的阶段。
 
-它接在 P53 客户端协议之后，目标不是继续设计 UI，而是让 `app/frontend/h5_playable` 这类客户端可以通过统一 HTTP 接口真正访问后端 `Client Protocol`、`WorldCommand`、世界状态和认知系统。
+它接在 P53 客户端协议之后，目标不是继续设计 UI，而是让 `app/frontend/client` 这类客户端可以通过统一 HTTP 接口真正访问后端 `Client Protocol`、`WorldCommand`、世界状态和认知系统。
 
 一句话定位：
 
@@ -15,7 +15,7 @@ P54 在后端新增一个轻量、本地、无第三方依赖的 Client HTTP Gat
 P54 完成后，客户端访问链路应变成：
 
 ```text
-浏览器客户端 app/frontend/h5_playable
+浏览器客户端 app/frontend/client
   ↓ fetch('/api/client/bootstrap|command|refresh|reset')
 后端 Client HTTP Gateway
   ↓ ClientProtocolCodec 解码 / 编码
@@ -28,7 +28,7 @@ WorldCommandPipeline
 
 ## 2. 为什么现在做
 
-当前 `app/frontend/h5_playable` 已经有了地图画布、HUD、命令按钮、事件日志和 mock 模式，也已经调用以下接口：
+当前 `app/frontend/client` 已经有了地图画布、HUD、命令按钮、事件日志和 mock 模式，也已经调用以下接口：
 
 ```text
 POST /api/client/bootstrap
@@ -54,7 +54,7 @@ P54 只解决以下问题：
 
 ```text
 1. 提供本地 HTTP 服务，默认监听 1999。
-2. 服务 app/frontend/h5_playable 静态文件。
+2. 服务 app/frontend/client 静态文件。
 3. 提供 /api/client/bootstrap。
 4. 提供 /api/client/command。
 5. 提供 /api/client/refresh。
@@ -82,7 +82,7 @@ P54 不做以下事情：
 不做热更新。
 不让 HTTP 层生成玩法规则。
 不让 HTTP 层读取 content/core JSON。
-不把 HTTP 层写进 h5_playable 旧命名空间。
+不把 HTTP 层写进 client 旧命名空间。
 ```
 
 正式的玩家界面体验、中文化、横屏布局和游戏化 HUD，可以在 HTTP Gateway 稳定后进入后续客户端阶段继续做。
@@ -226,12 +226,12 @@ HTTP 返回非 JSON 或错误字段不稳定，前端会崩。
 
 ### 5.9 前端目录后续会换
 
-现在是 `app/frontend/h5_playable`，未来可能是 `app/frontend/world_client`、Godot、本地工具。
+现在是 `app/frontend/client`，未来可能是 `app/frontend/world_client`、Godot、本地工具。
 
 风险：
 
 ```text
-HTTP Gateway 写死 h5_playable，后续又污染架构。
+HTTP Gateway 写死 client，后续又污染架构。
 ```
 
 设计要求：
@@ -239,7 +239,7 @@ HTTP Gateway 写死 h5_playable，后续又污染架构。
 ```text
 Gateway 只叫 client_http，不叫 h5_http。
 static_root 是启动参数。
-默认可指向 app/frontend/h5_playable，但代码不能绑定该名称。
+默认可指向 app/frontend/client，但代码不能绑定该名称。
 ```
 
 ### 5.10 单机未来打包
@@ -302,7 +302,7 @@ WorldCommandPipeline
 
 ```text
 client_http 不依赖 h5_dialog。
-client_http 不依赖 h5_playable。
+client_http 不依赖 client。
 client_http 不依赖 frontend/ 旧目录。
 client_http 不直接依赖 content/json loader。
 client_http 不直接依赖 world_runtime 内部数组。
@@ -312,9 +312,9 @@ client_http 不直接生成知识或规则。
 可参考但不可继承旧命名：
 
 ```text
-可参考 backend/src/h5_playable/playable_http_server.cpp 的 socket 读写方式。
+可参考 backend/src/client/playable_http_server.cpp 的 socket 读写方式。
 不可把新类命名为 H5PlayableServer。
-不可把新接口放进 pathfinder::h5_playable。
+不可把新接口放进 pathfinder::client。
 ```
 
 ## 7. 新增类与职责
@@ -756,7 +756,7 @@ GET /assets/...    -> static_root/assets/...
 默认启动参数：
 
 ```text
---static-root app/frontend/h5_playable
+--static-root app/frontend/client
 --port 1999
 --host 127.0.0.1
 ```
@@ -834,14 +834,14 @@ pathfinder_client_server
 命令：
 
 ```bash
-./build/backend/pathfinder_client_server --host 0.0.0.0 --port 1999 --static-root app/frontend/h5_playable
+./build/backend/pathfinder_client_server --host 0.0.0.0 --port 1999 --static-root app/frontend/client
 ```
 
 输出：
 
 ```text
 Pathfinder Client Server running on http://0.0.0.0:1999
-Static root: app/frontend/h5_playable
+Static root: app/frontend/client
 API: /api/client/bootstrap / command / refresh / reset
 ```
 
@@ -857,7 +857,7 @@ scripts/restart_client_1999.sh
 1. 只构建 pathfinder_client_server。
 2. 只停止 1999 端口上的 pathfinder_client_server。
 3. 不停止 frp / frpc。
-4. 不停止旧 h5_playable_server，除非确认占用的是同一个新二进制。
+4. 不停止旧 client_server，除非确认占用的是同一个新二进制。
 5. 输出 health check 结果。
 ```
 
@@ -921,7 +921,7 @@ architecture_client_http_transport_boundary
 扫描关键词建议：
 
 ```text
-h5_playable::
+client::
 h5_dialog::
 content/core
 ContentRegistry
@@ -953,9 +953,9 @@ P54 必须满足：
 
 ```text
 1. 能构建 pathfinder_client_server。
-2. 能通过 GET / 返回 app/frontend/h5_playable/index.html。
-3. 能通过 GET /app.js 返回 app/frontend/h5_playable/app.js。
-4. 能通过 GET /style.css 返回 app/frontend/h5_playable/style.css。
+2. 能通过 GET / 返回 app/frontend/client/index.html。
+3. 能通过 GET /app.js 返回 app/frontend/client/app.js。
+4. 能通过 GET /style.css 返回 app/frontend/client/style.css。
 5. POST /api/client/bootstrap 返回 P53 bootstrap JSON。
 6. POST /api/client/command 真实进入 ClientCommandGateway。
 7. stale projection command 不执行，返回 requires_full_refresh。
@@ -977,10 +977,10 @@ P54 必须满足：
 当前前端目录：
 
 ```text
-app/frontend/h5_playable/
+app/frontend/client/
 ```
 
-P54 Gateway 应该能服务这个目录，但不能把后端模块命名为 `h5_playable`。
+P54 Gateway 应该能服务这个目录，但不能把后端模块命名为 `client`。
 
 当前前端仍有以下问题，不属于 P54 必须修复：
 
@@ -1017,7 +1017,7 @@ P54 只要求：
 10. 增加 client_http 单元测试。
 11. 增加 client_http 集成测试。
 12. 增加架构扫描。
-13. 手动启动 1999，用浏览器验证 app/frontend/h5_playable。
+13. 手动启动 1999，用浏览器验证 app/frontend/client。
 ```
 
 ## 16. 研发注意事项

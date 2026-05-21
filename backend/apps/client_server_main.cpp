@@ -18,7 +18,7 @@ void signalHandler(int) { g_stop_requested = true; }
 int main(int argc, char* argv[]) {
     uint16_t port = 1999;
     std::string host = "127.0.0.1";
-    std::string static_root = "app/frontend/h5_playable";
+    std::string static_root = "app/frontend/client";
 
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];

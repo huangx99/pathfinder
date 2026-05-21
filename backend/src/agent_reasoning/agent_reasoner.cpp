@@ -17,7 +17,6 @@ using pathfinder::foundation::ErrorCode;
 using pathfinder::foundation::KnowledgeId;
 using pathfinder::foundation::Result;
 using pathfinder::foundation::makeError;
-using pathfinder::h5_dialog::DialogActionKind;
 using pathfinder::knowledge::KnowledgeClaim;
 using pathfinder::knowledge::KnowledgeOwnerKind;
 using pathfinder::knowledge::KnowledgeRelationType;
@@ -27,6 +26,7 @@ using pathfinder::world_interaction::AgentAutonomyResult;
 using pathfinder::world_interaction::InteractionFailureKind;
 using pathfinder::world_interaction::WorldChange;
 using pathfinder::world_interaction::WorldChangeKind;
+using pathfinder::world_interaction::WorldInteractionActionKind;
 using pathfinder::world_interaction::WorldInteractionInput;
 using pathfinder::world_interaction::WorldSnapshot;
 
@@ -765,7 +765,7 @@ Result<WorldInteractionInput> AgentPlanExecutorAdapter::toWorldInteractionInput(
     input.effect_key = step.effect_key;
     input.feedback_key = "reasoning.plan_step";
     input.reason_keys = {"reasoning.step:" + step.effect_key};
-    input.action = step.action_key == "eat" ? DialogActionKind::Eat : DialogActionKind::Use;
+    input.action = step.action_key == "eat" ? WorldInteractionActionKind::Eat : WorldInteractionActionKind::Use;
     return Result<WorldInteractionInput>::ok(std::move(input));
 }
 

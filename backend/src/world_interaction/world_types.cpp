@@ -111,6 +111,17 @@ std::string toString(AgentAutonomyActionKind kind) {
     return "unknown";
 }
 
+std::string toString(WorldInteractionActionKind kind) {
+    switch (kind) {
+        case WorldInteractionActionKind::Eat: return "eat";
+        case WorldInteractionActionKind::Use: return "use";
+        case WorldInteractionActionKind::Wait: return "wait";
+        case WorldInteractionActionKind::TestOnly: return "test_only";
+        case WorldInteractionActionKind::Unknown: return "unknown";
+    }
+    return "unknown";
+}
+
 std::string toString(ThreatEventPhase phase) {
     switch (phase) {
         case ThreatEventPhase::Dormant: return "dormant";
@@ -187,7 +198,7 @@ Result<void> WorldInteractionInput::validateBasic() const {
     if (interaction_id.empty()) return fail("world interaction id empty");
     if (actor_key.empty()) return fail("world interaction actor empty");
     if (object_key.empty()) return fail("world interaction object empty");
-    if (action == pathfinder::h5_dialog::DialogActionKind::Unknown) return fail("world interaction action unknown");
+    if (action == WorldInteractionActionKind::Unknown) return fail("world interaction action unknown");
     if (effect_key.empty()) return fail("world interaction effect empty");
     return Result<void>::ok();
 }

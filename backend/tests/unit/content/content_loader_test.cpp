@@ -12,7 +12,6 @@ using namespace pathfinder::content;
 // Forward declarations from other test files (linked into same executable)
 void run_content_registry_tests();
 void run_content_validation_tests();
-void run_content_runtime_adapter_tests();
 
 void run_content_loader_tests() {
     // Test 1: Path safety checks
@@ -391,7 +390,7 @@ void run_content_loader_tests() {
 int main(int argc, char* argv[]) {
     if (argc < 2) {
         std::cout << "Usage: " << argv[0] << " <test_name>" << std::endl;
-        std::cout << "Available tests: loader, registry, validation, runtime_adapter" << std::endl;
+        std::cout << "Available tests: loader, registry, validation" << std::endl;
         return 1;
     }
 
@@ -406,8 +405,6 @@ int main(int argc, char* argv[]) {
     } else if (test_name == "validation") {
         run_content_validation_tests();
         return 0;
-    } else if (test_name == "runtime_adapter") {
-        run_content_runtime_adapter_tests();
         return 0;
     } else {
         std::cout << "Unknown test: " << test_name << std::endl;

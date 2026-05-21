@@ -1,7 +1,6 @@
 #include "pathfinder/goal_execution/goal_execution_system.h"
 
 #include "pathfinder/foundation/error.h"
-#include "pathfinder/h5_dialog/dialog_types.h"
 #include "pathfinder/reaction/reaction_fixtures.h"
 #include <algorithm>
 #include <cmath>
@@ -17,7 +16,7 @@ using pathfinder::agent_reasoning::PlanStepKind;
 using pathfinder::foundation::ErrorCode;
 using pathfinder::foundation::Result;
 using pathfinder::foundation::makeError;
-using pathfinder::h5_dialog::DialogActionKind;
+using pathfinder::world_interaction::WorldInteractionActionKind;
 using pathfinder::reaction::ObjectReactionRule;
 using pathfinder::reaction::ReactionObjectRole;
 using pathfinder::reaction::ReactionOutputKind;
@@ -701,7 +700,7 @@ Result<std::vector<WorldInteractionInput>> DriverCommandAdapter::adapt(const std
         input.actor_key = command.actor_key;
         input.object_key = command.object_key.value_or("");
         input.target_object_key = command.target_key.value_or("");
-        input.action = command.action_key == "eat" ? DialogActionKind::Eat : (command.action_key == "wait" ? DialogActionKind::Wait : DialogActionKind::Use);
+        input.action = command.action_key == "eat" ? WorldInteractionActionKind::Eat : (command.action_key == "wait" ? WorldInteractionActionKind::Wait : WorldInteractionActionKind::Use);
         input.effect_key = command.effect_key.value_or(command.action_key);
         input.feedback_key = command.command_id + ".feedback";
         input.reason_keys = {"p40_driver_command", toString(command.driver_kind)};

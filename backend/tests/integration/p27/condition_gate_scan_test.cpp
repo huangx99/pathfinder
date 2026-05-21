@@ -35,9 +35,8 @@ static void test_condition_authority_gate() {
     assert(civilization.find("ConditionExpressionEvaluator") != std::string::npos);
     assert(civilization.find("normalizeCapabilityCondition") != std::string::npos);
 
-    const auto h5_presenter = readFile(root / "backend" / "src" / "h5_dialog" / "dialog_presenter.cpp");
-    assertNotContains(h5_presenter, "condition.condition_key ==");
-    assert(h5_presenter.find("canonicalKnowledgeConditionKey") != std::string::npos);
+    const auto client_protocol = readFile(root / "backend" / "src" / "client_protocol" / "client_projection_adapter.cpp");
+    assertNotContains(client_protocol, "condition.condition_key ==");
 
     const auto revision = readFile(root / "backend" / "src" / "knowledge" / "knowledge_revision.cpp");
     assertNotContains(revision, "a[i].condition_key != b[i].condition_key");

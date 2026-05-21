@@ -1,7 +1,6 @@
 #pragma once
 
 #include "pathfinder/foundation/result.h"
-#include "pathfinder/h5_dialog/dialog_types.h"
 #include "pathfinder/knowledge/knowledge_claim.h"
 #include <cstdint>
 #include <optional>
@@ -54,6 +53,14 @@ enum class InteractionFailureKind {
     TestOnly
 };
 
+enum class WorldInteractionActionKind {
+    Unknown,
+    Eat,
+    Use,
+    Wait,
+    TestOnly
+};
+
 enum class AgentAutonomyActionKind {
     Unknown,
     None,
@@ -85,6 +92,7 @@ std::string toString(WorldObjectInstanceKind kind);
 std::string toString(WorldChangeKind kind);
 std::string toString(InteractionFailureKind kind);
 std::string toString(AgentAutonomyActionKind kind);
+std::string toString(WorldInteractionActionKind kind);
 std::string toString(ThreatEventPhase phase);
 
 struct WorldObjectInstance {
@@ -152,7 +160,7 @@ struct WorldInteractionInput {
     std::string actor_key{"pioneer"};
     std::string object_key;
     std::string target_object_key;
-    pathfinder::h5_dialog::DialogActionKind action{pathfinder::h5_dialog::DialogActionKind::Unknown};
+    WorldInteractionActionKind action{WorldInteractionActionKind::Unknown};
     std::string effect_key;
     std::string feedback_key;
     std::vector<std::string> reason_keys;

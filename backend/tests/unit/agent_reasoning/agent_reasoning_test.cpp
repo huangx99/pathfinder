@@ -577,7 +577,7 @@ static void search_limit_returns_diagnostic() {
     std::cout << "search_limit_returns_diagnostic passed\n";
 }
 
-static void h5_projection_safe() {
+static void projection_safe() {
     auto world = snapshot();
     world.objects_by_key["dry_grass"] = object("dry_grass", 1);
     AgentNeedState needs;
@@ -592,7 +592,7 @@ static void h5_projection_safe() {
     assert(projection.value().public_reason_lines_zh_cn.front().find("utility_score") == std::string::npos);
     assert(projection.value().public_reason_lines_zh_cn.front().find("hidden_truth") == std::string::npos);
     assert(projection.value().public_reason_lines_zh_cn.front().find("raw_state") == std::string::npos);
-    std::cout << "h5_projection_safe passed\n";
+    std::cout << "projection_safe passed\n";
 }
 
 int main(int argc, char* argv[]) {
@@ -620,7 +620,7 @@ int main(int argc, char* argv[]) {
     else if (mode == "reaction_adapter_reads_crafting_rules") reaction_adapter_reads_crafting_rules();
     else if (mode == "cycle_detection_blocks_plan") cycle_detection_blocks_plan();
     else if (mode == "search_limit_returns_diagnostic") search_limit_returns_diagnostic();
-    else if (mode == "h5_projection_safe") h5_projection_safe();
+    else if (mode == "projection_safe") projection_safe();
     else {
         effect_semantics_registry_validation();
         p41_execution_enums_and_dto_validation();
@@ -645,7 +645,7 @@ int main(int argc, char* argv[]) {
         reaction_adapter_reads_crafting_rules();
         cycle_detection_blocks_plan();
         search_limit_returns_diagnostic();
-        h5_projection_safe();
+        projection_safe();
     }
     return 0;
 }

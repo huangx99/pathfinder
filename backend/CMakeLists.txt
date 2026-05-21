@@ -729,22 +729,6 @@ target_link_libraries(pathfinder_goal_execution PUBLIC
     pathfinder_reaction
 )
 
-# World Interaction library (P38)
-add_library(pathfinder_world_interaction STATIC
-    src/world_interaction/world_services.cpp
-)
-
-target_include_directories(pathfinder_world_interaction PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
-)
-
-target_link_libraries(pathfinder_world_interaction PUBLIC
-    pathfinder_foundation
-    pathfinder_world_interaction_types
-    pathfinder_agent_reasoning
-    pathfinder_goal_execution
-)
-
 # Content library (P42)
 add_library(pathfinder_content STATIC
     src/content/content_types.cpp
@@ -761,127 +745,6 @@ target_include_directories(pathfinder_content PUBLIC
 target_link_libraries(pathfinder_content PUBLIC
     pathfinder_foundation
     pathfinder_config
-)
-
-# DEPRECATED H5 compatibility: kept only for old prototype/tests; do not extend for new clients.
-# Content Runtime Adapter (P42) - bridges content and h5_dialog
-add_library(pathfinder_content_runtime_adapter STATIC
-    src/content/content_runtime_adapter.cpp
-)
-
-target_include_directories(pathfinder_content_runtime_adapter PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
-)
-
-target_link_libraries(pathfinder_content_runtime_adapter PUBLIC
-    pathfinder_content
-    pathfinder_agent_reasoning
-    pathfinder_h5_dialog
-)
-
-# DEPRECATED H5 compatibility: use generic Client Protocol (P53+) for new clients.
-# H5 Dialog library (P22)
-add_library(pathfinder_h5_dialog STATIC
-    src/h5_dialog/dialog_types.cpp
-    src/h5_dialog/dialog_intent.cpp
-    src/h5_dialog/dialog_scenario.cpp
-    src/h5_dialog/dialog_session.cpp
-    src/h5_dialog/dialog_learning_adapter.cpp
-    src/h5_dialog/dialog_presenter.cpp
-    src/h5_dialog/dialog_turn_service.cpp
-    src/h5_dialog/dialog_wire_codec.cpp
-    src/h5_dialog/dialog_http_server.cpp
-)
-
-target_include_directories(pathfinder_h5_dialog PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
-)
-
-target_compile_definitions(pathfinder_h5_dialog PRIVATE
-    PATHFINDER_CONTENT_ROOT="${CMAKE_SOURCE_DIR}/../content"
-)
-
-target_link_libraries(pathfinder_h5_dialog PUBLIC
-    pathfinder_foundation
-    pathfinder_world_interaction
-    pathfinder_condition
-    pathfinder_cognition
-    pathfinder_memory
-    pathfinder_knowledge
-    pathfinder_learning
-    pathfinder_content
-)
-
-
-# DEPRECATED H5 compatibility: use generic Client Projection (P53+) for new clients.
-# H5 Projection library (P32)
-add_library(pathfinder_h5_projection STATIC
-    src/h5_projection/projection.cpp
-)
-
-target_include_directories(pathfinder_h5_projection PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
-)
-
-target_link_libraries(pathfinder_h5_projection PUBLIC
-    pathfinder_foundation
-    pathfinder_protocol
-    pathfinder_replay_diagnostics
-)
-
-
-# Story library (P37)
-add_library(pathfinder_story STATIC
-    src/story/story_types.cpp
-    src/story/story_system.cpp
-)
-
-target_include_directories(pathfinder_story PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
-)
-
-target_link_libraries(pathfinder_story PUBLIC
-    pathfinder_foundation
-    pathfinder_h5_projection
-)
-
-# DEPRECATED H5 compatibility: do not extend; replace via Client Protocol (P53+).
-# H5 Playable shell library (P33)
-add_library(pathfinder_h5_playable STATIC
-    src/h5_playable/playable_types.cpp
-    src/h5_playable/playable_projection_mapper.cpp
-    src/h5_playable/playable_turn_service.cpp
-    src/h5_playable/playable_wire_codec.cpp
-    src/h5_playable/playable_http_server.cpp
-)
-
-target_include_directories(pathfinder_h5_playable PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
-)
-
-target_link_libraries(pathfinder_h5_playable PUBLIC
-    pathfinder_foundation
-    pathfinder_world_interaction
-    pathfinder_goal_execution
-    pathfinder_h5_dialog
-    pathfinder_h5_projection
-    pathfinder_story
-    pathfinder_condition
-    pathfinder_knowledge
-)
-
-# DEPRECATED H5 compatibility server: temporary manual testing only.
-# H5 Playable Server executable (P33)
-add_executable(pathfinder_h5_playable_server_exe
-    apps/h5_playable_server_main.cpp
-)
-
-set_target_properties(pathfinder_h5_playable_server_exe PROPERTIES
-    OUTPUT_NAME pathfinder_h5_playable_server
-)
-
-target_link_libraries(pathfinder_h5_playable_server_exe PRIVATE
-    pathfinder_h5_playable
 )
 
 # World Runtime library (P44)
@@ -1197,20 +1060,6 @@ target_link_libraries(pathfinder_world_inventory_command PUBLIC
     pathfinder_world_command
     pathfinder_world_runtime
     pathfinder_world_inventory
-)
-
-# DEPRECATED H5 compatibility server: temporary manual testing only.
-# H5 Dialog Server executable (P22)
-add_executable(pathfinder_h5_dialog_server_exe
-    apps/h5_dialog_server_main.cpp
-)
-
-set_target_properties(pathfinder_h5_dialog_server_exe PROPERTIES
-    OUTPUT_NAME pathfinder_h5_dialog_server
-)
-
-target_link_libraries(pathfinder_h5_dialog_server_exe PRIVATE
-    pathfinder_h5_dialog
 )
 
 # Tests
