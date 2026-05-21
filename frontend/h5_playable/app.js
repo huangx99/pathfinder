@@ -1,3 +1,6 @@
+// DEPRECATED: Legacy H5 prototype UI. Do not extend for new gameplay.
+// New clients must use the generic Client Protocol (P53+) and WorldCommand pipeline.
+
 (function() {
   "use strict";
 

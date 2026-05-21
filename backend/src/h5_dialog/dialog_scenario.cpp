@@ -1,3 +1,6 @@
+// DEPRECATED: Legacy H5 prototype code. Do not extend for new gameplay.
+// New clients must use the generic Client Protocol (P53+) and WorldCommand pipeline.
+
 #include "pathfinder/h5_dialog/dialog_scenario.h"
 #include "pathfinder/content/json_content_loader.h"
 #include "pathfinder/content/content_registry.h"

@@ -763,6 +763,7 @@ target_link_libraries(pathfinder_content PUBLIC
     pathfinder_config
 )
 
+# DEPRECATED H5 compatibility: kept only for old prototype/tests; do not extend for new clients.
 # Content Runtime Adapter (P42) - bridges content and h5_dialog
 add_library(pathfinder_content_runtime_adapter STATIC
     src/content/content_runtime_adapter.cpp
@@ -778,6 +779,7 @@ target_link_libraries(pathfinder_content_runtime_adapter PUBLIC
     pathfinder_h5_dialog
 )
 
+# DEPRECATED H5 compatibility: use generic Client Protocol (P53+) for new clients.
 # H5 Dialog library (P22)
 add_library(pathfinder_h5_dialog STATIC
     src/h5_dialog/dialog_types.cpp
@@ -811,6 +813,7 @@ target_link_libraries(pathfinder_h5_dialog PUBLIC
 )
 
 
+# DEPRECATED H5 compatibility: use generic Client Projection (P53+) for new clients.
 # H5 Projection library (P32)
 add_library(pathfinder_h5_projection STATIC
     src/h5_projection/projection.cpp
@@ -842,6 +845,7 @@ target_link_libraries(pathfinder_story PUBLIC
     pathfinder_h5_projection
 )
 
+# DEPRECATED H5 compatibility: do not extend; replace via Client Protocol (P53+).
 # H5 Playable shell library (P33)
 add_library(pathfinder_h5_playable STATIC
     src/h5_playable/playable_types.cpp
@@ -866,6 +870,7 @@ target_link_libraries(pathfinder_h5_playable PUBLIC
     pathfinder_knowledge
 )
 
+# DEPRECATED H5 compatibility server: temporary manual testing only.
 # H5 Playable Server executable (P33)
 add_executable(pathfinder_h5_playable_server_exe
     apps/h5_playable_server_main.cpp
@@ -1120,6 +1125,28 @@ target_link_libraries(pathfinder_world_learning PUBLIC
     pathfinder_condition
 )
 
+# Client Protocol library (P53)
+add_library(pathfinder_client_protocol STATIC
+    src/client_protocol/client_protocol_types.cpp
+    src/client_protocol/client_protocol_codec.cpp
+    src/client_protocol/client_projection_adapter.cpp
+    src/client_protocol/client_patch_contract.cpp
+    src/client_protocol/client_available_command_adapter.cpp
+    src/client_protocol/client_session_gateway.cpp
+    src/client_protocol/client_command_gateway.cpp
+    src/client_protocol/client_protocol_harness.cpp
+)
+
+target_include_directories(pathfinder_client_protocol PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/nlohmann
+)
+
+target_link_libraries(pathfinder_client_protocol PUBLIC
+    pathfinder_foundation
+    pathfinder_world_command
+)
+
 # World Inventory Command library (P45 runtime-aware inventory handlers)
 add_library(pathfinder_world_inventory_command STATIC
     src/world_inventory/world_inventory_command_handlers.cpp
@@ -1135,6 +1162,7 @@ target_link_libraries(pathfinder_world_inventory_command PUBLIC
     pathfinder_world_inventory
 )
 
+# DEPRECATED H5 compatibility server: temporary manual testing only.
 # H5 Dialog Server executable (P22)
 add_executable(pathfinder_h5_dialog_server_exe
     apps/h5_dialog_server_main.cpp

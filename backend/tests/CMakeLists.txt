@@ -6482,3 +6482,93 @@ add_test(NAME world_learning_craft_experience_uses_p48_knowledge_template COMMAN
 add_test(NAME world_learning_harvest_experience_uses_p47_output COMMAND pathfinder_tests_world_learning_integration harvest_experience_uses_p47_output)
 add_test(NAME world_learning_command_result_merges_learning_events COMMAND pathfinder_tests_world_learning_integration command_result_merges_learning_events)
 add_test(NAME world_learning_missing_template_does_not_fail_craft COMMAND pathfinder_tests_world_learning_integration missing_template_does_not_fail_craft)
+
+# Client Protocol unit tests (P53)
+add_executable(pathfinder_tests_client_protocol
+    unit/client_protocol/client_protocol_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_client_protocol PRIVATE
+    pathfinder_client_protocol
+    pathfinder_world_command
+    pathfinder_foundation
+)
+
+add_test(NAME client_protocol_enum COMMAND pathfinder_tests_client_protocol enum)
+add_test(NAME client_protocol_dto_validation COMMAND pathfinder_tests_client_protocol dto_validation)
+add_test(NAME client_protocol_codec_roundtrip COMMAND pathfinder_tests_client_protocol codec_roundtrip)
+add_test(NAME client_protocol_projection_version COMMAND pathfinder_tests_client_protocol projection_version)
+add_test(NAME client_protocol_available_command COMMAND pathfinder_tests_client_protocol available_command)
+add_test(NAME client_protocol_security_request COMMAND pathfinder_tests_client_protocol security_request)
+add_test(NAME client_protocol_projection_adapter COMMAND pathfinder_tests_client_protocol projection_adapter)
+add_test(NAME client_protocol_codec_rejects_unknown_enum COMMAND pathfinder_tests_client_protocol codec_rejects_unknown_enum)
+add_test(NAME client_protocol_snapshot_materialize COMMAND pathfinder_tests_client_protocol snapshot_materialize)
+add_test(NAME client_protocol_projection_codec_full_roundtrip COMMAND pathfinder_tests_client_protocol projection_codec_full_roundtrip)
+add_test(NAME client_protocol_patch_codec_full_roundtrip COMMAND pathfinder_tests_client_protocol patch_codec_full_roundtrip)
+
+# Client Protocol integration tests (P53)
+add_executable(pathfinder_tests_client_protocol_integration
+    integration/client_protocol/client_protocol_integration_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_client_protocol_integration PRIVATE
+    pathfinder_client_protocol
+    pathfinder_world_command
+    pathfinder_foundation
+)
+
+add_test(NAME client_protocol_bootstrap_command_patch_refresh COMMAND pathfinder_tests_client_protocol_integration bootstrap_command_patch_refresh)
+add_test(NAME client_protocol_failed_command_safe_response COMMAND pathfinder_tests_client_protocol_integration failed_command_safe_response)
+add_test(NAME client_protocol_stale_projection_requires_refresh COMMAND pathfinder_tests_client_protocol_integration stale_projection_requires_refresh)
+add_test(NAME client_protocol_expired_option_blocked COMMAND pathfinder_tests_client_protocol_integration expired_option_blocked)
+add_test(NAME client_protocol_codec_roundtrip_through_harness COMMAND pathfinder_tests_client_protocol_integration codec_roundtrip_through_harness)
+add_test(NAME client_protocol_reset_creates_new_session COMMAND pathfinder_tests_client_protocol_integration reset_creates_new_session)
+add_test(NAME client_protocol_available_commands_only_from_backend COMMAND pathfinder_tests_client_protocol_integration available_commands_only_from_backend)
+add_test(NAME client_protocol_command_response_completeness COMMAND pathfinder_tests_client_protocol_integration command_response_completeness)
+add_test(NAME client_protocol_forged_actor_ignored COMMAND pathfinder_tests_client_protocol_integration forged_actor_ignored)
+add_test(NAME client_protocol_world_command_dto_wrong_actor_blocked COMMAND pathfinder_tests_client_protocol_integration world_command_dto_wrong_actor_blocked)
+add_test(NAME client_protocol_stale_projection_no_execution COMMAND pathfinder_tests_client_protocol_integration stale_projection_no_execution)
+add_test(NAME client_protocol_forged_option_id_blocked COMMAND pathfinder_tests_client_protocol_integration forged_option_id_blocked)
+add_test(NAME client_protocol_old_option_after_version_advance_blocked COMMAND pathfinder_tests_client_protocol_integration old_option_after_version_advance_blocked)
+add_test(NAME client_protocol_world_command_dto_illegal_source_blocked COMMAND pathfinder_tests_client_protocol_integration world_command_dto_illegal_source_blocked)
+add_test(NAME client_protocol_command_updates_snapshot_authority COMMAND pathfinder_tests_client_protocol_integration command_updates_snapshot_authority)
+add_test(NAME client_protocol_client_id_mismatch_blocked COMMAND pathfinder_tests_client_protocol_integration client_id_mismatch_blocked)
+add_test(NAME client_protocol_blocked_response_codec_roundtrip COMMAND pathfinder_tests_client_protocol_integration blocked_response_codec_roundtrip)
+add_test(NAME client_protocol_multi_session_version_isolation COMMAND pathfinder_tests_client_protocol_integration multi_session_version_isolation)
+add_test(NAME client_protocol_unsafe_parameters_blocked COMMAND pathfinder_tests_client_protocol_integration unsafe_parameters_blocked)
+add_test(NAME client_protocol_world_command_dto_generate_world_blocked COMMAND pathfinder_tests_client_protocol_integration world_command_dto_generate_world_blocked)
+add_test(NAME client_protocol_world_command_dto_key_mismatch_blocked COMMAND pathfinder_tests_client_protocol_integration world_command_dto_key_mismatch_blocked)
+add_test(NAME client_protocol_world_command_dto_target_mismatch_blocked COMMAND pathfinder_tests_client_protocol_integration world_command_dto_target_mismatch_blocked)
+add_test(NAME client_protocol_world_command_dto_target_entity_forged_blocked COMMAND pathfinder_tests_client_protocol_integration world_command_dto_target_entity_forged_blocked)
+add_test(NAME client_protocol_world_command_dto_target_coord_mismatch_blocked COMMAND pathfinder_tests_client_protocol_integration world_command_dto_target_coord_mismatch_blocked)
+add_test(NAME client_protocol_world_command_dto_parameters_injected_blocked COMMAND pathfinder_tests_client_protocol_integration world_command_dto_parameters_injected_blocked)
+
+# Architecture guard tests: P53 client_protocol must not contain H5V2 naming
+add_test(
+    NAME architecture_client_protocol_no_h5v2_naming
+    COMMAND bash -c "! grep -rni 'H5V2\\|h5_v2\\|h5-v2' ${CMAKE_CURRENT_SOURCE_DIR}/../include/pathfinder/client_protocol/ ${CMAKE_CURRENT_SOURCE_DIR}/../src/client_protocol/ ${CMAKE_CURRENT_SOURCE_DIR}/unit/client_protocol/ ${CMAKE_CURRENT_SOURCE_DIR}/integration/client_protocol/"
+)
+
+# Architecture guard: client_protocol must not hard-code content keys
+add_test(
+    NAME architecture_client_protocol_no_content_hardcode
+    COMMAND bash -c "! grep -rni 'red_berry\\|berry\\|torch\\|fire\\|wolf\\|wood\\|companion\\|beast_shadow\\|mushroom' ${CMAKE_CURRENT_SOURCE_DIR}/../include/pathfinder/client_protocol/ ${CMAKE_CURRENT_SOURCE_DIR}/../src/client_protocol/"
+)
+
+# Architecture guard: client_protocol must not read content JSON
+add_test(
+    NAME architecture_client_protocol_no_content_json
+    COMMAND bash -c "! grep -rni 'content/core\\|recipes\\|reaction_rules\\|knowledge_templates\\|ContentRegistry' ${CMAKE_CURRENT_SOURCE_DIR}/../include/pathfinder/client_protocol/ ${CMAKE_CURRENT_SOURCE_DIR}/../src/client_protocol/"
+)
+
+# Architecture guard: client_protocol must not inject knowledge
+add_test(
+    NAME architecture_client_protocol_no_knowledge_injection
+    COMMAND bash -c "! grep -rni 'KnowledgeClaim\\|recipient_claim_json\\|knowledge_json\\|force_learn\\|force_teach\\|learned=true' --exclude=client_command_gateway.cpp ${CMAKE_CURRENT_SOURCE_DIR}/../include/pathfinder/client_protocol/ ${CMAKE_CURRENT_SOURCE_DIR}/../src/client_protocol/"
+)
+
+# Architecture guard: client_protocol must not directly modify runtime arrays
+add_test(
+    NAME architecture_client_protocol_no_runtime_mutation
+    COMMAND bash -c "! grep -rni '\\.actors\\[\\|\\.entities\\[\\|\\.inventories\\[\\|\\.resource_nodes\\[\\|createOrUpdateGeneratedCell\\|upsertGeneratedResourceNode' ${CMAKE_CURRENT_SOURCE_DIR}/../include/pathfinder/client_protocol/ ${CMAKE_CURRENT_SOURCE_DIR}/../src/client_protocol/"
+)

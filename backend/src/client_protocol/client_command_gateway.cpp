@@ -1,0 +1,324 @@
+#include "pathfinder/client_protocol/client_command_gateway.h"
+#include "pathfinder/foundation/error.h"
+
+namespace pathfinder::client_protocol {
+
+using pathfinder::foundation::ErrorCode;
+using pathfinder::foundation::makeError;
+using pathfinder::foundation::Result;
+using pathfinder::world_command::WorldCommandResponseDto;
+using pathfinder::world_command::WorldCommandResultKind;
+using pathfinder::world_command::WorldCommandSource;
+
+ClientCommandGateway::ClientCommandGateway(
+    ClientSessionGateway& session_gateway,
+    pathfinder::world_command::WorldCommandPipeline& pipeline,
+    const ClientPatchContract& patch_contract,
+    const ClientAvailableCommandAdapter& available_command_adapter)
+    : session_gateway_(session_gateway)
+    , pipeline_(pipeline)
+    , patch_contract_(patch_contract)
+    , available_command_adapter_(available_command_adapter) {}
+
+Result<void> ClientCommandGateway::validateClientCommandDto(
+    const WorldCommandDto& command,
+    const std::string& session_actor_key,
+    const std::vector<WorldCommandOptionDto>& snapshot) const {
+
+    // Actor must match session-bound actor.
+    if (command.actor_key != session_actor_key) {
+        return Result<void>::fail(
+            makeError(ErrorCode::command_not_allowed_now,
+                "Command actor_key does not match session actor: " + command.actor_key)
+        );
+    }
+
+    // Source must be PlayerInput for client-submitted commands.
+    if (command.source != WorldCommandSource::PlayerInput) {
+        return Result<void>::fail(
+            makeError(ErrorCode::command_not_allowed_now,
+                "Client command source must be PlayerInput")
+        );
+    }
+
+    // Reject hidden debug flag.
+    if (command.context.allow_hidden_debug) {
+        return Result<void>::fail(
+            makeError(ErrorCode::command_not_allowed_now,
+                "Client commands cannot use allow_hidden_debug")
+        );
+    }
+
+    // Reject unsafe parameters that could bypass client protocol constraints.
+    static const std::vector<std::string> unsafe_param_keys = {
+        "recipient_claim_json",
+        "knowledge_json",
+        "force_learn",
+        "force_teach",
+        "learned",
+        "raw_state",
+        "hidden_truth",
+        "content_key_rule_hint"
+    };
+    for (const auto& key : unsafe_param_keys) {
+        if (command.parameters.find(key) != command.parameters.end()) {
+            return Result<void>::fail(
+                makeError(ErrorCode::command_not_allowed_now,
+                    "Unsafe parameter not allowed: " + key)
+            );
+        }
+    }
+
+    // Client-submitted WorldCommandDto.parameters must be empty.
+    // available_commands does not currently express parameter signatures,
+    // so any parameters are treated as unissued / forged.
+    if (!command.parameters.empty()) {
+        return Result<void>::fail(
+            makeError(ErrorCode::command_not_allowed_now,
+                "Client WorldCommandDto parameters must be empty")
+        );
+    }
+
+    // WorldCommandDto must match an option in the latest available_commands snapshot.
+    // This prevents clients from bypassing option authority and executing unissued commands.
+    auto targetsEqual = [](const WorldCommandTargetDto& a, const WorldCommandTargetDto& b) -> bool {
+        if (a.target_kind != b.target_kind) return false;
+        if (a.target_entity_id != b.target_entity_id) return false;
+        if (a.target_actor_key != b.target_actor_key) return false;
+        if (a.target_item_key != b.target_item_key) return false;
+        if (a.target_inventory_id != b.target_inventory_id) return false;
+        if (a.target_area_id != b.target_area_id) return false;
+        if (a.knowledge_key != b.knowledge_key) return false;
+        if (a.recipe_key != b.recipe_key) return false;
+        if (a.target_coord.has_value() != b.target_coord.has_value()) return false;
+        if (a.target_coord.has_value()) {
+            if (a.target_coord->x != b.target_coord->x) return false;
+            if (a.target_coord->y != b.target_coord->y) return false;
+            if (a.target_coord->layer_key != b.target_coord->layer_key) return false;
+        }
+        return true;
+    };
+
+    bool matched = false;
+    for (const auto& opt : snapshot) {
+        if (opt.command_kind == command.command_kind &&
+            opt.command_key == command.command_key &&
+            targetsEqual(opt.target, command.target)) {
+            matched = true;
+            break;
+        }
+    }
+    if (!matched) {
+        return Result<void>::fail(
+            makeError(ErrorCode::command_not_allowed_now,
+                "Command kind/key/target does not match any available option")
+        );
+    }
+
+    return Result<void>::ok();
+}
+
+Result<WorldCommandDto> ClientCommandGateway::resolveCommand(
+    const ClientCommandRequest& request,
+    const std::string& actor_key) {
+
+    if (request.submit_mode == ClientSubmitMode::OptionId) {
+        // Authority: option_id must exist in the session's latest snapshot.
+        if (!session_gateway_.isOptionValid(request.session_id, request.option_id)) {
+            return Result<WorldCommandDto>::fail(
+                makeError(ErrorCode::command_unknown_type,
+                    "Unknown or expired option_id: " + request.option_id)
+            );
+        }
+
+        auto snapshot_result = session_gateway_.getAvailableCommands(request.session_id);
+        if (snapshot_result.is_error()) {
+            return Result<WorldCommandDto>::fail(snapshot_result.errors());
+        }
+
+        auto result = available_command_adapter_.materializeOption(
+            request.option_id, actor_key, snapshot_result.value());
+        if (result.is_error()) {
+            return Result<WorldCommandDto>::fail(result.errors());
+        }
+        auto cmd = result.value();
+        cmd.context.client_sequence = request.client_sequence;
+        return Result<WorldCommandDto>::ok(std::move(cmd));
+    }
+
+    if (request.submit_mode == ClientSubmitMode::WorldCommandDto) {
+        if (!request.command.has_value()) {
+            return Result<WorldCommandDto>::fail(
+                makeError(ErrorCode::command_missing_required_field, "WorldCommandDto mode requires command")
+            );
+        }
+        auto cmd = request.command.value();
+
+        // Enforce session policy on client-submitted commands.
+        auto snapshot_result = session_gateway_.getAvailableCommands(request.session_id);
+        if (snapshot_result.is_error()) {
+            return Result<WorldCommandDto>::fail(snapshot_result.errors());
+        }
+        auto policy_result = validateClientCommandDto(cmd, actor_key, snapshot_result.value());
+        if (policy_result.is_error()) {
+            return Result<WorldCommandDto>::fail(policy_result.errors());
+        }
+
+        // Normalize actor to session authority.
+        cmd.actor_key = actor_key;
+        cmd.context.client_sequence = request.client_sequence;
+        return Result<WorldCommandDto>::ok(std::move(cmd));
+    }
+
+    return Result<WorldCommandDto>::fail(
+        makeError(ErrorCode::command_not_allowed_now, "Unsupported submit_mode")
+    );
+}
+
+ClientCommandResponse ClientCommandGateway::buildBlockedResponse(
+    const std::string& session_id,
+    uint64_t client_sequence,
+    uint64_t projection_version,
+    const std::string& reason_key,
+    bool requires_full_refresh,
+    const std::string& actor_key) {
+
+    ClientCommandResponse response;
+    response.session_id = session_id;
+    response.accepted_client_sequence = client_sequence;
+    response.base_projection_version = projection_version;
+    response.new_projection_version = projection_version;
+    response.requires_full_refresh = requires_full_refresh;
+    response.result.command_id = "blocked_" + std::to_string(client_sequence);
+    response.result.command_key = "blocked";
+    response.result.actor_key = actor_key;
+    response.result.result_kind = WorldCommandResultKind::Blocked;
+    response.result.failure_reason_keys.push_back(reason_key);
+
+    auto snapshot_result = session_gateway_.getAvailableCommands(session_id);
+    if (snapshot_result.is_ok()) {
+        response.available_commands = snapshot_result.value();
+    }
+
+    return response;
+}
+
+Result<ClientCommandResponse> ClientCommandGateway::handleCommand(
+    const ClientCommandRequest& request) {
+    auto valid = request.validateBasic();
+    if (valid.is_error()) {
+        return Result<ClientCommandResponse>::fail(valid.errors());
+    }
+
+    if (!session_gateway_.hasSession(request.session_id)) {
+        return Result<ClientCommandResponse>::ok(
+            buildBlockedResponse(request.session_id, request.client_sequence, 0, "session_not_found")
+        );
+    }
+
+    auto version_result = session_gateway_.getProjectionVersion(request.session_id);
+    if (version_result.is_error()) {
+        return Result<ClientCommandResponse>::fail(version_result.errors());
+    }
+    uint64_t current_version = version_result.value();
+
+    // Get actor_key from session authority. Never trust client selection_context.
+    auto actor_result = session_gateway_.getSessionActorKey(request.session_id);
+    if (actor_result.is_error()) {
+        return Result<ClientCommandResponse>::fail(actor_result.errors());
+    }
+    std::string actor_key = actor_result.value();
+
+    // Validate client_id matches session.
+    auto session_client_result = session_gateway_.getSessionClientId(request.session_id);
+    if (session_client_result.is_error()) {
+        return Result<ClientCommandResponse>::fail(session_client_result.errors());
+    }
+    if (request.client_id != session_client_result.value()) {
+        auto response = buildBlockedResponse(
+            request.session_id, request.client_sequence, current_version, "client_id_mismatch", false, actor_key);
+        return Result<ClientCommandResponse>::ok(std::move(response));
+    }
+
+    // Version mismatch: block immediately, do not execute.
+    if (request.known_projection_version != current_version) {
+        auto response = buildBlockedResponse(
+            request.session_id, request.client_sequence, current_version,
+            "projection_version_stale", true, actor_key);
+        response.base_projection_version = request.known_projection_version;
+        response.projection_patch = patch_contract_.buildFullRefreshHint(
+            request.known_projection_version, current_version);
+        return Result<ClientCommandResponse>::ok(std::move(response));
+    }
+
+    // Resolve command.
+    auto cmd_result = resolveCommand(request, actor_key);
+    if (cmd_result.is_error()) {
+        auto response = buildBlockedResponse(
+            request.session_id, request.client_sequence, current_version, "option_materialize_failed", false, actor_key);
+        response.result.failure_reason_keys.clear();
+        for (const auto& err : cmd_result.errors()) {
+            response.result.failure_reason_keys.push_back(err.message_key);
+        }
+        return Result<ClientCommandResponse>::ok(std::move(response));
+    }
+
+    auto command = cmd_result.value();
+
+    // Sync pipeline projection version to session's current version before execution.
+    // This prevents version crosstalk when multiple sessions share the same pipeline.
+    pipeline_.setCurrentProjectionVersion(current_version);
+
+    // Execute via WorldCommandPipeline.
+    auto pipeline_result = pipeline_.execute(request.session_id, command);
+    if (pipeline_result.is_error()) {
+        return Result<ClientCommandResponse>::fail(pipeline_result.errors());
+    }
+
+    const auto& pipeline_response = pipeline_result.value();
+
+    // Update session projection version if pipeline advanced it.
+    if (pipeline_response.projection_patch.new_projection_version > current_version) {
+        session_gateway_.updateProjectionVersion(
+            request.session_id, pipeline_response.projection_patch.new_projection_version);
+    }
+
+    // Build ClientCommandResponse from pipeline response.
+    ClientCommandResponse response;
+    response.session_id = pipeline_response.session_id;
+    response.accepted_client_sequence = request.client_sequence;
+    response.base_projection_version = pipeline_response.projection_patch.base_projection_version;
+    response.new_projection_version = pipeline_response.projection_patch.new_projection_version;
+    response.result = pipeline_response.result;
+    response.projection_patch = pipeline_response.projection_patch;
+    response.event_feed = pipeline_response.event_feed;
+    response.experiences = pipeline_response.experiences;
+    response.frontend_hints = pipeline_response.frontend_hints;
+    response.warning_keys = pipeline_response.warning_keys;
+
+    // If pipeline did not provide available_commands, build from adapter.
+    if (pipeline_response.available_commands.empty()) {
+        auto options_result = available_command_adapter_.buildOptions(actor_key, "surface");
+        if (options_result.is_ok()) {
+            response.available_commands = options_result.value();
+        }
+    } else {
+        response.available_commands = pipeline_response.available_commands;
+    }
+
+    // If pipeline flagged full refresh, require it.
+    if (patch_contract_.requiresFullRefresh(
+            response.projection_patch, request.known_projection_version)) {
+        response.requires_full_refresh = true;
+        response.projection_patch.requires_full_refresh = true;
+    }
+
+    // Persist the latest available commands snapshot back to the session.
+    // This ensures the next command's option authority uses the most recent state.
+    session_gateway_.updateAvailableCommands(
+        request.session_id, response.available_commands);
+
+    return Result<ClientCommandResponse>::ok(std::move(response));
+}
+
+} // namespace pathfinder::client_protocol

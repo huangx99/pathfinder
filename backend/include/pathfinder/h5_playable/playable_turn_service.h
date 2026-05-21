@@ -1,3 +1,6 @@
+// DEPRECATED: Legacy H5 prototype code. Do not extend for new gameplay.
+// New clients must use the generic Client Protocol (P53+) and WorldCommand pipeline.
+
 #pragma once
 
 #include "pathfinder/h5_dialog/dialog_turn_service.h"

@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+
+# DEPRECATED: Legacy H5 prototype restart helper. Do not extend for new gameplay.
+# New clients must use the generic Client Protocol (P53+) and WorldCommand pipeline.
 set -Eeuo pipefail
 
 # Rebuild and restart only the Pathfinder H5 playable server on port 1999.
