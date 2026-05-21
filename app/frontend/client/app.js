@@ -23,7 +23,8 @@
     lastDirectionSubmitTime: 0,
   };
 
-  const DIRECTION_COOLDOWN_MS = 400;
+  const DIRECTION_COOLDOWN_MS = 80;
+  const DIRECTION_REPEAT_MS = 120;
 
   // ---------------------------------------------------------------------------
   // 2. DOM refs
@@ -41,8 +42,7 @@
   const resetBtn = document.getElementById('resetBtn');
   const toastContainer = document.getElementById('toastContainer');
   const joystickZone = document.getElementById('joystickZone');
-  const joystickBase = document.getElementById('joystickBase');
-  const joystickKnob = document.getElementById('joystickKnob');
+  const dpadButtons = Array.from(document.querySelectorAll('.dpad-btn'));
   const wasdKeys = {
     w: null, a: null, s: null, d: null,
   };
@@ -63,8 +63,8 @@
 
   function log(msg, kind = 'info') {
     const entry = { time: new Date().toLocaleTimeString(), text: String(msg), kind };
-    state.logs.unshift(entry);
-    if (state.logs.length > 100) state.logs.pop();
+    state.logs.push(entry);
+    if (state.logs.length > 100) state.logs.shift();
     renderLogs();
   }
 
@@ -320,6 +320,29 @@
     );
   }
 
+  function commandLabel(cmd, fallback) {
+    if (!cmd) return fallback || '未知命令';
+    return cmd.label_text || cmd.command_kind || cmd.option_id || fallback || '未知命令';
+  }
+
+  function resultKindOf(resp) {
+    const result = resp && resp.result ? resp.result : {};
+    return String(result.result_kind || 'unknown').toLowerCase();
+  }
+
+  function resultText(kind) {
+    const map = {
+      succeeded: '成功',
+      noop: '无变化',
+      deferred: '已排队',
+      blocked: '被阻止',
+      failed: '失败',
+      interrupted: '被打断',
+      unknown: '未知结果',
+    };
+    return map[kind] || kind;
+  }
+
   // ---------------------------------------------------------------------------
   // 9. Submit flow
   // ---------------------------------------------------------------------------
@@ -328,7 +351,6 @@
       toast('请求处理中，请稍候', 'warn');
       return;
     }
-    // Verify option still exists
     const found = state.availableCommands.find(c => c.option_id === optionId);
     if (!found) {
       toast('该选项已过期，正在刷新…', 'warn');
@@ -336,16 +358,29 @@
       return;
     }
 
+    const label = commandLabel(found, optionId);
     setRequestState('submitting_command');
+    log(`正在执行: ${label}`, 'info');
     try {
       const resp = await apiCommand(optionId);
-      const status = applyCommandResponse(resp);
-      log(`命令提交: ${found.label_text || optionId} (${found.command_kind || '?'})`, 'success');
-      if (status === 'needs_refresh') {
+      const outcome = applyCommandResponse(resp);
+      if (outcome.status === 'needs_refresh') {
+        log(`状态不同步，刷新后再确认: ${label}`, 'warn');
         setRequestState('idle');
         await doRefresh();
         return;
       }
+
+      const kind = outcome.resultKind;
+      if (kind === 'succeeded') {
+        log(`执行成功: ${label}`, 'success');
+      } else if (kind === 'noop' || kind === 'deferred') {
+        log(`执行结果: ${label}（${resultText(kind)}）`, 'info');
+      } else {
+        const reason = outcome.failureReasons.length ? `: ${outcome.failureReasons.join(', ')}` : '';
+        log(`执行${resultText(kind)}: ${label}${reason}`, kind === 'blocked' ? 'warn' : 'error');
+      }
+      appendEvents(resp.event_feed, resp.frontend_hints, resp.warning_keys);
     } catch (err) {
       handleError('命令提交失败', err);
     } finally {
@@ -354,12 +389,13 @@
     }
   }
 
-  async function submitDirection(direction) {
+  async function submitDirection(direction, force = false) {
+    if (state.requestState !== 'idle') return;
     const now = Date.now();
-    if (now - state.lastDirectionSubmitTime < DIRECTION_COOLDOWN_MS) return;
+    if (!force && now - state.lastDirectionSubmitTime < DIRECTION_COOLDOWN_MS) return;
     const optionId = resolveMoveOption(direction);
     if (!optionId) {
-      // Don't spam toast; just ignore if no move option
+      if (force) log(`没有可用移动命令: ${directionText(direction)}`, 'warn');
       return;
     }
     state.lastDirectionSubmitTime = now;
@@ -368,35 +404,48 @@
 
   function applyCommandResponse(resp) {
     state.sessionId = safe(resp.session_id, state.sessionId);
+
+    const result = resp.result || {};
+    const failureReasons = safe(result.failure_reason_keys, []);
+    const outcome = {
+      status: 'ok',
+      resultKind: resultKindOf(resp),
+      failureReasons,
+    };
+
+    const patch = resp.projection_patch;
+    if (safe(resp.requires_full_refresh, false)) {
+      log('后端要求全量刷新', 'warn');
+      outcome.status = 'needs_refresh';
+      return outcome;
+    }
+    if (patch) {
+      const baseVer = safe(patch.base_projection_version, 0);
+      const localVer = state.projectionVersion;
+      if (baseVer !== 0 && baseVer !== localVer) {
+        log(`Patch 版本不匹配，本地=${localVer}，补丁基线=${baseVer}`, 'warn');
+        outcome.status = 'needs_refresh';
+        return outcome;
+      }
+      if (!applyPatch(patch)) {
+        log('本地缺少世界投影，执行全量刷新', 'warn');
+        outcome.status = 'needs_refresh';
+        return outcome;
+      }
+    }
+
     state.projectionVersion = safe(resp.new_projection_version, state.projectionVersion);
     state.availableCommands = safe(resp.available_commands, []);
     state.eventFeed = safe(resp.event_feed, []);
     state.frontendHints = safe(resp.frontend_hints, []);
     state.warningKeys = safe(resp.warning_keys, []);
 
-    const result = resp.result || {};
-    if (result.failure_reason_keys && result.failure_reason_keys.length) {
-      log('命令被阻止: ' + result.failure_reason_keys.join(', '), 'warn');
+    if (failureReasons.length) {
       toast('命令被阻止', 'warn');
     }
 
-    const patch = resp.projection_patch;
-    if (safe(resp.requires_full_refresh, false)) {
-      log('后端要求全量刷新', 'warn');
-      return 'needs_refresh';
-    }
-    if (patch) {
-      const baseVer = safe(patch.base_projection_version, 0);
-      if (baseVer !== 0 && baseVer !== state.projectionVersion) {
-        log('Patch 版本不匹配，执行刷新', 'warn');
-        return 'needs_refresh';
-      }
-      applyPatch(patch);
-    }
-
-    appendEvents(resp.event_feed, resp.frontend_hints, resp.warning_keys);
     saveSession();
-    return 'ok';
+    return outcome;
   }
 
   // ---------------------------------------------------------------------------
@@ -734,12 +783,13 @@
 
   function renderLogs() {
     logEntries.innerHTML = '';
-    for (const entry of state.logs.slice(0, 40)) {
+    for (const entry of state.logs.slice(-40)) {
       const div = document.createElement('div');
       div.className = 'log-entry ' + entry.kind;
       div.textContent = `[${entry.time}] ${entry.text}`;
       logEntries.appendChild(div);
     }
+    logEntries.scrollTop = logEntries.scrollHeight;
   }
 
   function renderDebug() {
@@ -756,90 +806,96 @@
   }
 
   // ---------------------------------------------------------------------------
-  // 12. Virtual Joystick
+  // 12. Mobile D-pad
   // ---------------------------------------------------------------------------
-  let joystickActive = false;
-  let joystickCenter = { x: 0, y: 0 };
-  let joystickCurrent = { x: 0, y: 0 };
+  let directionHoldTimer = null;
+  let activeDirectionButton = null;
+  let activeDirectionPointerId = null;
+
+  function directionText(direction) {
+    const map = { up: '向上', down: '向下', left: '向左', right: '向右' };
+    return map[direction] || direction;
+  }
+
+  function stopDirectionHold() {
+    if (directionHoldTimer) {
+      clearInterval(directionHoldTimer);
+      directionHoldTimer = null;
+    }
+    if (activeDirectionButton) {
+      activeDirectionButton.classList.remove('active');
+      activeDirectionButton = null;
+    }
+    activeDirectionPointerId = null;
+    state.pendingDirection = null;
+  }
+
+  function startDirectionHold(direction, button) {
+    stopDirectionHold();
+    activeDirectionButton = button;
+    activeDirectionButton.classList.add('active');
+    activeDirectionPointerId = null;
+    state.pendingDirection = direction;
+    log(`移动输入: ${directionText(direction)}`, 'info');
+    submitDirection(direction, true);
+    directionHoldTimer = setInterval(() => {
+      if (state.pendingDirection) {
+        submitDirection(state.pendingDirection);
+      }
+    }, DIRECTION_REPEAT_MS);
+  }
 
   function initJoystick() {
-    const base = joystickBase;
-    const knob = joystickKnob;
-
-    function getPos(e) {
-      const t = e.touches ? e.touches[0] : e;
-      const rect = base.getBoundingClientRect();
-      return { x: t.clientX - rect.left, y: t.clientY - rect.top };
+    if (!dpadButtons.length) {
+      log('移动方向键初始化失败', 'error');
+      return;
     }
 
-    function updateKnob() {
-      const maxR = base.clientWidth / 2 - knob.clientWidth / 2;
-      const dx = joystickCurrent.x - joystickCenter.x;
-      const dy = joystickCurrent.y - joystickCenter.y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      const clamped = dist > maxR ? maxR : dist;
-      const angle = Math.atan2(dy, dx);
-      const kx = Math.cos(angle) * clamped;
-      const ky = Math.sin(angle) * clamped;
-      knob.style.transform = `translate(${kx}px, ${ky}px)`;
+    for (const button of dpadButtons) {
+      const direction = button.dataset.dir;
+      if (!direction) continue;
 
-      // Determine direction
-      if (dist > 12) {
-        const deg = angle * 180 / Math.PI;
-        let dir = null;
-        if (deg >= -135 && deg < -45) dir = 'up';
-        else if (deg >= -45 && deg < 45) dir = 'right';
-        else if (deg >= 45 && deg < 135) dir = 'down';
-        else dir = 'left';
-        if (state.pendingDirection !== dir) {
-          state.pendingDirection = dir;
-          submitDirection(dir);
-        }
+      button.addEventListener('contextmenu', e => e.preventDefault());
+
+      if (window.PointerEvent) {
+        button.addEventListener('pointerdown', e => {
+          e.preventDefault();
+          activeDirectionPointerId = e.pointerId;
+          button.setPointerCapture(e.pointerId);
+          startDirectionHold(direction, button);
+        });
+
+        const endPointer = e => {
+          if (activeDirectionPointerId !== null && e.pointerId !== activeDirectionPointerId) return;
+          e.preventDefault();
+          if (button.hasPointerCapture && button.hasPointerCapture(e.pointerId)) {
+            button.releasePointerCapture(e.pointerId);
+          }
+          stopDirectionHold();
+        };
+
+        button.addEventListener('pointerup', endPointer);
+        button.addEventListener('pointercancel', endPointer);
       } else {
-        state.pendingDirection = null;
+        button.addEventListener('touchstart', e => {
+          e.preventDefault();
+          startDirectionHold(direction, button);
+        }, { passive: false });
+        button.addEventListener('touchend', e => {
+          e.preventDefault();
+          stopDirectionHold();
+        }, { passive: false });
+        button.addEventListener('touchcancel', e => {
+          e.preventDefault();
+          stopDirectionHold();
+        }, { passive: false });
+        button.addEventListener('mousedown', e => {
+          e.preventDefault();
+          startDirectionHold(direction, button);
+        });
+        window.addEventListener('mouseup', stopDirectionHold);
       }
     }
-
-    base.addEventListener('touchstart', e => {
-      e.preventDefault();
-      joystickActive = true;
-      const rect = base.getBoundingClientRect();
-      joystickCenter = { x: rect.width / 2, y: rect.height / 2 };
-      joystickCurrent = getPos(e);
-      updateKnob();
-    }, { passive: false });
-
-    base.addEventListener('touchmove', e => {
-      e.preventDefault();
-      if (!joystickActive) return;
-      joystickCurrent = getPos(e);
-      updateKnob();
-    }, { passive: false });
-
-    function endJoystick(e) {
-      if (e) e.preventDefault();
-      joystickActive = false;
-      state.pendingDirection = null;
-      knob.style.transform = 'translate(0,0)';
-    }
-
-    base.addEventListener('touchend', endJoystick, { passive: false });
-    base.addEventListener('touchcancel', endJoystick, { passive: false });
-
-    // Mouse fallback for desktop testing
-    base.addEventListener('mousedown', e => {
-      joystickActive = true;
-      const rect = base.getBoundingClientRect();
-      joystickCenter = { x: rect.width / 2, y: rect.height / 2 };
-      joystickCurrent = getPos(e);
-      updateKnob();
-    });
-    window.addEventListener('mousemove', e => {
-      if (!joystickActive) return;
-      joystickCurrent = getPos(e);
-      updateKnob();
-    });
-    window.addEventListener('mouseup', endJoystick);
   }
 
   // ---------------------------------------------------------------------------

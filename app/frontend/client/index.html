@@ -34,10 +34,13 @@
       <div class="log-entries" id="logEntries"></div>
     </section>
 
-    <!-- 虚拟摇杆：手机显示，电脑隐藏 -->
+    <!-- 手机方向键：稳定优先，前端只提交后端提供的移动 option_id -->
     <div class="joystick-zone" id="joystickZone">
-      <div class="joystick-base" id="joystickBase">
-        <div class="joystick-knob" id="joystickKnob"></div>
+      <div class="dpad" id="dpad" aria-label="移动方向键">
+        <button class="dpad-btn dpad-up" data-dir="up" aria-label="向上">▲</button>
+        <button class="dpad-btn dpad-left" data-dir="left" aria-label="向左">◀</button>
+        <button class="dpad-btn dpad-right" data-dir="right" aria-label="向右">▶</button>
+        <button class="dpad-btn dpad-down" data-dir="down" aria-label="向下">▼</button>
       </div>
       <div class="joystick-label">移动</div>
     </div>
