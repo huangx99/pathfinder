@@ -1,10 +1,10 @@
 (() => {
   const c = document.createElement('canvas');
-  c.width = 16; c.height = 16;
+  c.width = 48; c.height = 48;
   const x = c.getContext('2d');
-  x.fillStyle = '#1e3a1e'; x.fillRect(0, 0, 16, 16);
-  x.fillStyle = '#14532d'; x.fillRect(1, 4, 2, 2); x.fillRect(8, 12, 2, 2);
-  x.fillStyle = '#064e3b'; x.fillRect(12, 3, 1, 1); x.fillRect(5, 9, 1, 1);
+  x.fillStyle = '#1e3a1e'; x.fillRect(0, 0, 48, 48);
+  x.fillStyle = '#14532d'; x.fillRect(3, 12, 6, 6); x.fillRect(24, 36, 6, 6);
+  x.fillStyle = '#064e3b'; x.fillRect(36, 9, 3, 3); x.fillRect(15, 27, 3, 3);
   window.SPRITES = window.SPRITES || {};
   window.SPRITES.grass = c;
 })();
