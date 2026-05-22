@@ -109,15 +109,15 @@ static WorldgenProfile buildFirstWorldProfile() {
 
     profile.ground_item_rules = {
         {
-            "strange_tracks",
-            "entity.strange_tracks",
-            {"plain", "forest"},
+            "loose_stone",
+            "entity.loose_stone",
+            {"stone_field", "plain"},
             0.02,
             0, -1,
             1,
-            false,
-            "strange_tracks:default",
-            {"hint"},
+            true,
+            "loose_stone:default",
+            {},
             {},
             {}
         }
@@ -126,7 +126,7 @@ static WorldgenProfile buildFirstWorldProfile() {
     profile.spawn_safety.safe_radius = 2;
     profile.spawn_safety.basic_food_min_count = 1;
     profile.spawn_safety.basic_material_min_count = 2;
-    profile.spawn_safety.tool_hint_min_count = 1;
+    profile.spawn_safety.tool_hint_min_count = 0;
     profile.spawn_safety.immediate_threat_max_count = 0;
     profile.spawn_safety.guaranteed_resource_keys = {"food_basic", "wood_basic", "stone_basic"};
     profile.spawn_safety.forbidden_danger_keys = {"active_predator"};

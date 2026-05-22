@@ -1168,7 +1168,9 @@
       ctx.ellipse(px + tile / 2, py + tile - 3, tile * 0.28, 4, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      const breathe = Math.sin(timestamp * 0.003 + x * 0.7 + y * 0.4) * 1.2;
+      const entityKey = f.entity_key || f.entity_kind || f.kind || f.object_key || '';
+      const movingEntity = isActor || /beast|wolf|npc|companion/i.test(entityKey);
+      const breathe = movingEntity ? Math.sin(timestamp * 0.003 + x * 0.7 + y * 0.4) * 1.2 : 0;
       const drawY = py + breathe;
 
       if (state.selectedEntityId === e.entity_id) {
@@ -1191,11 +1193,12 @@
         if (sprite) ctx.drawImage(sprite, px, drawY, tile, tile);
         else drawEntityFallback(ctx, px + tile / 2, drawY + tile / 2, tile * 0.7, f, true);
       } else {
-        const kind = f.entity_kind || f.kind || f.object_key || 'unknown';
+        const kind = entityKey || f.display_name_key || 'unknown';
         let spriteKey = null;
         if (kind.includes('tree') || kind.includes('Tree')) spriteKey = 'tree';
         else if (kind.includes('beast') || kind.includes('wolf') || kind.includes('Beast') || kind.includes('Wolf')) spriteKey = 'wolf';
-        else if (kind.includes('item') || kind.includes('berry') || kind.includes('Berry') || kind.includes('rock') || kind.includes('Rock')) spriteKey = 'berry';
+        else if (kind.includes('stone') || kind.includes('Stone') || kind.includes('rock') || kind.includes('Rock')) spriteKey = 'loose_stone';
+        else if (kind.includes('berry') || kind.includes('Berry') || kind.includes('bush') || kind.includes('Bush')) spriteKey = 'berry';
         else if (kind.includes('npc') || kind.includes('NPC') || kind.includes('companion') || kind.includes('Companion')) spriteKey = 'npc';
         else if (kind.includes('campfire') || kind.includes('Campfire') || kind.includes('fire') || kind.includes('Fire')) spriteKey = 'campfire';
         else spriteKey = 'unknown';
