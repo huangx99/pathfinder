@@ -37,20 +37,14 @@ html, body {
 
 #gameCanvas {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: auto;
-  height: auto;
-  max-width: 100%;
-  max-height: 100%;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
   image-rendering: pixelated;
   image-rendering: crisp-edges;
   z-index: 0;
-  aspect-ratio: 1 / 1;
   background: #05070a;
-  border-radius: 8px;
-  box-shadow: 0 0 20px rgba(0,0,0,0.5);
 }
 
 /* 顶部 HUD */

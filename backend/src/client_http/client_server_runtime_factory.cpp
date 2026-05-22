@@ -31,7 +31,7 @@ ClientServerRuntimeFactory::ClientServerRuntimeFactory()
     config.world_id = "world_default";
     config.seed = 1;
     config.region_size = 9;
-    config.default_vision_radius = 3;
+    config.default_vision_radius = 12;
 
     auto init_res = world_runtime->initialize(config);
     if (init_res.is_error()) {
@@ -39,12 +39,11 @@ ClientServerRuntimeFactory::ClientServerRuntimeFactory()
     }
 
     // P57: Generate terrain via WorldGenerationService.
-    // Preload a 7x7 region grid around origin so the player can walk far
-    // without immediately hitting OutOfBounds. True infinite streaming is P59.
+    // Preload an 11x11 region grid so the player can explore a large area.
     auto worldgen_service = std::make_shared<world_generation::WorldGenerationService>();
     int total_cells = 0;
-    for (int rx = -3; rx <= 3; ++rx) {
-        for (int ry = -3; ry <= 3; ++ry) {
+    for (int rx = -5; rx <= 5; ++rx) {
+        for (int ry = -5; ry <= 5; ++ry) {
             world_generation::WorldGenerationRequest wg_request;
             wg_request.world_id = config.world_id;
             wg_request.world_seed = config.seed;

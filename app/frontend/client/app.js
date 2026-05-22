@@ -556,12 +556,14 @@
   // ---------------------------------------------------------------------------
   // 11. Rendering
   // ---------------------------------------------------------------------------
-  const TILE_SIZE = 16;
-  const VIEWPORT_TILES = 15;
+  const TILE_SIZE = 48;
+
+  function viewportTilesX() { return Math.ceil(canvas.width / TILE_SIZE); }
+  function viewportTilesY() { return Math.ceil(canvas.height / TILE_SIZE); }
 
   function resizeCanvas() {
-    canvas.width = VIEWPORT_TILES * TILE_SIZE;
-    canvas.height = VIEWPORT_TILES * TILE_SIZE;
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
     renderMap();
   }
 
@@ -623,11 +625,12 @@
       return;
     }
 
-    const half = Math.floor(VIEWPORT_TILES / 2);
+    const halfX = Math.floor(viewportTilesX() / 2);
+    const halfY = Math.floor(viewportTilesY() / 2);
     let viewMinX, viewMinY;
     if (actorCoord) {
-      viewMinX = actorCoord.x - half;
-      viewMinY = actorCoord.y - half;
+      viewMinX = actorCoord.x - halfX;
+      viewMinY = actorCoord.y - halfY;
     } else {
       let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
       for (const c of cells) {
@@ -646,8 +649,8 @@
       if (!isFinite(minY)) { minY = 0; maxY = 0; }
       const centerX = Math.floor((minX + maxX) / 2);
       const centerY = Math.floor((minY + maxY) / 2);
-      viewMinX = centerX - half;
-      viewMinY = centerY - half;
+      viewMinX = centerX - halfX;
+      viewMinY = centerY - halfY;
     }
 
     ctx.fillStyle = '#05070a';
@@ -706,8 +709,10 @@
     }
 
     // Fog of war for unexplored cells
-    for (let vy = 0; vy < VIEWPORT_TILES; ++vy) {
-      for (let vx = 0; vx < VIEWPORT_TILES; ++vx) {
+    const vtw = viewportTilesX();
+    const vth = viewportTilesY();
+    for (let vy = 0; vy < vth; ++vy) {
+      for (let vx = 0; vx < vtw; ++vx) {
         const worldX = viewMinX + vx;
         const worldY = viewMinY + vy;
         if (!exploredSet.has(`${worldX},${worldY}`)) {
