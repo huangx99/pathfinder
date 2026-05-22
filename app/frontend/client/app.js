@@ -713,11 +713,9 @@
         if (!exploredSet.has(`${worldX},${worldY}`)) {
           const px = vx * TILE_SIZE;
           const py = vy * TILE_SIZE;
-          ctx.fillStyle = '#0a0f14';
+          // Soft fog — no grid lines, just a very subtle dark fill
+          ctx.fillStyle = '#070a0e';
           ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
-          ctx.strokeStyle = '#111820';
-          ctx.lineWidth = 0.5;
-          ctx.strokeRect(px + 0.25, py + 0.25, TILE_SIZE - 0.5, TILE_SIZE - 0.5);
         }
       }
     }

@@ -38,12 +38,13 @@ ClientServerRuntimeFactory::ClientServerRuntimeFactory()
         std::cerr << "[P56] World runtime initialization failed\n";
     }
 
-    // P57: Generate terrain via WorldGenerationService (only origin region for now;
-    // adjacent regions are generated on-demand or via GenerateWorld command).
+    // P57: Generate terrain via WorldGenerationService.
+    // Preload a 7x7 region grid around origin so the player can walk far
+    // without immediately hitting OutOfBounds. True infinite streaming is P59.
     auto worldgen_service = std::make_shared<world_generation::WorldGenerationService>();
     int total_cells = 0;
-    for (int rx = -1; rx <= 1; ++rx) {
-        for (int ry = -1; ry <= 1; ++ry) {
+    for (int rx = -3; rx <= 3; ++rx) {
+        for (int ry = -3; ry <= 3; ++ry) {
             world_generation::WorldGenerationRequest wg_request;
             wg_request.world_id = config.world_id;
             wg_request.world_seed = config.seed;
