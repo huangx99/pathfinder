@@ -37,14 +37,18 @@ ResourceDistributionGenerator::Result ResourceDistributionGenerator::generate(
     WorldGenerationRng& rng) {
     Result result;
 
-    world_runtime::WorldCellCoord spawn_coord{0, 0, profile.default_layer};
+    // P57: use region center as the distance anchor for resource distribution
+    world_runtime::WorldCellCoord region_center{
+        request.region_coord.rx * request.region_size,
+        request.region_coord.ry * request.region_size,
+        profile.default_layer};
 
     for (const auto& rule : profile.resource_rules) {
         // Collect candidate cells
         std::vector<const GeneratedCellDraft*> candidates;
         for (const auto& cell : cells) {
             if (!isTerrainAllowed(cell, rule.allowed_terrain_tags)) continue;
-            int dist = manhattanDistance(cell.coord, spawn_coord);
+            int dist = manhattanDistance(cell.coord, region_center);
             if (dist < rule.min_distance_from_spawn) continue;
             if (rule.max_distance_from_spawn >= 0 && dist > rule.max_distance_from_spawn) continue;
             candidates.push_back(&cell);
@@ -117,13 +121,17 @@ std::vector<GeneratedEntityDraft> ResourceDistributionGenerator::generateGroundI
     WorldGenerationRng& rng) {
     std::vector<GeneratedEntityDraft> result;
 
-    world_runtime::WorldCellCoord spawn_coord{0, 0, profile.default_layer};
+    // P57: use region center as the distance anchor for ground item placement
+    world_runtime::WorldCellCoord region_center{
+        request.region_coord.rx * request.region_size,
+        request.region_coord.ry * request.region_size,
+        profile.default_layer};
 
     for (const auto& rule : profile.ground_item_rules) {
         std::vector<const GeneratedCellDraft*> candidates;
         for (const auto& cell : cells) {
             if (!isTerrainAllowed(cell, rule.allowed_terrain_tags)) continue;
-            int dist = manhattanDistance(cell.coord, spawn_coord);
+            int dist = manhattanDistance(cell.coord, region_center);
             if (dist < rule.min_distance_from_spawn) continue;
             if (rule.max_distance_from_spawn >= 0 && dist > rule.max_distance_from_spawn) continue;
             candidates.push_back(&cell);

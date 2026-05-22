@@ -32,13 +32,14 @@ static WorldgenProfile buildFirstWorldProfile() {
     };
 
     // P57: noise channels
-    // Scales reduced so even a 9x9 region shows multiple noise periods for visual variety.
+    // Elevation + Moisture use large scales to form natural biomes.
+    // Roughness / ResourceRichness / DangerPressure use smaller scales for local detail.
     profile.noise_channels = {
-        {NoiseChannelKind::Elevation,        NoiseAlgorithmKind::FractalPerlin2D, 4.0, 3, 0.5, 2.0, 0.0, 1.0, 101},
-        {NoiseChannelKind::Moisture,         NoiseAlgorithmKind::FractalPerlin2D, 3.5, 3, 0.5, 2.0, 0.0, 1.0, 202},
-        {NoiseChannelKind::Roughness,        NoiseAlgorithmKind::FractalPerlin2D, 3.0, 2, 0.5, 2.0, 0.0, 1.0, 303},
-        {NoiseChannelKind::ResourceRichness, NoiseAlgorithmKind::FractalPerlin2D, 2.5, 2, 0.5, 2.0, 0.0, 1.0, 404},
-        {NoiseChannelKind::DangerPressure,   NoiseAlgorithmKind::FractalPerlin2D, 4.5, 2, 0.5, 2.0, 0.0, 1.0, 505}
+        {NoiseChannelKind::Elevation,        NoiseAlgorithmKind::FractalPerlin2D, 20.0, 3, 0.5, 2.0, 0.0, 1.0, 101},
+        {NoiseChannelKind::Moisture,         NoiseAlgorithmKind::FractalPerlin2D, 16.0, 3, 0.5, 2.0, 0.0, 1.0, 202},
+        {NoiseChannelKind::Roughness,        NoiseAlgorithmKind::FractalPerlin2D, 5.0,  2, 0.5, 2.0, 0.0, 1.0, 303},
+        {NoiseChannelKind::ResourceRichness, NoiseAlgorithmKind::FractalPerlin2D, 4.0,  2, 0.5, 2.0, 0.0, 1.0, 404},
+        {NoiseChannelKind::DangerPressure,   NoiseAlgorithmKind::FractalPerlin2D, 8.0,  2, 0.5, 2.0, 0.0, 1.0, 505}
     };
 
     // P57: terrain threshold rules (higher priority = evaluated first)
@@ -235,12 +236,15 @@ WorldGenerationResult WorldGenerationService::generate(const WorldGenerationRequ
         safety_result.trace_roll_keys.end());
 
     // Step 4: Build spawn points
-    GeneratedSpawnPointDraft player_spawn;
-    player_spawn.spawn_id = "spawn_player_0_0";
-    player_spawn.spawn_kind = SpawnPointKind::PlayerStart;
-    player_spawn.coord = world_runtime::WorldCellCoord{0, 0, profile->default_layer};
-    player_spawn.actor_key = "player";
-    result.spawn_point_drafts.push_back(std::move(player_spawn));
+    // P57: only origin region emits player spawn.
+    if (request.region_coord.rx == 0 && request.region_coord.ry == 0) {
+        GeneratedSpawnPointDraft player_spawn;
+        player_spawn.spawn_id = "spawn_player_0_0";
+        player_spawn.spawn_kind = SpawnPointKind::PlayerStart;
+        player_spawn.coord = world_runtime::WorldCellCoord{0, 0, profile->default_layer};
+        player_spawn.actor_key = "player";
+        result.spawn_point_drafts.push_back(std::move(player_spawn));
+    }
 
     // Build manifest
     result.manifest.world_id = request.world_id;

@@ -151,10 +151,23 @@ Result<void> WorldGridRuntime::generateInitialWorld(const WorldRuntimeConfig& co
     }
 
     // Create player actor at origin
+    auto setup_res = setupPlayerActor(config);
+    if (setup_res.is_error()) return setup_res;
+
+    incrementStateVersion();
+    return Result<void>::ok();
+}
+
+Result<void> WorldGridRuntime::setupPlayerActor(const WorldRuntimeConfig& config) {
+    // Avoid duplicate player actor
+    if (actors_.find("player") != actors_.end()) {
+        return Result<void>::ok();
+    }
+
     WorldActorRuntime player;
     player.actor_key = "player";
-    player.entity_id = makeStableEntityId("player", player.coord);
     player.coord = WorldCellCoord{0, 0, "surface"};
+    player.entity_id = makeStableEntityId("player", player.coord);
     player.vision_radius = config.default_vision_radius;
     player.is_player_controlled = true;
     std::string player_entity_id = player.entity_id;
@@ -171,16 +184,17 @@ Result<void> WorldGridRuntime::generateInitialWorld(const WorldRuntimeConfig& co
     player_entity.visible_by_default = true;
     entities_[player_entity.entity_id] = std::move(player_entity);
 
-    // Add player to origin cell
-    auto origin_it = cells_.find(WorldCellCoord{0, 0, "surface"}.cellId());
+    // Add player to origin cell if it exists
+    auto origin_it = cells_.find(player_coord.cellId());
     if (origin_it != cells_.end()) {
-        origin_it->second.entity_ids.push_back(player_entity_id);
+        auto& eids = origin_it->second.entity_ids;
+        if (std::find(eids.begin(), eids.end(), player_entity_id) == eids.end()) {
+            eids.push_back(player_entity_id);
+        }
     }
 
     // Initialize exploration for player
     updateExplorationForActor("player");
-
-    incrementStateVersion();
     return Result<void>::ok();
 }
 

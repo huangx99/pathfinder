@@ -31,7 +31,6 @@ ClientServerRuntimeFactory::ClientServerRuntimeFactory()
     config.world_id = "world_default";
     config.seed = 1;
     config.region_size = 9;
-    config.initial_region_radius = 10;  // large initial world: 21x21 regions
     config.default_vision_radius = 3;
 
     auto init_res = world_runtime->initialize(config);
@@ -39,19 +38,12 @@ ClientServerRuntimeFactory::ClientServerRuntimeFactory()
         std::cerr << "[P56] World runtime initialization failed\n";
     }
 
-    // P46: generateInitialWorld creates player actor and minimal stub terrain.
-    // P57: We then overwrite with noise-field terrain via WorldGenerationService.
-    auto gen_res = world_runtime->generateInitialWorld(config);
-    if (gen_res.is_error()) {
-        std::cerr << "[P56] World generation failed\n";
-    }
-
-    // P57: Overwrite with noise-field terrain across the full initial region grid
+    // P57: Generate terrain via WorldGenerationService (only origin region for now;
+    // adjacent regions are generated on-demand or via GenerateWorld command).
     auto worldgen_service = std::make_shared<world_generation::WorldGenerationService>();
-    int initial_region_radius = config.initial_region_radius;
     int total_cells = 0;
-    for (int rx = -initial_region_radius; rx <= initial_region_radius; ++rx) {
-        for (int ry = -initial_region_radius; ry <= initial_region_radius; ++ry) {
+    for (int rx = -1; rx <= 1; ++rx) {
+        for (int ry = -1; ry <= 1; ++ry) {
             world_generation::WorldGenerationRequest wg_request;
             wg_request.world_id = config.world_id;
             wg_request.world_seed = config.seed;
@@ -77,6 +69,12 @@ ClientServerRuntimeFactory::ClientServerRuntimeFactory()
         }
     }
     std::cerr << "[P57] Total cells generated: " << total_cells << "\n";
+
+    // Setup player actor after terrain is applied so origin cell exists.
+    auto player_res = world_runtime->setupPlayerActor(config);
+    if (player_res.is_error()) {
+        std::cerr << "[P57] Player actor setup failed\n";
+    }
 
     // Register runtime-aware handlers (P56)
     registry.registerHandler(createGenerateWorldCommandHandler(worldgen_service, *world_runtime, *world_runtime));

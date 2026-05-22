@@ -82,7 +82,11 @@ SpawnSafetyPlanner::Result SpawnSafetyPlanner::ensure(
     result.resource_nodes = std::move(existing_nodes);
     result.ground_items = std::move(existing_ground_items);
 
-    world_runtime::WorldCellCoord spawn_coord{0, 0, profile.default_layer};
+    // P57: use region center as spawn reference. For origin region this is (0,0).
+    world_runtime::WorldCellCoord spawn_coord{
+        request.region_coord.rx * request.region_size,
+        request.region_coord.ry * request.region_size,
+        profile.default_layer};
     const auto& policy = profile.spawn_safety;
 
     // Helper: find first resource rule matching any of the given tags

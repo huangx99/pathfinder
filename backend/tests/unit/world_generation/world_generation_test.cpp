@@ -5,12 +5,14 @@
 #include "pathfinder/world_generation/terrain_generator.h"
 #include "pathfinder/world_generation/resource_distribution_generator.h"
 #include "pathfinder/world_generation/spawn_safety_planner.h"
+#include "pathfinder/world_generation/terrain_noise_sampler.h"
 #include "pathfinder/world_runtime/world_grid_runtime.h"
 #include "pathfinder/world_inventory/world_inventory_runtime.h"
 #include <cassert>
 #include <iostream>
 #include <set>
 #include <unordered_set>
+#include <cmath>
 
 using namespace pathfinder::world_generation;
 using namespace pathfinder::world_runtime;
@@ -1298,8 +1300,6 @@ void run_world_generation_adjacent_region_noise_has_no_seam_tests() {
     // Check right edge of (0,0) aligns with left edge of (1,0)
     // Region (0,0) right edge: world_x = 7 (max_c for even size)
     // Region (1,0) left edge: world_x = 8 (min_c for even size is -8, so 16 + (-8) = 8)
-    // We can't require identical terrain because each cell is classified independently,
-    // but we can assert the noise uses world_x/world_y by checking coordinates exist.
     bool has_edge_00 = false;
     bool has_edge_10 = false;
     for (const auto& cell : result00.cell_drafts) {
@@ -1310,5 +1310,29 @@ void run_world_generation_adjacent_region_noise_has_no_seam_tests() {
     }
     assert(has_edge_00);
     assert(has_edge_10);
+
+    // P57: verify noise continuity across region boundary using TerrainNoiseSampler.
+    // The sampler uses world_x/world_y, so adjacent world coords should have
+    // smoothly varying noise values regardless of region boundaries.
+    TerrainNoiseSampler sampler(req00.world_seed);
+    NoiseChannelConfig elev_cfg;
+    elev_cfg.channel = NoiseChannelKind::Elevation;
+    elev_cfg.algorithm = NoiseAlgorithmKind::FractalPerlin2D;
+    elev_cfg.scale = 8.0;
+    elev_cfg.octaves = 3;
+    elev_cfg.persistence = 0.5;
+    elev_cfg.lacunarity = 2.0;
+    elev_cfg.weight = 1.0;
+    elev_cfg.bias = 0.0;
+    elev_cfg.salt = 101;
+
+    // Sample at the boundary and several points across it
+    for (int y = -2; y <= 2; ++y) {
+        double v_left  = sampler.sample(7, y, "surface", elev_cfg);
+        double v_right = sampler.sample(8, y, "surface", elev_cfg);
+        // Perlin noise is continuous; adjacent coordinates should not jump drastically
+        assert(std::abs(v_left - v_right) < 0.8);
+    }
+
     std::cout << "world_generation_adjacent_region_noise_has_no_seam: passed" << std::endl;
 }
