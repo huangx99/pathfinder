@@ -558,12 +558,13 @@
   // ---------------------------------------------------------------------------
   const TILE_SIZE = 48;
 
-  function viewportTilesX() { return Math.ceil(canvas.width / TILE_SIZE); }
-  function viewportTilesY() { return Math.ceil(canvas.height / TILE_SIZE); }
+  function viewportTilesX() { return Math.floor(canvas.width / TILE_SIZE); }
+  function viewportTilesY() { return Math.floor(canvas.height / TILE_SIZE); }
 
   function resizeCanvas() {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
+    // Align canvas to integer multiples of TILE_SIZE to avoid partial-tile gaps
+    canvas.width = Math.floor(window.innerWidth / TILE_SIZE) * TILE_SIZE;
+    canvas.height = Math.floor(window.innerHeight / TILE_SIZE) * TILE_SIZE;
     renderMap();
   }
 
@@ -665,7 +666,8 @@
       exploredSet.add(`${x},${y}`);
       const px = (x - viewMinX) * TILE_SIZE;
       const py = (y - viewMinY) * TILE_SIZE;
-      if (px < -TILE_SIZE || px >= w || py < -TILE_SIZE || py >= h) continue;
+      // Only skip tiles fully outside the left/top edge; canvas is TILE_SIZE-aligned
+      if (px < -TILE_SIZE || py < -TILE_SIZE) continue;
 
       const terrain = f.terrain_key || f.terrain || 'unknown';
       const sprite = window.SPRITES && window.SPRITES[terrain];
@@ -685,7 +687,7 @@
       if (isNaN(x) || isNaN(y)) continue;
       const px = (x - viewMinX) * TILE_SIZE;
       const py = (y - viewMinY) * TILE_SIZE;
-      if (px < -TILE_SIZE || px >= w || py < -TILE_SIZE || py >= h) continue;
+      if (px < -TILE_SIZE || py < -TILE_SIZE) continue;
 
       const isActor = f.actor_key === actorKey || e.entity_id === actorKey || e.entity_id.startsWith(actorKey);
       if (isActor) {
