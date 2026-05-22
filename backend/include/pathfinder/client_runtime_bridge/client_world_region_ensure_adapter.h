@@ -33,6 +33,10 @@ public:
         const std::string& layer_key,
         const pathfinder::world_runtime::WorldCellCoord& target_coord);
 
+    void setLifecycleService(pathfinder::world_region_state::WorldRegionLifecycleService* lifecycle_service) {
+        lifecycle_service_ = lifecycle_service;
+    }
+
 private:
     pathfinder::world_generation::WorldRegionEnsureService& ensure_service_;
     pathfinder::world_runtime::IWorldRuntime& world_runtime_;

@@ -1,5 +1,6 @@
 #include "pathfinder/client_protocol/client_command_gateway.h"
 #include "pathfinder/foundation/error.h"
+#include <optional>
 
 namespace pathfinder::client_protocol {
 
@@ -24,6 +25,21 @@ ClientCommandGateway::ClientCommandGateway(
 void ClientCommandGateway::setRegionEnsureAdapter(
     client_runtime_bridge::ClientWorldRegionEnsureAdapter* ensure_adapter) {
     ensure_adapter_ = ensure_adapter;
+}
+
+void ClientCommandGateway::setActivityWindowService(
+    world_map_interaction::RegionActivityWindowService* service) {
+    activity_window_service_ = service;
+}
+
+void ClientCommandGateway::setLifecycleTriggerService(
+    world_map_interaction::RegionLifecycleTriggerService* service) {
+    lifecycle_trigger_service_ = service;
+}
+
+void ClientCommandGateway::setWorldContext(const std::string& world_id, uint64_t world_seed) {
+    world_id_ = world_id;
+    world_seed_ = world_seed;
 }
 
 Result<void> ClientCommandGateway::validateClientCommandDto(
@@ -271,9 +287,27 @@ Result<ClientCommandResponse> ClientCommandGateway::handleCommand(
 
     auto command = cmd_result.value();
 
+    // Helper to emit restored events from ensure results.
+    auto emitRestoredEvents = [](std::vector<WorldEventDto>& event_feed,
+                                 const pathfinder::foundation::Result<pathfinder::world_generation::WorldRegionEnsureResult>& ensure_res) {
+        if (ensure_res.is_error()) return;
+        const auto& result = ensure_res.value();
+        for (const auto& item : result.item_results) {
+            if (item.status == pathfinder::world_generation::WorldRegionEnsureStatus::RestoredSnapshot) {
+                WorldEventDto event;
+                event.event_id = "lifecycle_restored_" + item.region_key.regionRuntimeId();
+                event.event_kind = "Lifecycle:restored";
+                event.title_text = "Region restored";
+                event.body_text = "Region restored from snapshot";
+                event_feed.push_back(std::move(event));
+            }
+        }
+    };
+
     // Ensure the actor's visibility window around the move target before the
     // command runs. Otherwise newly generated edge regions can miss the current
     // projection patch and appear as temporary fog until the next action.
+    std::optional<pathfinder::foundation::Result<pathfinder::world_generation::WorldRegionEnsureResult>> ensure_target_res;
     if (ensure_adapter_ && command.command_kind == WorldCommandKind::Move && command.target.target_coord.has_value()) {
         auto layer_result = session_gateway_.getSessionLayerKey(request.session_id);
         std::string layer_key = layer_result.is_ok() ? layer_result.value() : command.target.target_coord->layer_key;
@@ -282,8 +316,8 @@ Result<ClientCommandResponse> ClientCommandGateway::handleCommand(
             command.target.target_coord->y,
             command.target.target_coord->layer_key.empty() ? layer_key : command.target.target_coord->layer_key
         };
-        auto ensure_target_res = ensure_adapter_->ensureForTargetVision(actor_key, layer_key, target_coord);
-        if (ensure_target_res.is_error()) {
+        ensure_target_res = ensure_adapter_->ensureForTargetVision(actor_key, layer_key, target_coord);
+        if (ensure_target_res->is_error()) {
             auto response = buildBlockedResponse(
                 request.session_id, request.client_sequence, current_version, "region_ensure_failed", false, actor_key);
             return Result<ClientCommandResponse>::ok(std::move(response));
@@ -322,19 +356,20 @@ Result<ClientCommandResponse> ClientCommandGateway::handleCommand(
     response.warning_keys = pipeline_response.warning_keys;
 
     // If pipeline did not provide available_commands, build from adapter.
+    std::optional<pathfinder::foundation::Result<pathfinder::world_generation::WorldRegionEnsureResult>> ensure_avail_res;
     if (pipeline_response.available_commands.empty()) {
         // P58: Ensure neighboring regions exist before building move options.
         auto layer_result = session_gateway_.getSessionLayerKey(request.session_id);
         std::string layer_key = layer_result.is_ok() ? layer_result.value() : "surface";
         if (ensure_adapter_) {
-            auto ensure_res = ensure_adapter_->ensureForAvailableCommands(actor_key, layer_key);
-            if (ensure_res.is_error()) {
+            ensure_avail_res = ensure_adapter_->ensureForAvailableCommands(actor_key, layer_key);
+            if (ensure_avail_res->is_error()) {
                 response.warning_keys.push_back("region_ensure_failed");
-            } else if (!ensure_res.value().ok) {
-                for (const auto& w : ensure_res.value().warning_keys) {
+            } else if (!ensure_avail_res->value().ok) {
+                for (const auto& w : ensure_avail_res->value().warning_keys) {
                     response.warning_keys.push_back(w);
                 }
-                for (const auto& f : ensure_res.value().failure_reason_keys) {
+                for (const auto& f : ensure_avail_res->value().failure_reason_keys) {
                     response.warning_keys.push_back(f);
                 }
             }
@@ -345,6 +380,14 @@ Result<ClientCommandResponse> ClientCommandGateway::handleCommand(
         }
     } else {
         response.available_commands = pipeline_response.available_commands;
+    }
+
+    // P60: Emit restored events from ensure adapters.
+    if (ensure_target_res) {
+        emitRestoredEvents(response.event_feed, *ensure_target_res);
+    }
+    if (ensure_avail_res) {
+        emitRestoredEvents(response.event_feed, *ensure_avail_res);
     }
 
     // If pipeline flagged full refresh, require it.
@@ -358,6 +401,71 @@ Result<ClientCommandResponse> ClientCommandGateway::handleCommand(
     // This ensures the next command's option authority uses the most recent state.
     session_gateway_.updateAvailableCommands(
         request.session_id, response.available_commands);
+
+    // P60: Trigger activity window + lifecycle after successful command.
+    if (activity_window_service_ && lifecycle_trigger_service_) {
+        auto layer_result = session_gateway_.getSessionLayerKey(request.session_id);
+        std::string layer_key = layer_result.is_ok() ? layer_result.value() : "surface";
+        uint64_t tick = response.new_projection_version;
+
+        // Mark the actor's current region as recently touched after successful world interaction.
+        if (response.result.result_kind == WorldCommandResultKind::Succeeded) {
+            auto touch_res = activity_window_service_->touchActorRegion(actor_key, layer_key, tick);
+            if (touch_res.is_error()) {
+                response.warning_keys.push_back("activity_touch_failed");
+            }
+        }
+
+        world_region_state::WorldRegionSnapshotBuildContext ctx;
+        ctx.world_id = world_id_;
+        ctx.world_seed = world_seed_;
+        ctx.world_tick = tick;
+        ctx.state_version = tick;
+        ctx.worldgen_profile_key = "first_world";
+        ctx.generator_version = "1.0.0";
+        ctx.content_version = "1.0.0";
+
+        auto window_res = activity_window_service_->computeWindow(actor_key, layer_key, tick);
+        if (window_res.is_ok()) {
+            auto trigger_result = lifecycle_trigger_service_->processWindow(window_res.value(), ctx);
+            auto shouldExposeLifecycleEvent = [](const std::string& event_kind) {
+                return event_kind == "seal_failed";
+            };
+            for (const auto& ev : trigger_result.events) {
+                if (!shouldExposeLifecycleEvent(ev.event_kind)) {
+                    continue;
+                }
+                WorldEventDto event;
+                event.event_id = ev.event_id;
+                event.event_kind = "Lifecycle:" + ev.event_kind;
+                event.tick = ev.tick;
+                event.title_text = ev.label_zh;
+                event.body_text = ev.label_zh;
+                for (const auto& r : ev.failure_reason_keys) {
+                    event.reason_keys.push_back(r);
+                }
+                response.event_feed.push_back(std::move(event));
+            }
+            for (const auto& w : trigger_result.warning_keys) {
+                response.warning_keys.push_back(w);
+            }
+        }
+    }
+
+    // P60: Align protocol projection version with the authoritative runtime after
+    // command, available-command ensure, and lifecycle work. These services may
+    // generate, restore, seal, or detach regions after the command patch was built.
+    {
+        auto layer_result = session_gateway_.getSessionLayerKey(request.session_id);
+        std::string layer_key = layer_result.is_ok() ? layer_result.value() : "surface";
+        auto runtime_version_res = available_command_adapter_.runtimeStateVersion(actor_key, layer_key);
+        if (runtime_version_res.is_ok() && runtime_version_res.value() > response.new_projection_version) {
+            const uint64_t final_version = runtime_version_res.value();
+            response.new_projection_version = final_version;
+            response.projection_patch.new_projection_version = final_version;
+            session_gateway_.updateProjectionVersion(request.session_id, final_version);
+        }
+    }
 
     return Result<ClientCommandResponse>::ok(std::move(response));
 }

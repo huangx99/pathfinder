@@ -1040,6 +1040,32 @@ target_link_libraries(pathfinder_client_runtime_bridge PUBLIC
     pathfinder_world_command
     pathfinder_world_generation
     pathfinder_world_region_state
+    pathfinder_world_harvest
+    pathfinder_world_inventory
+)
+
+# World Map Interaction library (P60)
+add_library(pathfinder_world_map_interaction STATIC
+    src/world_map_interaction/world_map_interaction_types.cpp
+    src/world_map_interaction/region_activity_window_service.cpp
+    src/world_map_interaction/region_lifecycle_trigger_service.cpp
+    src/world_map_interaction/client_map_selection_service.cpp
+    src/world_map_interaction/client_map_projection_adapter.cpp
+)
+
+target_include_directories(pathfinder_world_map_interaction PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/nlohmann
+)
+
+target_link_libraries(pathfinder_world_map_interaction PUBLIC
+    pathfinder_foundation
+    pathfinder_world_runtime
+    pathfinder_world_generation
+    pathfinder_world_region_state
+    pathfinder_world_inventory
+    pathfinder_world_harvest
+    pathfinder_client_protocol
 )
 
 # Client Protocol library (P53)
@@ -1063,6 +1089,7 @@ target_link_libraries(pathfinder_client_protocol PUBLIC
     pathfinder_foundation
     pathfinder_world_command
     pathfinder_client_runtime_bridge
+    pathfinder_world_map_interaction
 )
 
 # Client HTTP library (P54)
@@ -1088,6 +1115,8 @@ target_link_libraries(pathfinder_client_http PUBLIC
     pathfinder_world_runtime
     pathfinder_world_command_runtime
     pathfinder_world_generation
+    pathfinder_world_map_interaction
+    pathfinder_world_inventory_command
 )
 
 # Client Server executable (P54)
@@ -1106,6 +1135,7 @@ target_link_libraries(pathfinder_client_server_exe PRIVATE
     pathfinder_world_runtime
     pathfinder_world_command_runtime
     pathfinder_world_generation
+    pathfinder_world_inventory_command
 )
 
 # World Inventory Command library (P45 runtime-aware inventory handlers)

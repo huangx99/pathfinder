@@ -87,10 +87,22 @@ Result<std::vector<world_command::WorldEntityPatchDto>> WorldProjectionAdapter::
 
     for (const auto& entity_id : changed_entity_ids) {
         auto ent_result = runtime.findEntity(entity_id);
-        if (ent_result.is_error()) continue;
+        if (ent_result.is_error()) {
+            world_command::WorldEntityPatchDto patch;
+            patch.entity_id = entity_id;
+            patch.op = world_command::PatchOp::Remove;
+            patches.push_back(std::move(patch));
+            continue;
+        }
 
         const WorldEntityInstance* entity = ent_result.value();
-        if (!entity->coord) continue;
+        if (!entity->coord || entity->location_kind != WorldEntityLocationKind::OnMap) {
+            world_command::WorldEntityPatchDto patch;
+            patch.entity_id = entity_id;
+            patch.op = world_command::PatchOp::Remove;
+            patches.push_back(std::move(patch));
+            continue;
+        }
 
         // Only send if cell is visible to viewer
         if (grid) {

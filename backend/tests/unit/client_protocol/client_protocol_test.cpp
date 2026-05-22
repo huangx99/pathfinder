@@ -415,6 +415,28 @@ void run_projection_adapter_tests() {
     assert(!merged.value().visible_cells.empty());
     assert(merged.value().visible_cells[0].cell_id == "cell_1");
 
+    ClientWorldProjection with_entity = merged.value();
+    WorldEntityPatchDto visible_entity;
+    visible_entity.entity_id = "pickup_stone_1";
+    visible_entity.op = PatchOp::Update;
+    visible_entity.fields["entity_key"] = "loose_stone";
+    with_entity.visible_entities.push_back(visible_entity);
+
+    WorldProjectionPatchDto remove_patch;
+    remove_patch.base_projection_version = 8;
+    remove_patch.new_projection_version = 9;
+    WorldEntityPatchDto removed_entity;
+    removed_entity.entity_id = "pickup_stone_1";
+    removed_entity.op = PatchOp::Remove;
+    remove_patch.changed_entities.push_back(removed_entity);
+
+    auto removed = adapter.mergePatch(with_entity, remove_patch);
+    assert(removed.is_ok());
+    assert(removed.value().projection_version == 9);
+    for (const auto& entity : removed.value().visible_entities) {
+        assert(entity.entity_id != "pickup_stone_1");
+    }
+
     std::cout << "client_projection_adapter_tests: all passed" << std::endl;
 }
 

@@ -1,6 +1,8 @@
 (() => {
   'use strict';
 
+  const CLIENT_BUILD = '20260523-mobile-radius-v4';
+
   // ---------------------------------------------------------------------------
   // 1. State
   // ---------------------------------------------------------------------------
@@ -22,6 +24,17 @@
     pendingDirection: null,
     lastDirectionSubmitTime: 0,
     selectedEntityId: null,
+    selectedCell: null,
+    interactionMenu: {
+      visible: false,
+      title: '',
+      subtitle: '',
+      objects: [],
+      options: [],
+      x: 0,
+      y: 0,
+      executing: false,
+    },
     floatingTexts: [],
     screenShake: 0,
     lastTimestamp: 0,
@@ -38,6 +51,7 @@
     pathRunning: false,
     pathParticles: [],
     lastTap: null,
+    pathRunToken: 0,
   };
 
   const DIRECTION_COOLDOWN_MS = 80;
@@ -57,7 +71,7 @@
   const versionLine = document.getElementById('versionLine');
   const actorLine = document.getElementById('actorLine');
   const questBody = document.getElementById('questBody');
-  const commandList = document.getElementById('commandList');
+  const interactionMenu = document.getElementById('interactionMenu');
   const logEntries = document.getElementById('logEntries');
   const debugPre = document.getElementById('debugPre');
   const resetBtn = document.getElementById('resetBtn');
@@ -184,7 +198,9 @@
 
   function setRequestState(s) {
     state.requestState = s;
-    resetBtn.disabled = (s !== 'idle');
+    // Reset is the recovery action when selection/path/command state gets stuck,
+    // so it must remain clickable even while another client action is pending.
+    if (resetBtn) resetBtn.disabled = false;
   }
 
   // ---------------------------------------------------------------------------
@@ -202,7 +218,27 @@
     localStorage.setItem('pathfinder_session_id', state.sessionId);
   }
 
+  function resetTransientClientState() {
+    state.pathRunToken += 1;
+    state.pathRunning = false;
+    state.pathTarget = null;
+    state.activePath = [];
+    state.pendingDirection = null;
+    state.selectedEntityId = null;
+    state.selectedCell = null;
+    state.interactionMenu = { visible: false, title: '', subtitle: '', objects: [], options: [], x: 0, y: 0, executing: false };
+    state.floatingTexts = [];
+    state.screenShake = 0;
+    state.actorAnimation = null;
+    state.cameraDrag = null;
+    state.pinchZoom = null;
+    state.lastTap = null;
+    if (joystickBase) joystickBase.classList.remove('active');
+    if (joystickThumb) joystickThumb.style.transform = 'translate(-50%, -50%)';
+  }
+
   function clearSession() {
+    resetTransientClientState();
     state.sessionId = 'session_' + uuid().slice(0, 8);
     state.clientSequence = 0;
     state.projectionVersion = 0;
@@ -243,6 +279,21 @@
       client_protocol_version: 1,
       create_if_missing: true,
       dev_reset_if_allowed: false,
+    });
+  }
+
+  async function apiSelect(selection) {
+    return postJson('/api/client/select', {
+      session_id: state.sessionId,
+      client_id: state.clientId,
+      known_projection_version: state.projectionVersion,
+      layer_key: selection.layer_key || 'surface',
+      selection_kind: selection.selection_kind || 'Cell',
+      x: selection.x,
+      y: selection.y,
+      entity_id: selection.entity_id || '',
+      resource_node_id: selection.resource_node_id || '',
+      inventory_item_id: selection.inventory_item_id || '',
     });
   }
 
@@ -303,7 +354,8 @@
   // ---------------------------------------------------------------------------
   // 6. Projection helpers
   // ---------------------------------------------------------------------------
-  function applyFullProjection(proj) {
+  function applyFullProjection(proj, options = {}) {
+    closeInteractionMenu(false);
     state.actorAnimation = null;
     state.projection = {
       projection_version: safe(proj.projection_version, 0),
@@ -316,7 +368,7 @@
       area_effects: safe(proj.area_effects, []),
       safe_summary_keys: safe(proj.safe_summary_keys, []),
     };
-    if (!state.cameraCoord || state.cameraLockedToActor) {
+    if (options.recenter || !state.cameraCoord || state.cameraLockedToActor) {
       state.cameraCoord = getActorCoord();
     }
   }
@@ -605,7 +657,16 @@
 
   function commandLabel(cmd, fallback) {
     if (!cmd) return fallback || t('ui.unknown_cmd', '未知命令');
-    return cmd.label_text || cmd.command_kind || cmd.option_id || fallback || t('ui.unknown_cmd', '未知命令');
+    return cmd.label_text || cmd.label || cmd.command_kind || cmd.command_key || cmd.option_id || fallback || t('ui.unknown_cmd', '未知命令');
+  }
+
+  function activeOptionById(optionId) {
+    const fromWorld = state.availableCommands.find(c => c.option_id === optionId);
+    if (fromWorld) return fromWorld;
+    if (state.interactionMenu && Array.isArray(state.interactionMenu.options)) {
+      return state.interactionMenu.options.find(c => c.option_id === optionId) || null;
+    }
+    return null;
   }
 
   function resultKindOf(resp) {
@@ -634,7 +695,7 @@
       toast(t('ui.request_pending', '请求处理中，请稍候'), 'warn');
       return { status: 'busy', resultKind: 'busy', failureReasons: [] };
     }
-    const found = state.availableCommands.find(c => c.option_id === optionId);
+    const found = activeOptionById(optionId);
     if (!found) {
       toast(t('ui.option_expired', '该选项已过期，正在刷新…'), 'warn');
       await doRefresh();
@@ -642,10 +703,13 @@
     }
 
     const label = commandLabel(found, optionId);
+    state.interactionMenu.executing = true;
+    renderInteractionMenu();
     setRequestState('submitting_command');
     log(t('ui.exec_doing', '正在执行') + `: ${label}`, 'info');
     try {
       const resp = await apiCommand(optionId);
+      await closeInteractionMenu(false);
       const outcome = applyCommandResponse(resp);
       if (outcome.status === 'needs_refresh') {
         log(t('ui.version_mismatch', '状态不同步，刷新后再确认') + `: ${label}`, 'warn');
@@ -670,6 +734,7 @@
       handleError(t('ui.command_submit_failed', '命令提交失败'), err);
       return { status: 'error', resultKind: 'failed', failureReasons: [err.message || 'error'] };
     } finally {
+      state.interactionMenu.executing = false;
       setRequestState('idle');
       render();
     }
@@ -693,6 +758,7 @@
       toast('正在寻路中', 'warn');
       return;
     }
+    const runToken = ++state.pathRunToken;
     const path = findPathTo(target);
     state.pathTarget = target;
     state.activePath = path || [];
@@ -711,7 +777,7 @@
     state.pathRunning = true;
     log(`开始寻路到 ${target.x},${target.y}，共 ${path.length} 步`, 'info');
     try {
-      while (state.activePath.length) {
+      while (state.activePath.length && runToken === state.pathRunToken) {
         const current = getActorCoord();
         const next = state.activePath[0];
         const direction = directionBetween(current, next);
@@ -726,8 +792,30 @@
           break;
         }
         const outcome = await submitOption(optionId);
+        if (runToken !== state.pathRunToken) {
+          break;
+        }
+        if (outcome && outcome.status === 'needs_refresh') {
+          const replanned = findPathTo(target);
+          if (replanned && replanned.length) {
+            state.activePath = replanned;
+            log('世界状态已刷新，重新规划路径', 'info');
+            continue;
+          }
+        }
         if (!outcome || outcome.resultKind !== 'succeeded') {
-          log('寻路中断：移动未成功', 'warn');
+          const detail = outcome && outcome.failureReasons && outcome.failureReasons.length
+            ? `（${outcome.failureReasons.join(', ')}）`
+            : '';
+          if (outcome && (outcome.status === 'needs_refresh' || outcome.failureReasons.includes('projection_version_stale'))) {
+            const replanned = findPathTo(target);
+            if (replanned && replanned.length) {
+              state.activePath = replanned;
+              log('路径状态过期，刷新后重新规划路径', 'info');
+              continue;
+            }
+          }
+          log(`寻路中断：移动未成功${detail}`, 'warn');
           break;
         }
         const after = getActorCoord();
@@ -741,11 +829,13 @@
         await new Promise(resolve => setTimeout(resolve, 60));
       }
     } finally {
-      state.pathRunning = false;
-      if (!state.activePath.length) {
-        state.pathTarget = null;
+      if (runToken === state.pathRunToken) {
+        state.pathRunning = false;
+        if (!state.activePath.length) {
+          state.pathTarget = null;
+        }
+        renderMap();
       }
-      renderMap();
     }
   }
 
@@ -810,7 +900,7 @@
       const resp = await apiBootstrap();
       state.sessionId = safe(resp.session_id, state.sessionId);
       state.projectionVersion = safe(resp.projection_version, 0);
-      applyFullProjection(resp.full_projection);
+      applyFullProjection(resp.full_projection, { recenter: true });
       state.availableCommands = safe(resp.available_commands, []);
       state.eventFeed = safe(resp.event_feed, []);
       state.frontendHints = safe(resp.frontend_hints, []);
@@ -859,15 +949,18 @@
   }
 
   async function doReset() {
-    if (state.requestState !== 'idle') return;
     if (!confirm(t('ui.reset_confirm', '确定要重置世界吗？当前会话将被清除。'))) return;
+    resetTransientClientState();
+    state.cameraCoord = null;
+    state.clientSequence = 0;
     setRequestState('resetting');
+    render();
     try {
       const resp = await apiReset();
       const boot = resp.bootstrap || resp;
       state.sessionId = safe(boot.session_id, state.sessionId);
       state.projectionVersion = safe(boot.projection_version, 0);
-      applyFullProjection(boot.full_projection);
+      applyFullProjection(boot.full_projection, { recenter: true });
       state.availableCommands = safe(boot.available_commands, []);
       state.eventFeed = safe(boot.event_feed, []);
       state.frontendHints = safe(boot.frontend_hints, []);
@@ -983,7 +1076,7 @@
   function render() {
     renderStatus();
     renderMap();
-    renderCommands();
+    renderInteractionMenu();
     renderLogs();
     renderDebug();
   }
@@ -1101,6 +1194,18 @@
       ctx.strokeStyle = 'rgba(15, 23, 42, 0.18)';
       ctx.lineWidth = 1;
       ctx.strokeRect(px, py, tile, tile);
+    }
+
+    if (state.selectedCell) {
+      const p = worldToScreen(state.selectedCell.x, state.selectedCell.y, viewMinX, viewMinY);
+      const pixel = Math.max(3, Math.floor(tile / 10));
+      ctx.save();
+      ctx.fillStyle = 'rgba(56, 189, 248, 0.32)';
+      ctx.fillRect(Math.round(p.x + pixel), Math.round(p.y + pixel), Math.round(tile - pixel * 2), pixel);
+      ctx.fillRect(Math.round(p.x + pixel), Math.round(p.y + tile - pixel * 2), Math.round(tile - pixel * 2), pixel);
+      ctx.fillRect(Math.round(p.x + pixel), Math.round(p.y + pixel), pixel, Math.round(tile - pixel * 2));
+      ctx.fillRect(Math.round(p.x + tile - pixel * 2), Math.round(p.y + pixel), pixel, Math.round(tile - pixel * 2));
+      ctx.restore();
     }
 
     if (state.activePath.length || state.pathTarget) {
@@ -1281,35 +1386,76 @@
     ctx.restore();
   }
 
-  function renderCommands() {
-    commandList.innerHTML = '';
-    const cmds = state.availableCommands;
-    if (!cmds.length) {
-      commandList.innerHTML = '<div style="color:var(--text-dim);font-size:12px;padding:8px 0;">' + t('ui.no_commands', '暂无可用命令') + '</div>';
+  function renderInteractionMenu() {
+    if (!interactionMenu) return;
+    const menu = state.interactionMenu;
+    if (!menu.visible) {
+      interactionMenu.classList.add('hidden');
+      interactionMenu.innerHTML = '';
       return;
     }
-    // Separate move and non-move commands
-    const otherCmds = [];
-    for (const c of cmds) {
-      if (c.command_kind !== 'Move' && c.command_kind !== 'move') otherCmds.push(c);
+
+    interactionMenu.classList.remove('hidden');
+    interactionMenu.style.left = `${menu.x}px`;
+    interactionMenu.style.top = `${menu.y}px`;
+    interactionMenu.innerHTML = '';
+
+    const header = document.createElement('div');
+    header.className = 'interaction-header';
+
+    const title = document.createElement('div');
+    title.className = 'interaction-title';
+    title.textContent = menu.title || '这里';
+    header.appendChild(title);
+
+    const close = document.createElement('button');
+    close.className = 'interaction-close';
+    close.textContent = '×';
+    close.title = '关闭';
+    close.onclick = () => closeInteractionMenu(true);
+    header.appendChild(close);
+    interactionMenu.appendChild(header);
+
+    if (menu.subtitle) {
+      const subtitle = document.createElement('div');
+      subtitle.className = 'interaction-subtitle';
+      subtitle.textContent = menu.subtitle;
+      interactionMenu.appendChild(subtitle);
     }
 
-    for (const c of otherCmds) {
-      const btn = document.createElement('button');
-      btn.className = 'cmd-btn';
-      btn.disabled = !c.enabled || state.requestState !== 'idle';
-      const label = c.label_text || c.command_kind || c.option_id;
-      const kindSpan = document.createElement('span');
-      kindSpan.className = 'cmd-kind';
-      kindSpan.textContent = c.command_kind || '';
-      btn.textContent = label;
-      btn.appendChild(kindSpan);
-      btn.onclick = () => submitOption(c.option_id);
-      if (!c.enabled && c.disabled_reason_text) {
-        btn.title = c.disabled_reason_text;
+    if (menu.objects.length) {
+      const objects = document.createElement('div');
+      objects.className = 'interaction-objects';
+      for (const obj of menu.objects.slice(0, 4)) {
+        const chip = document.createElement('span');
+        chip.className = 'interaction-chip';
+        chip.textContent = objectDisplayName(obj);
+        objects.appendChild(chip);
       }
-      commandList.appendChild(btn);
+      interactionMenu.appendChild(objects);
     }
+
+    const options = document.createElement('div');
+    options.className = 'interaction-options';
+    if (!menu.options.length) {
+      const empty = document.createElement('div');
+      empty.className = 'interaction-empty';
+      empty.textContent = '这里暂时没有可执行动作';
+      options.appendChild(empty);
+    } else {
+      for (const opt of menu.options) {
+        const btn = document.createElement('button');
+        btn.className = 'interaction-option';
+        btn.disabled = !opt.enabled || state.requestState !== 'idle' || menu.executing;
+        btn.textContent = commandLabel(opt, '行动');
+        btn.onclick = () => submitOption(opt.option_id);
+        if (!opt.enabled && (opt.disabled_reason_text || opt.disabled_reason)) {
+          btn.title = opt.disabled_reason_text || opt.disabled_reason;
+        }
+        options.appendChild(btn);
+      }
+    }
+    interactionMenu.appendChild(options);
   }
 
   function renderLogs() {
@@ -1565,11 +1711,10 @@
 
   updateZoomButtons();
 
-  function selectEntityAt(worldX, worldY) {
-    if (!state.projection) return false;
+  function findEntityAt(worldX, worldY) {
+    if (!state.projection) return null;
     let clicked = null;
     let minDist = Infinity;
-    let clickEx = 0, clickEy = 0;
     for (const ent of state.projection.visible_entities) {
       const f = ent.fields || {};
       const ex = parseInt(f.x, 10);
@@ -1581,22 +1726,143 @@
       if (dist < 1.2 && dist < minDist) {
         minDist = dist;
         clicked = ent;
-        clickEx = ex;
-        clickEy = ey;
       }
     }
+    return clicked;
+  }
 
-    if (clicked) {
-      state.selectedEntityId = clicked.entity_id;
-      const f = clicked.fields || {};
-      const name = (typeof tEntity === 'function') ? tEntity(f) : (f.display_name || f.name || f.entity_key || f.object_key || 'Entity');
-      addFloatingText(clickEx, clickEy - 0.5, name, '#0ea5e9');
-      renderMap();
-      return true;
-    }
+  function objectDisplayName(obj) {
+    if (!obj) return '对象';
+    return obj.display_name || obj.display_name_zh || obj.display_name_key || obj.object_id || '对象';
+  }
+
+  function normalizeSelectOption(opt) {
+    return {
+      ...opt,
+      label_text: opt.label_text || opt.label || opt.command_key || opt.option_id,
+      disabled_reason_text: opt.disabled_reason_text || opt.disabled_reason || '',
+      enabled: opt.enabled !== false,
+    };
+  }
+
+  function isNavigationOnlyOption(opt) {
+    const kind = String(opt && opt.command_kind || '').toLowerCase();
+    const key = String(opt && opt.command_key || '').toLowerCase();
+    return kind === 'move' || key.startsWith('move_') || kind === 'inspect' || key.startsWith('inspect_');
+  }
+
+  function shouldOpenInteractionMenu(objects, options) {
+    if (objects.length > 0) return true;
+    return options.some(opt => !isNavigationOnlyOption(opt));
+  }
+
+  function menuPositionFromScreen(sx, sy) {
+    const width = Math.min(280, Math.max(220, window.innerWidth * 0.42));
+    const height = 220;
+    return {
+      x: Math.max(8, Math.min(window.innerWidth - width - 8, sx + 12)),
+      y: Math.max(70, Math.min(window.innerHeight - height - 8, sy + 12)),
+    };
+  }
+
+  async function closeInteractionMenu(refreshAfterClose = false) {
+    const hadOptions = state.interactionMenu.visible && state.interactionMenu.options.length > 0;
+    const wasExecuting = state.interactionMenu.executing;
+    state.interactionMenu = { visible: false, title: '', subtitle: '', objects: [], options: [], x: 0, y: 0, executing: false };
     state.selectedEntityId = null;
+    state.selectedCell = null;
+    renderInteractionMenu();
     renderMap();
-    return false;
+    if (refreshAfterClose && hadOptions && !wasExecuting && state.requestState === 'idle') {
+      await doRefresh();
+    }
+  }
+
+  function openMenuFromSelect(resp, world, screen, titleOverride) {
+    const pos = menuPositionFromScreen(screen.sx, screen.sy);
+    const objects = safe(resp.selected_objects, []);
+    const options = safe(resp.available_options, [])
+      .map(normalizeSelectOption)
+      .sort((a, b) => safe(b.priority, 0) - safe(a.priority, 0));
+
+    if (!shouldOpenInteractionMenu(objects, options)) {
+      state.selectedCell = null;
+      state.interactionMenu = { visible: false, title: '', subtitle: '', objects: [], options: [], x: 0, y: 0, executing: false };
+      renderInteractionMenu();
+      renderMap();
+      return;
+    }
+
+    state.selectedCell = { x: world.x, y: world.y, layer_key: world.layer_key || 'surface' };
+    state.interactionMenu = {
+      visible: true,
+      title: titleOverride || (objects[0] ? objectDisplayName(objects[0]) : `地块 ${world.x}, ${world.y}`),
+      subtitle: resp.selected_cell_terrain ? `地形：${resp.selected_cell_terrain}` : '',
+      objects,
+      options,
+      x: pos.x,
+      y: pos.y,
+      executing: false,
+    };
+    renderInteractionMenu();
+    renderMap();
+  }
+
+  async function selectMapInteraction(world, screen, retryAfterRefresh = true) {
+    if (!state.projection || state.requestState !== 'idle') return;
+
+    const layer = (getActorCoord() || {}).layer_key || 'surface';
+    const clickedEntity = findEntityAt(world.x, world.y);
+    state.selectedEntityId = clickedEntity ? clickedEntity.entity_id : null;
+
+    setRequestState('selecting');
+    try {
+      let resp;
+      let titleOverride = '';
+      if (clickedEntity) {
+        const f = clickedEntity.fields || {};
+        const ex = parseInt(f.x, 10);
+        const ey = parseInt(f.y, 10);
+        titleOverride = (typeof tEntity === 'function') ? tEntity(f) : (f.display_name_key || f.entity_key || clickedEntity.entity_id);
+        resp = await apiSelect({
+          selection_kind: 'Entity',
+          x: isNaN(ex) ? world.x : ex,
+          y: isNaN(ey) ? world.y : ey,
+          layer_key: layer,
+          entity_id: clickedEntity.entity_id,
+        });
+      } else {
+        resp = await apiSelect({ selection_kind: 'Cell', x: world.x, y: world.y, layer_key: layer });
+        const resource = safe(resp.selected_objects, []).find(o => o.object_kind === 'resource_node');
+        if (resource) {
+          titleOverride = objectDisplayName(resource);
+          resp = await apiSelect({
+            selection_kind: 'ResourceNode',
+            x: world.x,
+            y: world.y,
+            layer_key: layer,
+            resource_node_id: resource.object_id,
+          });
+        }
+      }
+
+      if (resp.requires_full_refresh || resp.stale) {
+        if (retryAfterRefresh) {
+          setRequestState('idle');
+          await doRefresh();
+          return selectMapInteraction(world, screen, false);
+        }
+        toast('状态已刷新，请再点一次', 'warn');
+        return;
+      }
+
+      openMenuFromSelect(resp, world, screen, titleOverride);
+    } catch (err) {
+      handleError('选择失败', err);
+    } finally {
+      if (state.requestState === 'selecting') setRequestState('idle');
+      render();
+    }
   }
 
   function isDoubleTapCell(world) {
@@ -1645,7 +1911,7 @@
     }
   });
 
-  canvas.addEventListener('pointerup', (e) => {
+  canvas.addEventListener('pointerup', async (e) => {
     const drag = state.cameraDrag;
     if (!drag || drag.pointerId !== e.pointerId) return;
     if (canvas.releasePointerCapture && canvas.hasPointerCapture && canvas.hasPointerCapture(e.pointerId)) {
@@ -1656,11 +1922,12 @@
 
     const world = screenToWorld(e.clientX, e.clientY);
     if (isDoubleTapCell(world)) {
+      await closeInteractionMenu(false);
       state.cameraLockedToActor = false;
       updateFollowButton();
       runPathTo({ x: world.x, y: world.y, layer_key: (getActorCoord() || {}).layer_key || 'surface' });
     } else {
-      selectEntityAt(world.x, world.y);
+      selectMapInteraction(world, { sx: world.sx, sy: world.sy });
     }
   });
 
@@ -1719,7 +1986,7 @@
     resizeCanvas();
     initJoystick();
     initKeyboard();
-    log(t('ui.client_boot', '先驱者客户端启动…'));
+    log(t('ui.client_boot', '先驱者客户端启动…') + ` ${CLIENT_BUILD}`);
     requestAnimationFrame(gameLoop);
     await doBootstrap();
   }

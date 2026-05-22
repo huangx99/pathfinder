@@ -4,6 +4,8 @@
 #include "pathfinder/client_protocol/client_projection_adapter.h"
 #include "pathfinder/client_protocol/client_available_command_adapter.h"
 #include "pathfinder/client_runtime_bridge/client_world_region_ensure_adapter.h"
+#include "pathfinder/world_map_interaction/region_activity_window_service.h"
+#include "pathfinder/world_map_interaction/region_lifecycle_trigger_service.h"
 #include "pathfinder/foundation/result.h"
 #include <map>
 #include <string>
@@ -20,6 +22,9 @@ public:
         const ClientAvailableCommandAdapter& available_command_adapter);
 
     void setRegionEnsureAdapter(client_runtime_bridge::ClientWorldRegionEnsureAdapter* ensure_adapter);
+    void setActivityWindowService(world_map_interaction::RegionActivityWindowService* service);
+    void setLifecycleTriggerService(world_map_interaction::RegionLifecycleTriggerService* service);
+    void setWorldContext(const std::string& world_id, uint64_t world_seed);
 
     pathfinder::foundation::Result<ClientBootstrapResponse> bootstrap(
         const ClientBootstrapRequest& request);
@@ -79,6 +84,10 @@ private:
     const ClientProjectionAdapter& projection_adapter_;
     const ClientAvailableCommandAdapter& available_command_adapter_;
     client_runtime_bridge::ClientWorldRegionEnsureAdapter* ensure_adapter_ = nullptr;
+    world_map_interaction::RegionActivityWindowService* activity_window_service_ = nullptr;
+    world_map_interaction::RegionLifecycleTriggerService* lifecycle_trigger_service_ = nullptr;
+    std::string world_id_;
+    uint64_t world_seed_ = 0;
     std::map<std::string, SessionState> sessions_;
 
     SessionState& getOrCreateSession(const ClientBootstrapRequest& request);

@@ -4,6 +4,8 @@
 #include "pathfinder/world_command/world_command_registry.h"
 #include "pathfinder/world_runtime/iworld_runtime.h"
 #include "pathfinder/world_runtime/world_runtime_types.h"
+#include "pathfinder/world_inventory/iworld_inventory.h"
+#include "pathfinder/world_harvest/resource_harvest_service.h"
 #include <memory>
 
 namespace pathfinder::client_runtime_bridge {
@@ -64,6 +66,52 @@ private:
 };
 
 // ---------------------------------------------------------------------------
+// 11.4 HarvestCommandOptionProvider
+// ---------------------------------------------------------------------------
+
+class HarvestCommandOptionProvider {
+public:
+    HarvestCommandOptionProvider(
+        const pathfinder::world_command::WorldCommandHandlerRegistry& registry,
+        pathfinder::world_harvest::ResourceHarvestService& harvest_service);
+
+    std::vector<pathfinder::world_command::WorldCommandOptionDto> buildOptions(
+        const pathfinder::world_runtime::WorldActorRuntime& actor,
+        const pathfinder::world_runtime::IWorldRuntime& runtime) const;
+
+private:
+    const pathfinder::world_command::WorldCommandHandlerRegistry& registry_;
+    pathfinder::world_harvest::ResourceHarvestService& harvest_service_;
+};
+
+// ---------------------------------------------------------------------------
+// 11.5 InventoryCommandOptionProvider
+// ---------------------------------------------------------------------------
+
+class InventoryCommandOptionProvider {
+public:
+    InventoryCommandOptionProvider(
+        const pathfinder::world_command::WorldCommandHandlerRegistry& registry,
+        pathfinder::world_inventory::IInventoryRuntime& inventory_runtime);
+
+    std::vector<pathfinder::world_command::WorldCommandOptionDto> buildOptions(
+        const pathfinder::world_runtime::WorldActorRuntime& actor,
+        const pathfinder::world_runtime::IWorldRuntime& runtime) const;
+
+private:
+    const pathfinder::world_command::WorldCommandHandlerRegistry& registry_;
+    pathfinder::world_inventory::IInventoryRuntime& inventory_runtime_;
+
+    std::vector<pathfinder::world_command::WorldCommandOptionDto> buildPickupOptions(
+        const pathfinder::world_runtime::WorldActorRuntime& actor,
+        const pathfinder::world_runtime::IWorldRuntime& runtime) const;
+
+    std::vector<pathfinder::world_command::WorldCommandOptionDto> buildDropOptions(
+        const pathfinder::world_runtime::WorldActorRuntime& actor,
+        const pathfinder::world_runtime::IWorldRuntime& runtime) const;
+};
+
+// ---------------------------------------------------------------------------
 // 11.3 ClientRuntimeCommandOptionBridge
 // ---------------------------------------------------------------------------
 // Chinese: Generate available commands from real runtime context.
@@ -75,6 +123,14 @@ public:
     ClientRuntimeCommandOptionBridge(
         pathfinder::world_runtime::IWorldRuntime& runtime,
         const pathfinder::world_command::WorldCommandHandlerRegistry& registry,
+        ClientRuntimeBridgeMode mode = ClientRuntimeBridgeMode::RuntimeBacked);
+
+    // P60: Extended constructor with harvest and inventory services.
+    ClientRuntimeCommandOptionBridge(
+        pathfinder::world_runtime::IWorldRuntime& runtime,
+        const pathfinder::world_command::WorldCommandHandlerRegistry& registry,
+        pathfinder::world_harvest::ResourceHarvestService* harvest_service,
+        pathfinder::world_inventory::IInventoryRuntime* inventory_runtime,
         ClientRuntimeBridgeMode mode = ClientRuntimeBridgeMode::RuntimeBacked);
 
     pathfinder::foundation::Result<ClientRuntimeView> buildRuntimeView(
@@ -95,6 +151,8 @@ private:
     MovementCommandOptionProvider movement_provider_;
     InspectCommandOptionProvider inspect_provider_;
     WaitCommandOptionProvider wait_provider_;
+    std::unique_ptr<HarvestCommandOptionProvider> harvest_provider_;
+    std::unique_ptr<InventoryCommandOptionProvider> inventory_provider_;
 };
 
 } // namespace pathfinder::client_runtime_bridge

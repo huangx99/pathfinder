@@ -11,12 +11,16 @@ namespace pathfinder::client_protocol {
 // Does not leak hidden truth.
 class ClientProjectionAdapter {
 public:
+    // Compatibility constructor for protocol/unit tests only. Production wiring must
+    // inject a runtime bridge through ClientServerRuntimeFactory; otherwise the
+    // adapter can only return an empty safe projection.
     ClientProjectionAdapter();
     explicit ClientProjectionAdapter(
         std::shared_ptr<pathfinder::client_runtime_bridge::IClientRuntimeBridgePort> bridge_port);
 
     // Build a full safe projection for the given actor at the given version.
-    // P56: uses runtime bridge if injected; otherwise falls back to stub for tests.
+    // P56: uses runtime bridge if injected; otherwise falls back to a test-only stub.
+    // Do not treat the no-bridge branch as a playable or production client path.
     pathfinder::foundation::Result<ClientWorldProjection> buildFullProjection(
         const std::string& actor_key,
         const std::string& layer_key,

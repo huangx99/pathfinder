@@ -25,6 +25,7 @@ std::string toString(WorldRegionEnsureStatus status) {
     switch (status) {
         case WorldRegionEnsureStatus::AlreadyAvailable: return "AlreadyAvailable";
         case WorldRegionEnsureStatus::GeneratedAndApplied: return "GeneratedAndApplied";
+        case WorldRegionEnsureStatus::RestoredSnapshot: return "RestoredSnapshot";
         case WorldRegionEnsureStatus::SkippedByPolicy: return "SkippedByPolicy";
         case WorldRegionEnsureStatus::GenerationFailed: return "GenerationFailed";
         case WorldRegionEnsureStatus::ApplyFailed: return "ApplyFailed";

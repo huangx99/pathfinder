@@ -186,6 +186,7 @@ Result<WorldRegionEnsureResult> ClientWorldRegionEnsureAdapter::ensureWithCenter
                     item.status = WorldRegionEnsureStatus::GeneratedAndApplied;
                     ++result.generated_region_count;
                 } else if (avail.source == WorldRegionAvailabilitySource::RestoredSnapshot) {
+                    item.status = WorldRegionEnsureStatus::RestoredSnapshot;
                     ++result.generated_region_count; // Count as "made available"
                 } else {
                     ++result.already_available_count;

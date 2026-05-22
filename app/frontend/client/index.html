@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
   <title>先驱者客户端</title>
-  <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="/style.css?v=20260523-mobile-radius-v4" />
 </head>
 <body>
   <div id="app" class="game-shell">
@@ -29,10 +29,7 @@
       <button class="reset-btn" id="resetBtn" title="重置世界">↻ 重置</button>
     </header>
 
-    <aside class="command-panel" id="commandPanel">
-      <div class="panel-title">可用行动</div>
-      <div class="command-list" id="commandList"></div>
-    </aside>
+    <div class="interaction-menu hidden" id="interactionMenu" aria-live="polite"></div>
 
     <section class="event-log" id="eventLog">
       <div class="log-title">事件日志</div>
@@ -78,7 +75,7 @@
   <script src="/sprites/npc.js"></script>
   <script src="/sprites/wolf.js"></script>
   <script src="/sprites/campfire.js"></script>
-  <script src="/i18n.js"></script>
-  <script src="/app.js"></script>
+  <script src="/i18n.js?v=20260523-mobile-radius-v4"></script>
+  <script src="/app.js?v=20260523-mobile-radius-v4"></script>
 </body>
 </html>

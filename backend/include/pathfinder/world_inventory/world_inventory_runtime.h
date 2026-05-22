@@ -50,6 +50,8 @@ private:
     foundation::Result<void> applySpawnToInventory(InventoryTransferDraft& draft);
 
     foundation::Result<std::string> findOrCreateActorInventory(const std::string& actor_key);
+
+    foundation::Result<const InventoryRuntimeState*> findActorInventory(const std::string& actor_key) const override;
     bool isContainerEntity(const world_runtime::WorldEntityInstance& entity) const;
 
     bool isAdjacent(const world_runtime::WorldCellCoord& a, const world_runtime::WorldCellCoord& b) const;

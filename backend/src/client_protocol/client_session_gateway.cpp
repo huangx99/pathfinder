@@ -6,6 +6,51 @@ namespace pathfinder::client_protocol {
 using pathfinder::foundation::ErrorCode;
 using pathfinder::foundation::makeError;
 using pathfinder::foundation::Result;
+using pathfinder::world_map_interaction::RegionActivityWindowService;
+using pathfinder::world_map_interaction::RegionLifecycleTriggerService;
+using pathfinder::world_map_interaction::ClientRegionLifecycleEventDto;
+
+namespace {
+
+// P60: Convert lifecycle events to WorldEventDto for client feed.
+std::vector<WorldEventDto> convertLifecycleEvents(
+    const std::vector<ClientRegionLifecycleEventDto>& lifecycle_events) {
+    std::vector<WorldEventDto> result;
+    for (const auto& ev : lifecycle_events) {
+        WorldEventDto event;
+        event.event_id = ev.event_id;
+        event.event_kind = "Lifecycle:" + ev.event_kind;
+        event.tick = ev.tick;
+        event.title_text = ev.label_zh;
+        event.body_text = ev.label_zh;
+        for (const auto& r : ev.failure_reason_keys) {
+            event.reason_keys.push_back(r);
+        }
+        result.push_back(std::move(event));
+    }
+    return result;
+}
+
+// P60: Run activity window + lifecycle trigger for an actor.
+std::vector<WorldEventDto> runLifecycleTrigger(
+    RegionActivityWindowService* aw_service,
+    RegionLifecycleTriggerService* trigger_service,
+    const std::string& actor_key,
+    const std::string& layer_key,
+    uint64_t tick,
+    const world_region_state::WorldRegionSnapshotBuildContext& context) {
+    if (!aw_service || !trigger_service) {
+        return {};
+    }
+    auto window_res = aw_service->computeWindow(actor_key, layer_key, tick);
+    if (window_res.is_error()) {
+        return {};
+    }
+    auto trigger_result = trigger_service->processWindow(window_res.value(), context);
+    return convertLifecycleEvents(trigger_result.events);
+}
+
+} // anonymous namespace
 
 ClientSessionGateway::ClientSessionGateway(
     const ClientProjectionAdapter& projection_adapter,
@@ -16,6 +61,21 @@ ClientSessionGateway::ClientSessionGateway(
 void ClientSessionGateway::setRegionEnsureAdapter(
     client_runtime_bridge::ClientWorldRegionEnsureAdapter* ensure_adapter) {
     ensure_adapter_ = ensure_adapter;
+}
+
+void ClientSessionGateway::setActivityWindowService(
+    world_map_interaction::RegionActivityWindowService* service) {
+    activity_window_service_ = service;
+}
+
+void ClientSessionGateway::setLifecycleTriggerService(
+    world_map_interaction::RegionLifecycleTriggerService* service) {
+    lifecycle_trigger_service_ = service;
+}
+
+void ClientSessionGateway::setWorldContext(const std::string& world_id, uint64_t world_seed) {
+    world_id_ = world_id;
+    world_seed_ = world_seed;
 }
 
 ClientSessionGateway::SessionState& ClientSessionGateway::getOrCreateSession(
@@ -51,13 +111,36 @@ Result<ClientBootstrapResponse> ClientSessionGateway::bootstrap(
 
     auto& session = getOrCreateSession(request);
 
-    // P58: Ensure regions before building projection and options.
+    // P58/P60: Ensure and lifecycle must run before projection/options are built.
+    // Otherwise the client may receive cells/options from regions that are sealed
+    // and detached immediately afterwards, causing pathfinding to act on stale map.
     if (ensure_adapter_) {
         auto ensure_res = ensure_adapter_->ensureForBootstrap(session.actor_key, session.layer_key);
         if (ensure_res.is_error()) {
             return Result<ClientBootstrapResponse>::fail(ensure_res.errors());
         }
+        auto ensure_cmd_res = ensure_adapter_->ensureForAvailableCommands(session.actor_key, session.layer_key);
+        if (ensure_cmd_res.is_error()) {
+            return Result<ClientBootstrapResponse>::fail(ensure_cmd_res.errors());
+        }
     }
+
+    auto lifecycle_tick_res = available_command_adapter_.runtimeStateVersion(session.actor_key, session.layer_key);
+    uint64_t lifecycle_tick = lifecycle_tick_res.is_ok() && lifecycle_tick_res.value() > 0
+        ? lifecycle_tick_res.value()
+        : session.projection_version;
+
+    world_region_state::WorldRegionSnapshotBuildContext ctx;
+    ctx.world_id = world_id_;
+    ctx.world_seed = world_seed_;
+    ctx.world_tick = lifecycle_tick;
+    ctx.state_version = lifecycle_tick;
+    ctx.worldgen_profile_key = "first_world";
+    ctx.generator_version = "1.0.0";
+    ctx.content_version = "1.0.0";
+    auto lifecycle_events = runLifecycleTrigger(
+        activity_window_service_, lifecycle_trigger_service_,
+        session.actor_key, session.layer_key, lifecycle_tick, ctx);
 
     auto proj_result = projection_adapter_.buildFullProjection(
         session.actor_key, session.layer_key, session.projection_version);
@@ -68,14 +151,6 @@ Result<ClientBootstrapResponse> ClientSessionGateway::bootstrap(
     // P56: Sync session projection_version to runtime-backed full_projection version.
     const uint64_t runtime_version = proj_result.value().projection_version;
     session.projection_version = runtime_version;
-
-    // P58: Ensure neighbor regions before building move options.
-    if (ensure_adapter_) {
-        auto ensure_cmd_res = ensure_adapter_->ensureForAvailableCommands(session.actor_key, session.layer_key);
-        if (ensure_cmd_res.is_error()) {
-            return Result<ClientBootstrapResponse>::fail(ensure_cmd_res.errors());
-        }
-    }
 
     auto options_result = available_command_adapter_.buildOptions(
         session.actor_key, session.layer_key);
@@ -92,6 +167,8 @@ Result<ClientBootstrapResponse> ClientSessionGateway::bootstrap(
     response.projection_version = runtime_version;
     response.full_projection = proj_result.value();
     response.available_commands = options_result.value();
+    response.event_feed.insert(
+        response.event_feed.end(), lifecycle_events.begin(), lifecycle_events.end());
 
     return Result<ClientBootstrapResponse>::ok(std::move(response));
 }
@@ -118,13 +195,34 @@ Result<ClientRefreshResponse> ClientSessionGateway::refresh(
 
     auto& session = it->second;
 
-    // P58: Ensure vision window before refresh projection.
+    // P58/P60: Ensure and lifecycle must run before refresh projection/options.
     if (ensure_adapter_) {
         auto ensure_res = ensure_adapter_->ensureForRefresh(session.actor_key, session.layer_key, 0);
         if (ensure_res.is_error()) {
             return Result<ClientRefreshResponse>::fail(ensure_res.errors());
         }
+        auto ensure_cmd_res = ensure_adapter_->ensureForAvailableCommands(session.actor_key, session.layer_key);
+        if (ensure_cmd_res.is_error()) {
+            return Result<ClientRefreshResponse>::fail(ensure_cmd_res.errors());
+        }
     }
+
+    auto lifecycle_tick_res = available_command_adapter_.runtimeStateVersion(session.actor_key, session.layer_key);
+    uint64_t lifecycle_tick = lifecycle_tick_res.is_ok() && lifecycle_tick_res.value() > 0
+        ? lifecycle_tick_res.value()
+        : session.projection_version;
+
+    world_region_state::WorldRegionSnapshotBuildContext ctx;
+    ctx.world_id = world_id_;
+    ctx.world_seed = world_seed_;
+    ctx.world_tick = lifecycle_tick;
+    ctx.state_version = lifecycle_tick;
+    ctx.worldgen_profile_key = "first_world";
+    ctx.generator_version = "1.0.0";
+    ctx.content_version = "1.0.0";
+    auto lifecycle_events = runLifecycleTrigger(
+        activity_window_service_, lifecycle_trigger_service_,
+        session.actor_key, session.layer_key, lifecycle_tick, ctx);
 
     auto proj_result = projection_adapter_.buildScopedProjection(
         session.actor_key, session.layer_key, session.projection_version, request.requested_scopes);
@@ -135,14 +233,6 @@ Result<ClientRefreshResponse> ClientSessionGateway::refresh(
     // P56: Sync session projection_version to runtime-backed full_projection version.
     const uint64_t runtime_version = proj_result.value().projection_version;
     session.projection_version = runtime_version;
-
-    // P58: Ensure neighbor regions before building move options.
-    if (ensure_adapter_) {
-        auto ensure_cmd_res = ensure_adapter_->ensureForAvailableCommands(session.actor_key, session.layer_key);
-        if (ensure_cmd_res.is_error()) {
-            return Result<ClientRefreshResponse>::fail(ensure_cmd_res.errors());
-        }
-    }
 
     auto options_result = available_command_adapter_.buildOptions(
         session.actor_key, session.layer_key);
@@ -158,6 +248,8 @@ Result<ClientRefreshResponse> ClientSessionGateway::refresh(
     response.projection_version = runtime_version;
     response.full_projection = proj_result.value();
     response.available_commands = options_result.value();
+    response.event_feed.insert(
+        response.event_feed.end(), lifecycle_events.begin(), lifecycle_events.end());
 
     return Result<ClientRefreshResponse>::ok(std::move(response));
 }

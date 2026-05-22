@@ -176,14 +176,17 @@ public:
 
         WorldCommandExecutionResult result;
 
-        // Parse entity_id / entity_key / quantity from parameters
+        // Parse entity_id / entity_key / quantity from command target and parameters
         std::string entity_id = command.target.target_entity_id;
         std::string entity_key;
         int quantity = 1;
 
-        auto eid_it = command.parameters.find("entity_id");
-        if (eid_it != command.parameters.end()) {
-            entity_id = eid_it->second;
+        // Fallback to parameters for legacy / direct-command paths
+        if (entity_id.empty()) {
+            auto eid_it = command.parameters.find("entity_id");
+            if (eid_it != command.parameters.end()) {
+                entity_id = eid_it->second;
+            }
         }
         auto ekey_it = command.parameters.find("entity_key");
         if (ekey_it != command.parameters.end()) {

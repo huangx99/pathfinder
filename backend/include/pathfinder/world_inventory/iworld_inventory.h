@@ -22,6 +22,9 @@ public:
     virtual foundation::Result<std::string> ensureActorInventory(const std::string& actor_key) = 0;
     virtual foundation::Result<std::string> ensureContainerInventory(const std::string& container_entity_id) = 0;
 
+    // P60: Read-only lookup of actor inventory (does NOT create).
+    virtual foundation::Result<const InventoryRuntimeState*> findActorInventory(const std::string& actor_key) const = 0;
+
     virtual foundation::Result<ItemLocationRef> findItemLocation(const std::string& entity_id) const = 0;
     virtual foundation::Result<std::vector<InventoryItemEntry>> queryItems(
         const InventoryOwnerRef& owner, const std::string& entity_key) const = 0;

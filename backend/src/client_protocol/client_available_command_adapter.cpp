@@ -20,6 +20,8 @@ namespace {
     }
 }
 
+// Test-only compatibility constructor. Production must inject option_bridge so
+// available_commands are generated from runtime providers rather than the fallback.
 ClientAvailableCommandAdapter::ClientAvailableCommandAdapter() = default;
 
 ClientAvailableCommandAdapter::ClientAvailableCommandAdapter(
@@ -51,7 +53,9 @@ Result<std::vector<WorldCommandOptionDto>> ClientAvailableCommandAdapter::buildO
         return buildFromBridge(actor_key, layer_key);
     }
 
-    // P53 stub fallback: returns a minimal set (Wait, Inspect) for protocol testing.
+    // P53 test fallback only: returns a minimal Wait/Inspect set for protocol tests.
+    // Production must not rely on this branch. If a playable command is needed, add
+    // a runtime-backed provider/handler and wire it through ClientServerRuntimeFactory.
     std::vector<WorldCommandOptionDto> options;
 
     {
@@ -77,6 +81,24 @@ Result<std::vector<WorldCommandOptionDto>> ClientAvailableCommandAdapter::buildO
     }
 
     return Result<std::vector<WorldCommandOptionDto>>::ok(std::move(options));
+}
+
+
+Result<uint64_t> ClientAvailableCommandAdapter::runtimeStateVersion(
+    const std::string& actor_key,
+    const std::string& layer_key) const {
+
+    if (!option_bridge_) {
+        return Result<uint64_t>::ok(0);
+    }
+
+    auto diag_res = option_bridge_->diagnostics(
+        actor_key, layer_key.empty() ? "surface" : layer_key);
+    if (diag_res.is_error()) {
+        return Result<uint64_t>::fail(diag_res.errors());
+    }
+
+    return Result<uint64_t>::ok(diag_res.value().runtime_state_version);
 }
 
 Result<WorldCommandDto> ClientAvailableCommandAdapter::materializeOption(
@@ -111,11 +133,14 @@ Result<WorldCommandDto> ClientAvailableCommandAdapter::materializeOption(
     return Result<WorldCommandDto>::ok(std::move(cmd));
 }
 
+
 Result<WorldCommandDto> ClientAvailableCommandAdapter::materializeOption(
     const std::string& option_id,
     const std::string& actor_key) const {
 
-    // Fallback without snapshot (legacy / unit-test only).
+    // Legacy fallback without snapshot: unit-test/backward-compat only.
+    // ClientCommandGateway uses the snapshot overload; do not call this from
+    // production client request handling or it would bypass session option authority.
     if (option_id.find("opt_wait_") == 0) {
         WorldCommandDto cmd;
         cmd.command_id = makeCommandId("cmd");

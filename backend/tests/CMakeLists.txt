@@ -5929,3 +5929,56 @@ add_test(
     NAME architecture_p59_no_frontend_projection_dependency
     COMMAND bash -c "! grep -rn 'client_protocol\|client_runtime_bridge\|ClientWorldProjection' ${CMAKE_CURRENT_SOURCE_DIR}/../src/world_region_state/ ${CMAKE_CURRENT_SOURCE_DIR}/../include/pathfinder/world_region_state/"
 )
+
+
+# World Map Interaction tests (P60)
+add_executable(pathfinder_tests_world_map_interaction
+    unit/world_map_interaction/world_map_interaction_main.cpp
+    unit/world_map_interaction/world_map_interaction_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_world_map_interaction PRIVATE
+    pathfinder_world_map_interaction
+    pathfinder_world_region_state
+    pathfinder_world_runtime
+    pathfinder_world_generation
+    pathfinder_world_inventory
+    pathfinder_world_harvest
+    pathfinder_client_protocol
+    pathfinder_foundation
+)
+
+add_test(NAME world_map_interaction_smoke COMMAND pathfinder_tests_world_map_interaction smoke)
+add_test(NAME world_map_interaction_activity_window COMMAND pathfinder_tests_world_map_interaction activity_window)
+add_test(NAME world_map_interaction_lifecycle_trigger COMMAND pathfinder_tests_world_map_interaction lifecycle_trigger)
+add_test(NAME world_map_interaction_map_selection COMMAND pathfinder_tests_world_map_interaction map_selection)
+add_test(NAME world_map_interaction_map_projection COMMAND pathfinder_tests_world_map_interaction map_projection)
+
+# P60 Integration tests
+add_executable(pathfinder_tests_p60
+    integration/p60/p60_main.cpp
+    integration/p60/map_interaction_seal_restore_flow_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_p60 PRIVATE
+    pathfinder_world_map_interaction
+    pathfinder_world_region_state
+    pathfinder_world_runtime
+    pathfinder_world_generation
+    pathfinder_world_inventory
+    pathfinder_world_harvest
+    pathfinder_client_protocol
+    pathfinder_client_http
+    pathfinder_foundation
+)
+
+add_test(NAME p60_smoke COMMAND pathfinder_tests_p60 smoke)
+add_test(NAME p60_map_interaction_seal_restore_flow COMMAND pathfinder_tests_p60 map_interaction_seal_restore_flow)
+add_test(NAME p60_map_interaction_inventory_option_flow COMMAND pathfinder_tests_p60 map_interaction_inventory_option_flow)
+add_test(NAME p60_map_interaction_stale_selection_no_snapshot_pollution COMMAND pathfinder_tests_p60 map_interaction_stale_selection_no_snapshot_pollution)
+
+# Architecture guard: P60 must not directly modify runtime arrays
+add_test(
+    NAME architecture_p60_no_direct_runtime_array_modification
+    COMMAND bash -c "! grep -rn 'cells_\.\\|entities_\.\\|actors_\.\\|resource_nodes_\.' ${CMAKE_CURRENT_SOURCE_DIR}/../src/world_map_interaction/"
+)

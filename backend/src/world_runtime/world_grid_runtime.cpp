@@ -545,6 +545,17 @@ Result<const WorldResourceNodeRuntime*> WorldGridRuntime::findResourceNode(const
     return Result<const WorldResourceNodeRuntime*>::ok(&it->second);
 }
 
+Result<std::vector<WorldResourceNodeRuntime>> WorldGridRuntime::queryResourceNodesAtCell(const WorldCellCoord& coord) const {
+    std::vector<WorldResourceNodeRuntime> result;
+    std::string target_cell_id = coord.cellId();
+    for (const auto& [node_id, node] : resource_nodes_) {
+        if (node.coord.cellId() == target_cell_id) {
+            result.push_back(node);
+        }
+    }
+    return Result<std::vector<WorldResourceNodeRuntime>>::ok(std::move(result));
+}
+
 Result<void> WorldGridRuntime::updateResourceNodeRuntime(const WorldResourceNodeRuntime& node) {
     // P47 semantic: same as upsert, but clearly marks harvest state updates
     resource_nodes_[node.node_id] = node;

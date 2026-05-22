@@ -15,6 +15,10 @@ struct LegacyConditionInput {
     bool test_only{false};
 };
 
+// Migration adapter for pre-P27 condition keys. Despite the name, this is not
+// dead code: ConditionNormalizer uses it to fold older content into the unified
+// condition-expression system. Do not add new gameplay rules here; new content
+// should use expression refs directly.
 class LegacyConditionAdapter {
 public:
     pathfinder::foundation::Result<std::string> canonicalizeKey(const std::string& legacy_key, bool test_only = false) const;

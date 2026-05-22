@@ -72,7 +72,8 @@ const I18N = {
     torch_name: '火把',
     stone_name: '石头',
 
-    // 旧 h5 兼容 (直接 display_name)
+    // 旧 h5 兼容：只用于把历史 display_name 文本翻译成中文。
+    // 这里不能新增玩法规则；正式内容仍以后端 projection/command 数据为准。
     'Pine Tree': '松树',
     'Oak Tree': '橡树',
     'Boulder': '巨石',

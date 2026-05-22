@@ -1,10 +1,13 @@
 #include "pathfinder/client_protocol/client_projection_adapter.h"
 #include "pathfinder/foundation/error.h"
+#include <algorithm>
 
 namespace pathfinder::client_protocol {
 
 using pathfinder::foundation::Result;
 
+// Test-only compatibility constructor. Production must use the bridge-injected
+// constructor from ClientServerRuntimeFactory so projection data comes from runtime.
 ClientProjectionAdapter::ClientProjectionAdapter() = default;
 
 ClientProjectionAdapter::ClientProjectionAdapter(
@@ -54,7 +57,9 @@ Result<ClientWorldProjection> ClientProjectionAdapter::buildFullProjection(
             pathfinder::client_runtime_bridge::ClientProjectionBuildReason::Bootstrap);
     }
 
-    // P53 stub fallback: visible_cells, visible_entities are intentionally empty until runtime bridges are wired.
+    // P53 test fallback only: visible cells/entities are intentionally empty.
+    // Production must never rely on this branch; ClientServerRuntimeFactory injects
+    // ClientRuntimeProjectionBridge so the branch above returns real runtime data.
     ClientWorldProjection proj;
     proj.projection_version = projection_version;
     proj.actor_key = actor_key;
@@ -69,6 +74,8 @@ Result<ClientWorldProjection> ClientProjectionAdapter::buildScopedProjection(
     const std::vector<ClientProjectionScope>& /*scopes*/) const {
 
     // P56: scopes are advisory; for now return full safe projection via bridge if available.
+    // If no bridge exists, this intentionally falls back to the test-only full
+    // projection stub above; do not use no-bridge mode in production wiring.
     if (bridge_port_) {
         return buildFromBridge(actor_key, layer_key, projection_version,
             pathfinder::client_runtime_bridge::ClientProjectionBuildReason::Refresh);
@@ -84,6 +91,13 @@ Result<ClientWorldProjection> ClientProjectionAdapter::mergePatch(
     merged.projection_version = patch.new_projection_version;
 
     for (const auto& cell : patch.changed_cells) {
+        if (cell.op == PatchOp::Remove || cell.op == PatchOp::Clear) {
+            merged.visible_cells.erase(
+                std::remove_if(merged.visible_cells.begin(), merged.visible_cells.end(),
+                    [&](const auto& existing) { return existing.cell_id == cell.cell_id; }),
+                merged.visible_cells.end());
+            continue;
+        }
         bool found = false;
         for (auto& existing : merged.visible_cells) {
             if (existing.cell_id == cell.cell_id) {
@@ -98,6 +112,13 @@ Result<ClientWorldProjection> ClientProjectionAdapter::mergePatch(
     }
 
     for (const auto& entity : patch.changed_entities) {
+        if (entity.op == PatchOp::Remove || entity.op == PatchOp::Clear) {
+            merged.visible_entities.erase(
+                std::remove_if(merged.visible_entities.begin(), merged.visible_entities.end(),
+                    [&](const auto& existing) { return existing.entity_id == entity.entity_id; }),
+                merged.visible_entities.end());
+            continue;
+        }
         bool found = false;
         for (auto& existing : merged.visible_entities) {
             if (existing.entity_id == entity.entity_id) {
@@ -112,6 +133,13 @@ Result<ClientWorldProjection> ClientProjectionAdapter::mergePatch(
     }
 
     for (const auto& inv : patch.changed_inventories) {
+        if (inv.op == PatchOp::Remove || inv.op == PatchOp::Clear) {
+            merged.inventories.erase(
+                std::remove_if(merged.inventories.begin(), merged.inventories.end(),
+                    [&](const auto& existing) { return existing.inventory_id == inv.inventory_id; }),
+                merged.inventories.end());
+            continue;
+        }
         bool found = false;
         for (auto& existing : merged.inventories) {
             if (existing.inventory_id == inv.inventory_id) {
@@ -126,6 +154,13 @@ Result<ClientWorldProjection> ClientProjectionAdapter::mergePatch(
     }
 
     for (const auto& kn : patch.changed_knowledge) {
+        if (kn.op == PatchOp::Remove || kn.op == PatchOp::Clear) {
+            merged.knowledge.erase(
+                std::remove_if(merged.knowledge.begin(), merged.knowledge.end(),
+                    [&](const auto& existing) { return existing.actor_key == kn.actor_key; }),
+                merged.knowledge.end());
+            continue;
+        }
         bool found = false;
         for (auto& existing : merged.knowledge) {
             if (existing.actor_key == kn.actor_key) {
@@ -140,6 +175,13 @@ Result<ClientWorldProjection> ClientProjectionAdapter::mergePatch(
     }
 
     for (const auto& ae : patch.changed_area_effects) {
+        if (ae.op == PatchOp::Remove || ae.op == PatchOp::Clear) {
+            merged.area_effects.erase(
+                std::remove_if(merged.area_effects.begin(), merged.area_effects.end(),
+                    [&](const auto& existing) { return existing.area_effect_id == ae.area_effect_id; }),
+                merged.area_effects.end());
+            continue;
+        }
         bool found = false;
         for (auto& existing : merged.area_effects) {
             if (existing.area_effect_id == ae.area_effect_id) {

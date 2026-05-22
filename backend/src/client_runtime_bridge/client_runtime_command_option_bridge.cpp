@@ -3,6 +3,7 @@
 #include "pathfinder/foundation/error.h"
 #include <atomic>
 #include <chrono>
+#include <set>
 
 namespace pathfinder::client_runtime_bridge {
 
@@ -238,7 +239,29 @@ ClientRuntimeCommandOptionBridge::ClientRuntimeCommandOptionBridge(
     , mode_(mode)
     , movement_provider_(registry)
     , inspect_provider_(registry)
-    , wait_provider_(registry) {}
+    , wait_provider_(registry)
+    , harvest_provider_(nullptr)
+    , inventory_provider_(nullptr) {}
+
+ClientRuntimeCommandOptionBridge::ClientRuntimeCommandOptionBridge(
+    IWorldRuntime& runtime,
+    const WorldCommandHandlerRegistry& registry,
+    pathfinder::world_harvest::ResourceHarvestService* harvest_service,
+    pathfinder::world_inventory::IInventoryRuntime* inventory_runtime,
+    ClientRuntimeBridgeMode mode)
+    : runtime_(runtime)
+    , registry_(registry)
+    , mode_(mode)
+    , movement_provider_(registry)
+    , inspect_provider_(registry)
+    , wait_provider_(registry) {
+    if (harvest_service) {
+        harvest_provider_ = std::make_unique<HarvestCommandOptionProvider>(registry, *harvest_service);
+    }
+    if (inventory_runtime) {
+        inventory_provider_ = std::make_unique<InventoryCommandOptionProvider>(registry, *inventory_runtime);
+    }
+}
 
 Result<ClientRuntimeView> ClientRuntimeCommandOptionBridge::buildRuntimeView(
     const ClientRuntimeViewRequest& /*request*/) const {
@@ -273,15 +296,21 @@ Result<std::vector<WorldCommandOptionDto>> ClientRuntimeCommandOptionBridge::bui
     bool run_wait = true;
     bool move_move = true;
     bool run_inspect = true;
+    bool run_harvest = true;
+    bool run_inventory = true;
 
     if (!request.provider_kinds.empty()) {
         run_wait = false;
         move_move = false;
         run_inspect = false;
+        run_harvest = false;
+        run_inventory = false;
         for (const auto& kind : request.provider_kinds) {
             if (kind == ClientCommandOptionProviderKind::Wait) run_wait = true;
             if (kind == ClientCommandOptionProviderKind::Move) move_move = true;
             if (kind == ClientCommandOptionProviderKind::Inspect) run_inspect = true;
+            if (kind == ClientCommandOptionProviderKind::Harvest) run_harvest = true;
+            if (kind == ClientCommandOptionProviderKind::Inventory) run_inventory = true;
         }
     }
 
@@ -298,6 +327,16 @@ Result<std::vector<WorldCommandOptionDto>> ClientRuntimeCommandOptionBridge::bui
     if (run_inspect) {
         auto inspect_opts = inspect_provider_.buildOptions(*actor, runtime_);
         options.insert(options.end(), inspect_opts.begin(), inspect_opts.end());
+    }
+
+    if (run_harvest && harvest_provider_) {
+        auto harvest_opts = harvest_provider_->buildOptions(*actor, runtime_);
+        options.insert(options.end(), harvest_opts.begin(), harvest_opts.end());
+    }
+
+    if (run_inventory && inventory_provider_) {
+        auto inv_opts = inventory_provider_->buildOptions(*actor, runtime_);
+        options.insert(options.end(), inv_opts.begin(), inv_opts.end());
     }
 
     return Result<std::vector<WorldCommandOptionDto>>::ok(std::move(options));
@@ -322,6 +361,212 @@ Result<ClientRuntimeBridgeDiagnostics> ClientRuntimeCommandOptionBridge::diagnos
     }
 
     return Result<ClientRuntimeBridgeDiagnostics>::ok(std::move(diag));
+}
+
+// ---------------------------------------------------------------------------
+// HarvestCommandOptionProvider
+// ---------------------------------------------------------------------------
+
+HarvestCommandOptionProvider::HarvestCommandOptionProvider(
+    const WorldCommandHandlerRegistry& registry,
+    pathfinder::world_harvest::ResourceHarvestService& harvest_service)
+    : registry_(registry), harvest_service_(harvest_service) {}
+
+std::vector<WorldCommandOptionDto> HarvestCommandOptionProvider::buildOptions(
+    const WorldActorRuntime& actor,
+    const IWorldRuntime& runtime) const {
+
+    std::vector<WorldCommandOptionDto> options;
+
+    // Check if any harvest handler is registered
+    bool has_gather = registry_.findByKind(WorldCommandKind::Gather) != nullptr;
+    bool has_chop   = registry_.findByKind(WorldCommandKind::Chop) != nullptr;
+    bool has_mine   = registry_.findByKind(WorldCommandKind::Mine) != nullptr;
+    bool has_dig    = registry_.findByKind(WorldCommandKind::Dig) != nullptr;
+    if (!has_gather && !has_chop && !has_mine && !has_dig) {
+        return options;
+    }
+
+    // Find resource nodes adjacent to or on the actor's cell
+    auto snap_res = runtime.snapshotForDebug();
+    if (snap_res.is_error()) {
+        return options;
+    }
+    const auto& snapshot = snap_res.value();
+
+    for (const auto& [node_id, node] : snapshot.resource_nodes) {
+        if (node.coord.layer_key != actor.coord.layer_key) continue;
+
+        int dx = std::abs(node.coord.x - actor.coord.x);
+        int dy = std::abs(node.coord.y - actor.coord.y);
+        if (dx > 1 || dy > 1) continue; // must be adjacent or same cell
+        if (node.node_state_str == "Depleted") continue;
+        if (node.remaining_charges <= 0) continue;
+
+        // Map required_action_key to harvest command
+        WorldCommandKind command_kind = WorldCommandKind::Noop;
+        std::string command_key;
+        std::string label_text;
+        pathfinder::world_harvest::ResourceHarvestKind harvest_kind = pathfinder::world_harvest::ResourceHarvestKind::Unknown;
+
+        if (node.required_action_key == "gather" && has_gather) {
+            command_kind = WorldCommandKind::Gather;
+            command_key = "gather";
+            label_text = "采集";
+            harvest_kind = pathfinder::world_harvest::ResourceHarvestKind::Gather;
+        } else if (node.required_action_key == "chop" && has_chop) {
+            command_kind = WorldCommandKind::Chop;
+            command_key = "chop";
+            label_text = "砍伐";
+            harvest_kind = pathfinder::world_harvest::ResourceHarvestKind::Chop;
+        } else if (node.required_action_key == "mine" && has_mine) {
+            command_kind = WorldCommandKind::Mine;
+            command_key = "mine";
+            label_text = "开采";
+            harvest_kind = pathfinder::world_harvest::ResourceHarvestKind::Mine;
+        } else if (node.required_action_key == "dig" && has_dig) {
+            command_kind = WorldCommandKind::Dig;
+            command_key = "dig";
+            label_text = "挖掘";
+            harvest_kind = pathfinder::world_harvest::ResourceHarvestKind::Dig;
+        } else {
+            continue; // unsupported required_action_key or handler not registered
+        }
+
+        // Validate via harvest service (read-only check)
+        pathfinder::world_harvest::ResourceHarvestRequest req;
+        req.harvest_id = "option_check_" + node_id;
+        req.actor_key = actor.actor_key;
+        req.node_id = node_id;
+        req.harvest_kind = harvest_kind;
+
+        auto validate_res = harvest_service_.validate(req);
+        if (!validate_res.is_ok()) {
+            continue; // not harvestable right now
+        }
+
+        WorldCommandOptionDto opt;
+        opt.option_id = makeOptionId("opt_harvest");
+        opt.command_kind = command_kind;
+        opt.command_key = command_key;
+        opt.label_text = label_text;
+        opt.target.target_kind = WorldCommandTargetKind::Entity;
+        opt.target.target_entity_id = node_id;
+        opt.enabled = true;
+        opt.priority = 20;
+
+        options.push_back(std::move(opt));
+    }
+
+    return options;
+}
+
+// ---------------------------------------------------------------------------
+// InventoryCommandOptionProvider
+// ---------------------------------------------------------------------------
+
+InventoryCommandOptionProvider::InventoryCommandOptionProvider(
+    const WorldCommandHandlerRegistry& registry,
+    pathfinder::world_inventory::IInventoryRuntime& inventory_runtime)
+    : registry_(registry), inventory_runtime_(inventory_runtime) {}
+
+std::vector<WorldCommandOptionDto> InventoryCommandOptionProvider::buildOptions(
+    const WorldActorRuntime& actor,
+    const IWorldRuntime& runtime) const {
+
+    std::vector<WorldCommandOptionDto> options;
+
+    auto pickup_opts = buildPickupOptions(actor, runtime);
+    options.insert(options.end(), pickup_opts.begin(), pickup_opts.end());
+
+    auto drop_opts = buildDropOptions(actor, runtime);
+    options.insert(options.end(), drop_opts.begin(), drop_opts.end());
+
+    return options;
+}
+
+std::vector<WorldCommandOptionDto> InventoryCommandOptionProvider::buildPickupOptions(
+    const WorldActorRuntime& actor,
+    const IWorldRuntime& runtime) const {
+
+    std::vector<WorldCommandOptionDto> options;
+    if (!registry_.findByKind(WorldCommandKind::Pickup)) {
+        return options;
+    }
+
+    auto snap_res = runtime.snapshotForDebug();
+    if (snap_res.is_error()) {
+        return options;
+    }
+    const auto& snapshot = snap_res.value();
+
+    std::set<std::string> actor_entity_ids;
+    for (const auto& [actor_key, snapshot_actor] : snapshot.actors) {
+        (void)actor_key;
+        if (!snapshot_actor.entity_id.empty()) {
+            actor_entity_ids.insert(snapshot_actor.entity_id);
+        }
+    }
+
+    for (const auto& [entity_id, entity] : snapshot.entities) {
+        if (actor_entity_ids.count(entity_id) > 0) continue;
+        if (!entity.coord) continue;
+        if (entity.coord->layer_key != actor.coord.layer_key) continue;
+        if (entity.location_kind != pathfinder::world_runtime::WorldEntityLocationKind::OnMap) continue;
+
+        int dx = std::abs(entity.coord->x - actor.coord.x);
+        int dy = std::abs(entity.coord->y - actor.coord.y);
+        if (dx > 1 || dy > 1) continue; // must be adjacent or same cell
+
+        WorldCommandOptionDto opt;
+        opt.option_id = makeOptionId("opt_pickup");
+        opt.command_kind = WorldCommandKind::Pickup;
+        opt.command_key = "pickup";
+        opt.label_text = "拾取 " + entity.display_name_key;
+        opt.target.target_kind = WorldCommandTargetKind::Entity;
+        opt.target.target_entity_id = entity_id;
+        opt.enabled = true;
+        opt.priority = 15;
+        options.push_back(std::move(opt));
+    }
+
+    return options;
+}
+
+std::vector<WorldCommandOptionDto> InventoryCommandOptionProvider::buildDropOptions(
+    const WorldActorRuntime& actor,
+    const IWorldRuntime& /*runtime*/) const {
+
+    std::vector<WorldCommandOptionDto> options;
+    if (!registry_.findByKind(WorldCommandKind::Drop)) {
+        return options;
+    }
+
+    // Read-only lookup of actor inventory (do NOT create inventory during option query)
+    auto inv_state_res = inventory_runtime_.findActorInventory(actor.actor_key);
+    if (inv_state_res.is_error()) {
+        return options;
+    }
+    const auto* inv_state = inv_state_res.value();
+    if (!inv_state || inv_state->entries.empty()) {
+        return options;
+    }
+
+    for (const auto& entry : inv_state->entries) {
+        WorldCommandOptionDto opt;
+        opt.option_id = makeOptionId("opt_drop");
+        opt.command_kind = WorldCommandKind::Drop;
+        opt.command_key = "drop";
+        opt.label_text = "丢弃 " + entry.entity_key;
+        opt.target.target_kind = WorldCommandTargetKind::Entity;
+        opt.target.target_entity_id = entry.entity_id;
+        opt.enabled = true;
+        opt.priority = 12;
+
+        options.push_back(std::move(opt));
+    }
+
+    return options;
 }
 
 } // namespace pathfinder::client_runtime_bridge

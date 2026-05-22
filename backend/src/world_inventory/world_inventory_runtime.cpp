@@ -153,6 +153,12 @@ Result<std::string> WorldInventoryRuntime::findOrCreateActorInventory(const std:
     return ensureActorInventory(actor_key);
 }
 
+Result<const InventoryRuntimeState*> WorldInventoryRuntime::findActorInventory(const std::string& actor_key) const {
+    InventoryOwnerRef owner{InventoryOwnerKind::Actor, actor_key};
+    std::string inventory_id = makeInventoryId(owner);
+    return findInventory(inventory_id);
+}
+
 // ---------------------------------------------------------------------------
 // isContainerEntity
 // ---------------------------------------------------------------------------

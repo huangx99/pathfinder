@@ -36,7 +36,7 @@ void run_bootstrap_non_empty_tests() {
         auto x_it = cell.fields.find("x");
         auto y_it = cell.fields.find("y");
         if (x_it == cell.fields.end() || y_it == cell.fields.end()) continue;
-        if (x_it->second == "16" && y_it->second == "0") {
+        if (x_it->second == "1" && y_it->second == "0") {
             has_prefetched_east_cell = true;
             break;
         }

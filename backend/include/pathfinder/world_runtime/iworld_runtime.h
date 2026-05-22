@@ -48,6 +48,7 @@ public:
     // P46: Resource node runtime
     virtual foundation::Result<void> upsertGeneratedResourceNode(const WorldResourceNodeRuntime& node) = 0;
     virtual foundation::Result<const WorldResourceNodeRuntime*> findResourceNode(const std::string& node_id) const = 0;
+    virtual foundation::Result<std::vector<WorldResourceNodeRuntime>> queryResourceNodesAtCell(const WorldCellCoord& coord) const = 0;
 
     // P47: Update resource node after harvest (semantic alias for upsert, but clearly for state updates)
     virtual foundation::Result<void> updateResourceNodeRuntime(const WorldResourceNodeRuntime& node) = 0;

@@ -27,6 +27,7 @@ enum class WorldRegionEnsureStatus {
     Unknown,
     AlreadyAvailable,
     GeneratedAndApplied,
+    RestoredSnapshot,
     SkippedByPolicy,
     GenerationFailed,
     ApplyFailed,

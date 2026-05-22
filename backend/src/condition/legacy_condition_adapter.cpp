@@ -11,6 +11,9 @@ using pathfinder::foundation::ErrorCode;
 using pathfinder::foundation::Result;
 using pathfinder::foundation::makeError;
 
+// Converts old condition-key strings into canonical expression keys for migration
+// and compatibility. This keeps older content readable without creating a second
+// rule system. New rules must be authored as condition expressions, not added here.
 Result<std::string> LegacyConditionAdapter::canonicalizeKey(const std::string& legacy_key, bool test_only) const {
     if (legacy_key.empty()) return Result<std::string>::fail(makeError(ErrorCode::validation_failed, "legacy condition key empty"));
     if (containsConditionForbiddenKey(legacy_key)) return Result<std::string>::fail(makeError(ErrorCode::validation_failed, "legacy condition key forbidden"));

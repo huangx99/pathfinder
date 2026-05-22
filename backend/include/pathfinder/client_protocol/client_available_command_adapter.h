@@ -12,13 +12,23 @@ namespace pathfinder::client_protocol {
 // Does not hard-code content keys or read JSON.
 class ClientAvailableCommandAdapter {
 public:
+    // Compatibility constructor for protocol/unit tests only. Production wiring must
+    // inject a runtime option bridge through ClientServerRuntimeFactory.
     ClientAvailableCommandAdapter();
     explicit ClientAvailableCommandAdapter(
         std::shared_ptr<pathfinder::client_runtime_bridge::IClientRuntimeBridgePort> option_bridge);
 
     // Build available commands for the given actor context.
-    // P56: uses runtime option bridge if injected; otherwise falls back to stub for tests.
+    // P56: uses runtime option bridge if injected; otherwise falls back to a test-only stub.
+    // Do not add gameplay rules to the no-bridge fallback; real options come from runtime providers.
     pathfinder::foundation::Result<std::vector<WorldCommandOptionDto>> buildOptions(
+        const std::string& actor_key,
+        const std::string& layer_key) const;
+
+    // Return runtime-backed state version when a runtime bridge is injected.
+    // This is read-only and lets protocol gateways keep projection versions aligned
+    // after command-side region ensure/lifecycle work.
+    pathfinder::foundation::Result<uint64_t> runtimeStateVersion(
         const std::string& actor_key,
         const std::string& layer_key) const;
 
@@ -30,7 +40,8 @@ public:
         const std::vector<WorldCommandOptionDto>& snapshot) const;
 
     // Materialize without snapshot (for backward-compat / unit tests only).
-    // Real client protocol should always use the snapshot overload.
+    // Real client protocol must always use the snapshot overload so option authority
+    // remains bound to the session's last backend-generated available_commands.
     pathfinder::foundation::Result<WorldCommandDto> materializeOption(
         const std::string& option_id,
         const std::string& actor_key) const;

@@ -51,6 +51,7 @@ public:
     // P46: Resource node runtime
     foundation::Result<void> upsertGeneratedResourceNode(const WorldResourceNodeRuntime& node) override;
     foundation::Result<const WorldResourceNodeRuntime*> findResourceNode(const std::string& node_id) const override;
+    foundation::Result<std::vector<WorldResourceNodeRuntime>> queryResourceNodesAtCell(const WorldCellCoord& coord) const override;
 
     // P47: Update resource node after harvest
     foundation::Result<void> updateResourceNodeRuntime(const WorldResourceNodeRuntime& node) override;

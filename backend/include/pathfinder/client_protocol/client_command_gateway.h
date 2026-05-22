@@ -5,6 +5,8 @@
 #include "pathfinder/client_protocol/client_patch_contract.h"
 #include "pathfinder/client_protocol/client_available_command_adapter.h"
 #include "pathfinder/client_runtime_bridge/client_world_region_ensure_adapter.h"
+#include "pathfinder/world_map_interaction/region_activity_window_service.h"
+#include "pathfinder/world_map_interaction/region_lifecycle_trigger_service.h"
 #include "pathfinder/world_command/world_command_pipeline.h"
 #include "pathfinder/foundation/result.h"
 
@@ -21,6 +23,10 @@ public:
         const ClientAvailableCommandAdapter& available_command_adapter);
 
     void setRegionEnsureAdapter(client_runtime_bridge::ClientWorldRegionEnsureAdapter* ensure_adapter);
+    void setActivityWindowService(world_map_interaction::RegionActivityWindowService* service);
+    void setLifecycleTriggerService(world_map_interaction::RegionLifecycleTriggerService* service);
+    void setWorldContext(const std::string& world_id, uint64_t world_seed);
+    bool hasActivityWindowService() const { return activity_window_service_ != nullptr; }
 
     pathfinder::foundation::Result<ClientCommandResponse> handleCommand(
         const ClientCommandRequest& request);
@@ -31,6 +37,10 @@ private:
     const ClientPatchContract& patch_contract_;
     const ClientAvailableCommandAdapter& available_command_adapter_;
     client_runtime_bridge::ClientWorldRegionEnsureAdapter* ensure_adapter_ = nullptr;
+    world_map_interaction::RegionActivityWindowService* activity_window_service_ = nullptr;
+    world_map_interaction::RegionLifecycleTriggerService* lifecycle_trigger_service_ = nullptr;
+    std::string world_id_ = "world_default";
+    uint64_t world_seed_ = 1;
 
     // Resolve command from OptionId or WorldCommandDto.
     // Uses session snapshot for OptionId authority.
