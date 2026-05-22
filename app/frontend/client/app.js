@@ -21,6 +21,10 @@
     logs: [],
     pendingDirection: null,
     lastDirectionSubmitTime: 0,
+    selectedEntityId: null,
+    floatingTexts: [],
+    screenShake: 0,
+    lastTimestamp: 0,
   };
 
   const DIRECTION_COOLDOWN_MS = 80;
@@ -76,13 +80,45 @@
     setTimeout(() => el.remove(), 3000);
   }
 
+  function addFloatingText(worldX, worldY, text, color) {
+    state.floatingTexts.push({
+      x: worldX, y: worldY, text, color,
+      startTime: performance.now(),
+      life: 2000,
+    });
+  }
+
+  function renderFloatingTexts(timestamp, viewMinX, viewMinY) {
+    state.floatingTexts = state.floatingTexts.filter(ft => {
+      const elapsed = timestamp - ft.startTime;
+      if (elapsed > ft.life) return false;
+      const progress = elapsed / ft.life;
+      const px = (ft.x - viewMinX) * TILE_SIZE + TILE_SIZE / 2;
+      const py = (ft.y - viewMinY) * TILE_SIZE - 36 * progress;
+      const alpha = 1 - progress;
+      if (alpha <= 0 || px < -TILE_SIZE || px > canvas.width + TILE_SIZE || py < -TILE_SIZE || py > canvas.height + TILE_SIZE) {
+        return alpha > 0;
+      }
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = ft.color || '#ffffff';
+      ctx.font = 'bold 12px "Courier New", monospace';
+      ctx.textAlign = 'center';
+      ctx.shadowColor = 'rgba(0,0,0,0.8)';
+      ctx.shadowBlur = 3;
+      ctx.fillText(ft.text, px, py);
+      ctx.restore();
+      return true;
+    });
+  }
+
   function setConnectionMode(mode) {
     state.connectionMode = mode;
     const map = {
-      unknown: { cls: 'unknown', text: '连接中…' },
-      real_backend: { cls: 'real', text: '真实后端' },
-      mock_dev: { cls: 'mock', text: 'MOCK 模式' },
-      offline_error: { cls: 'error', text: '连接失败' },
+      unknown: { cls: 'unknown', text: t('loading', '连接中…') },
+      real_backend: { cls: 'real', text: t('backend_real', '真实后端') },
+      mock_dev: { cls: 'mock', text: t('mock_mode', 'MOCK 模式') },
+      offline_error: { cls: 'error', text: t('backend_offline', '连接失败') },
     };
     const m = map[mode] || map.unknown;
     modeBadge.className = 'mode-badge ' + m.cls;
@@ -321,8 +357,8 @@
   }
 
   function commandLabel(cmd, fallback) {
-    if (!cmd) return fallback || '未知命令';
-    return cmd.label_text || cmd.command_kind || cmd.option_id || fallback || '未知命令';
+    if (!cmd) return fallback || t('ui.unknown_cmd', '未知命令');
+    return cmd.label_text || cmd.command_kind || cmd.option_id || fallback || t('ui.unknown_cmd', '未知命令');
   }
 
   function resultKindOf(resp) {
@@ -332,13 +368,13 @@
 
   function resultText(kind) {
     const map = {
-      succeeded: '成功',
-      noop: '无变化',
-      deferred: '已排队',
-      blocked: '被阻止',
-      failed: '失败',
-      interrupted: '被打断',
-      unknown: '未知结果',
+      succeeded: t('result.succeeded', '成功'),
+      noop: t('result.noop', '无变化'),
+      deferred: t('result.deferred', '已排队'),
+      blocked: t('result.blocked', '被阻止'),
+      failed: t('result.failed', '失败'),
+      interrupted: t('result.interrupted', '被打断'),
+      unknown: t('result.unknown', '未知结果'),
     };
     return map[kind] || kind;
   }
@@ -348,24 +384,24 @@
   // ---------------------------------------------------------------------------
   async function submitOption(optionId) {
     if (state.requestState !== 'idle') {
-      toast('请求处理中，请稍候', 'warn');
+      toast(t('ui.request_pending', '请求处理中，请稍候'), 'warn');
       return;
     }
     const found = state.availableCommands.find(c => c.option_id === optionId);
     if (!found) {
-      toast('该选项已过期，正在刷新…', 'warn');
+      toast(t('ui.option_expired', '该选项已过期，正在刷新…'), 'warn');
       await doRefresh();
       return;
     }
 
     const label = commandLabel(found, optionId);
     setRequestState('submitting_command');
-    log(`正在执行: ${label}`, 'info');
+    log(t('ui.exec_doing', '正在执行') + `: ${label}`, 'info');
     try {
       const resp = await apiCommand(optionId);
       const outcome = applyCommandResponse(resp);
       if (outcome.status === 'needs_refresh') {
-        log(`状态不同步，刷新后再确认: ${label}`, 'warn');
+        log(t('ui.version_mismatch', '状态不同步，刷新后再确认') + `: ${label}`, 'warn');
         setRequestState('idle');
         await doRefresh();
         return;
@@ -373,16 +409,17 @@
 
       const kind = outcome.resultKind;
       if (kind === 'succeeded') {
-        log(`执行成功: ${label}`, 'success');
+        log(t('ui.exec_success', '执行成功') + `: ${label}`, 'success');
       } else if (kind === 'noop' || kind === 'deferred') {
-        log(`执行结果: ${label}（${resultText(kind)}）`, 'info');
+        log(t('ui.exec_result', '执行结果') + `: ${label}（${resultText(kind)}）`, 'info');
       } else {
         const reason = outcome.failureReasons.length ? `: ${outcome.failureReasons.join(', ')}` : '';
-        log(`执行${resultText(kind)}: ${label}${reason}`, kind === 'blocked' ? 'warn' : 'error');
+        log(t('ui.exec_doing', '执行') + `${resultText(kind)}: ${label}${reason}`, kind === 'blocked' ? 'warn' : 'error');
       }
       appendEvents(resp.event_feed, resp.frontend_hints, resp.warning_keys);
     } catch (err) {
-      handleError('命令提交失败', err);
+      state.screenShake = 8;
+      handleError(t('ui.command_submit_failed', '命令提交失败'), err);
     } finally {
       setRequestState('idle');
       render();
@@ -395,7 +432,7 @@
     if (!force && now - state.lastDirectionSubmitTime < DIRECTION_COOLDOWN_MS) return;
     const optionId = resolveMoveOption(direction);
     if (!optionId) {
-      if (force) log(`没有可用移动命令: ${directionText(direction)}`, 'warn');
+      if (force) log(t('ui.no_move_cmd', '没有可用移动命令') + `: ${directionText(direction)}`, 'warn');
       return;
     }
     state.lastDirectionSubmitTime = now;
@@ -415,7 +452,7 @@
 
     const patch = resp.projection_patch;
     if (safe(resp.requires_full_refresh, false)) {
-      log('后端要求全量刷新', 'warn');
+      log(t('ui.full_refresh_required', '后端要求全量刷新'), 'warn');
       outcome.status = 'needs_refresh';
       return outcome;
     }
@@ -423,12 +460,12 @@
       const baseVer = safe(patch.base_projection_version, 0);
       const localVer = state.projectionVersion;
       if (baseVer !== 0 && baseVer !== localVer) {
-        log(`Patch 版本不匹配，本地=${localVer}，补丁基线=${baseVer}`, 'warn');
+        log(t('ui.patch_mismatch', 'Patch 版本不匹配') + `，本地=${localVer}，补丁基线=${baseVer}`, 'warn');
         outcome.status = 'needs_refresh';
         return outcome;
       }
       if (!applyPatch(patch)) {
-        log('本地缺少世界投影，执行全量刷新', 'warn');
+        log(t('ui.missing_projection', '本地缺少世界投影，执行全量刷新'), 'warn');
         outcome.status = 'needs_refresh';
         return outcome;
       }
@@ -441,7 +478,7 @@
     state.warningKeys = safe(resp.warning_keys, []);
 
     if (failureReasons.length) {
-      toast('命令被阻止', 'warn');
+      toast(t('ui.command_blocked', '命令被阻止'), 'warn');
     }
 
     saveSession();
@@ -465,15 +502,15 @@
       setConnectionMode('real_backend');
       state.syncState = 'synced';
       appendEvents(resp.event_feed, resp.frontend_hints, resp.warning_keys);
-      log('Bootstrap 成功', 'success');
+      log(t('ui.bootstrap_ok', 'Bootstrap 成功'), 'success');
       saveSession();
     } catch (err) {
       if (err.status === 404 || err.message && err.message.includes('Failed to fetch')) {
         setConnectionMode('offline_error');
-        log('无法连接后端，请确认服务已启动 (端口 1999)', 'error');
-        toast('无法连接后端', 'error');
+        log(t('ui.backend_unavailable', '无法连接后端，请确认服务已启动 (端口 1999)'), 'error');
+        toast(t('ui.backend_offline', '无法连接后端'), 'error');
       } else {
-        handleError('Bootstrap 失败', err);
+        handleError(t('ui.bootstrap_failed', 'Bootstrap 失败'), err);
       }
     } finally {
       setRequestState('idle');
@@ -495,10 +532,10 @@
       state.warningKeys = safe(resp.warning_keys, []);
       state.syncState = 'synced';
       appendEvents(resp.event_feed, resp.frontend_hints, resp.warning_keys);
-      log('刷新成功', 'success');
+      log(t('ui.refresh_ok', '刷新成功'), 'success');
       saveSession();
     } catch (err) {
-      handleError('刷新失败', err);
+      handleError(t('ui.refresh_failed', '刷新失败'), err);
     } finally {
       setRequestState('idle');
       render();
@@ -507,7 +544,7 @@
 
   async function doReset() {
     if (state.requestState !== 'idle') return;
-    if (!confirm('确定要重置世界吗？当前会话将被清除。')) return;
+    if (!confirm(t('ui.reset_confirm', '确定要重置世界吗？当前会话将被清除。'))) return;
     setRequestState('resetting');
     try {
       const resp = await apiReset();
@@ -523,10 +560,10 @@
       state.syncState = 'synced';
       state.clientSequence = 0;
       appendEvents(boot.event_feed, boot.frontend_hints, boot.warning_keys);
-      log('世界已重置', 'success');
+      log(t('ui.world_reset', '世界已重置'), 'success');
       saveSession();
     } catch (err) {
-      handleError('重置失败', err);
+      handleError(t('ui.reset_failed', '重置失败'), err);
     } finally {
       setRequestState('idle');
       render();
@@ -543,13 +580,13 @@
   function appendEvents(events, hints, warnings) {
     for (const e of safe(events, [])) {
       const text = e.title_text || e.body_text || JSON.stringify(e);
-      log(`[事件] ${text}`, 'info');
+      log(`[${t('log.event', '事件')}] ${text}`, 'info');
     }
     for (const h of safe(hints, [])) {
-      log(`[提示] ${h.text || ''}`, 'info');
+      log(`[${t('log.hint', '提示')}] ${h.text || ''}`, 'info');
     }
     for (const w of safe(warnings, [])) {
-      log(`[警告] ${w}`, 'warn');
+      log(`[${t('log.warning', '警告')}] ${w}`, 'warn');
     }
   }
 
@@ -583,22 +620,33 @@
 
     const summary = [];
     if (state.projection) {
-      summary.push('层: ' + state.projection.active_layer_key);
-      summary.push('格子: ' + state.projection.visible_cells.length);
-      summary.push('实体: ' + state.projection.visible_entities.length);
-      summary.push('背包: ' + state.projection.inventories.length);
+      summary.push(t('layer', '层') + ': ' + state.projection.active_layer_key);
+      summary.push(t('cells', '格子') + ': ' + state.projection.visible_cells.length);
+      summary.push(t('entities', '实体') + ': ' + state.projection.visible_entities.length);
+      summary.push(t('inventory', '背包') + ': ' + state.projection.inventories.length);
     }
     const coord = getActorCoord();
-    if (coord) summary.push(`坐标: ${coord.x}, ${coord.y}`);
-    summary.push('同步: ' + state.syncState);
-    if (state.requestState !== 'idle') summary.push('请求: ' + state.requestState);
-    questBody.textContent = summary.join(' | ') || '等待后端数据…';
+    if (coord) summary.push(t('coord', '坐标') + `: ${coord.x}, ${coord.y}`);
+    summary.push(t('sync', '同步') + ': ' + state.syncState);
+    if (state.requestState !== 'idle') summary.push(t('request', '请求') + ': ' + state.requestState);
+    questBody.textContent = summary.join(' | ') || t('ui.loading', '等待后端数据…');
   }
 
-  function renderMap() {
+  function renderMap(timestamp = performance.now()) {
+    state.lastTimestamp = timestamp;
     const w = canvas.width;
     const h = canvas.height;
-    ctx.clearRect(0, 0, w, h);
+
+    ctx.save();
+    if (state.screenShake > 0) {
+      const sx = (Math.random() - 0.5) * state.screenShake;
+      const sy = (Math.random() - 0.5) * state.screenShake;
+      ctx.translate(sx, sy);
+      state.screenShake *= 0.85;
+      if (state.screenShake < 0.5) state.screenShake = 0;
+    }
+
+    ctx.clearRect(-8, -8, w + 16, h + 16);
 
     if (!state.projection) {
       ctx.fillStyle = '#05070a';
@@ -606,7 +654,7 @@
       ctx.fillStyle = '#475569';
       ctx.font = '10px monospace';
       ctx.textAlign = 'center';
-      ctx.fillText('等待世界投影…', w / 2, h / 2);
+      ctx.fillText(t('ui.loading', '等待世界投影…'), w / 2, h / 2);
       return;
     }
 
@@ -620,9 +668,9 @@
       ctx.fillStyle = '#475569';
       ctx.font = '10px monospace';
       ctx.textAlign = 'center';
-      ctx.fillText('世界投影为空', w / 2, h / 2);
+      ctx.fillText(t('ui.empty_world', '世界投影为空'), w / 2, h / 2);
       ctx.font = '9px monospace';
-      ctx.fillText('后端尚未返回可见格子和实体', w / 2, h / 2 + 18);
+      ctx.fillText(t('ui.empty_world_hint', '后端尚未返回可见格子和实体'), w / 2, h / 2 + 18);
       return;
     }
 
@@ -680,7 +728,12 @@
     }
 
     const actorKey = state.projection.actor_key;
-    for (const e of entities) {
+    const sortedEntities = [...entities].sort((a, b) => {
+      const ay = parseInt((a.fields || {}).y, 10) || 0;
+      const by = parseInt((b.fields || {}).y, 10) || 0;
+      return ay - by;
+    });
+    for (const e of sortedEntities) {
       const f = e.fields || {};
       const x = parseInt(f.x, 10);
       const y = parseInt(f.y, 10);
@@ -689,11 +742,37 @@
       const py = (y - viewMinY) * TILE_SIZE;
       if (px < -TILE_SIZE || py < -TILE_SIZE) continue;
 
+      // Shadow
+      ctx.fillStyle = 'rgba(0,0,0,0.18)';
+      ctx.beginPath();
+      ctx.ellipse(px + TILE_SIZE / 2, py + TILE_SIZE - 3, TILE_SIZE * 0.28, 4, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Breathing animation
+      const breathe = Math.sin(timestamp * 0.003 + x * 0.7 + y * 0.4) * 1.2;
+      const drawY = py + breathe;
+
+      // Selection halo
+      if (state.selectedEntityId === e.entity_id) {
+        const pulse = 0.5 + 0.3 * Math.sin(timestamp * 0.005);
+        ctx.save();
+        ctx.strokeStyle = '#0ea5e9';
+        ctx.lineWidth = 2;
+        ctx.globalAlpha = pulse;
+        ctx.setLineDash([4, 3]);
+        ctx.beginPath();
+        ctx.ellipse(px + TILE_SIZE / 2, py + TILE_SIZE - 4, TILE_SIZE * 0.35, 5, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.globalAlpha = 1;
+        ctx.restore();
+      }
+
       const isActor = f.actor_key === actorKey || e.entity_id === actorKey || e.entity_id.startsWith(actorKey);
       if (isActor) {
         const sprite = window.SPRITES && window.SPRITES.player;
-        if (sprite) ctx.drawImage(sprite, px, py);
-        else drawEntityFallback(ctx, px + TILE_SIZE / 2, py + TILE_SIZE / 2, TILE_SIZE * 0.7, f, true);
+        if (sprite) ctx.drawImage(sprite, px, drawY);
+        else drawEntityFallback(ctx, px + TILE_SIZE / 2, drawY + TILE_SIZE / 2, TILE_SIZE * 0.7, f, true);
       } else {
         const kind = f.entity_kind || f.kind || f.object_key || 'unknown';
         let spriteKey = null;
@@ -705,8 +784,8 @@
         else spriteKey = 'unknown';
 
         const sprite = window.SPRITES && window.SPRITES[spriteKey];
-        if (sprite) ctx.drawImage(sprite, px, py);
-        else drawEntityFallback(ctx, px + TILE_SIZE / 2, py + TILE_SIZE / 2, TILE_SIZE * 0.7, f, false);
+        if (sprite) ctx.drawImage(sprite, px, drawY);
+        else drawEntityFallback(ctx, px + TILE_SIZE / 2, drawY + TILE_SIZE / 2, TILE_SIZE * 0.7, f, false);
       }
     }
 
@@ -726,6 +805,13 @@
         }
       }
     }
+
+    // Floating name labels
+    state.viewMinX = viewMinX;
+    state.viewMinY = viewMinY;
+    renderFloatingTexts(timestamp, viewMinX, viewMinY);
+
+    ctx.restore(); // screen shake
   }
 
   function terrainColor(key) {
@@ -796,7 +882,7 @@
     commandList.innerHTML = '';
     const cmds = state.availableCommands;
     if (!cmds.length) {
-      commandList.innerHTML = '<div style="color:var(--text-dim);font-size:12px;padding:8px 0;">暂无可用命令</div>';
+      commandList.innerHTML = '<div style="color:var(--text-dim);font-size:12px;padding:8px 0;">' + t('ui.no_commands', '暂无可用命令') + '</div>';
       return;
     }
     // Separate move and non-move commands
@@ -811,7 +897,7 @@
     if (moveCmds.length) {
       const hint = document.createElement('div');
       hint.style.cssText = 'font-size:11px;color:var(--text-dim);padding:4px 0;border-bottom:1px solid rgba(148,163,184,0.1);margin-bottom:6px;';
-      hint.textContent = '移动: ' + (window.innerWidth <= 768 ? '使用左下摇杆' : 'WASD 移动');
+      hint.textContent = t('ui.move_hint', '移动') + ': ' + (window.innerWidth <= 768 ? t('ui.move_hint_dpad', '使用左下摇杆') : t('ui.move_hint_wasd', 'WASD 移动'));
       commandList.appendChild(hint);
     }
 
@@ -865,7 +951,7 @@
   let activeDirectionPointerId = null;
 
   function directionText(direction) {
-    const map = { up: '向上', down: '向下', left: '向左', right: '向右' };
+    const map = { up: t('dir_up', '向上'), down: t('dir_down', '向下'), left: t('dir_left', '向左'), right: t('dir_right', '向右') };
     return map[direction] || direction;
   }
 
@@ -888,7 +974,7 @@
     activeDirectionButton.classList.add('active');
     activeDirectionPointerId = null;
     state.pendingDirection = direction;
-    log(`移动输入: ${directionText(direction)}`, 'info');
+    log(t('ui.move_input', '移动输入') + `: ${directionText(direction)}`, 'info');
     submitDirection(direction, true);
     directionHoldTimer = setInterval(() => {
       if (state.pendingDirection) {
@@ -899,7 +985,7 @@
 
   function initJoystick() {
     if (!dpadButtons.length) {
-      log('移动方向键初始化失败', 'error');
+      log(t('ui.joystick_init_failed', '移动方向键初始化失败'), 'error');
       return;
     }
 
@@ -1000,10 +1086,90 @@
   }
 
   // ---------------------------------------------------------------------------
-  // 14. Event bindings
+  // 14. Animation loop
+  // ---------------------------------------------------------------------------
+  function gameLoop(timestamp) {
+    state.lastTimestamp = timestamp;
+    renderMap(timestamp);
+    requestAnimationFrame(gameLoop);
+  }
+
+  // ---------------------------------------------------------------------------
+  // 15. Event bindings
   // ---------------------------------------------------------------------------
   resetBtn.addEventListener('click', doReset);
   window.addEventListener('resize', resizeCanvas);
+
+  // Canvas click — entity selection
+  canvas.addEventListener('click', (e) => {
+    if (!state.projection) return;
+    const rect = canvas.getBoundingClientRect();
+    const sx = e.clientX - rect.left;
+    const sy = e.clientY - rect.top;
+
+    const vtw = viewportTilesX();
+    const vth = viewportTilesY();
+    const halfX = Math.floor(vtw / 2);
+    const halfY = Math.floor(vth / 2);
+    const actorCoord = getActorCoord();
+    let viewMinX, viewMinY;
+    if (actorCoord) {
+      viewMinX = actorCoord.x - halfX;
+      viewMinY = actorCoord.y - halfY;
+    } else {
+      const cells = state.projection.visible_cells;
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (const c of cells) {
+        const f = c.fields || {};
+        const cx = parseInt(f.x, 10); const cy = parseInt(f.y, 10);
+        if (!isNaN(cx)) { minX = Math.min(minX, cx); maxX = Math.max(maxX, cx); }
+        if (!isNaN(cy)) { minY = Math.min(minY, cy); maxY = Math.max(maxY, cy); }
+      }
+      for (const ent of state.projection.visible_entities) {
+        const f = ent.fields || {};
+        const cx = parseInt(f.x, 10); const cy = parseInt(f.y, 10);
+        if (!isNaN(cx)) { minX = Math.min(minX, cx); maxX = Math.max(maxX, cx); }
+        if (!isNaN(cy)) { minY = Math.min(minY, cy); maxY = Math.max(maxY, cy); }
+      }
+      if (!isFinite(minX)) { minX = 0; maxX = 0; }
+      if (!isFinite(minY)) { minY = 0; maxY = 0; }
+      const centerX = Math.floor((minX + maxX) / 2);
+      const centerY = Math.floor((minY + maxY) / 2);
+      viewMinX = centerX - halfX;
+      viewMinY = centerY - halfY;
+    }
+
+    const worldX = viewMinX + Math.floor(sx / TILE_SIZE);
+    const worldY = viewMinY + Math.floor(sy / TILE_SIZE);
+
+    let clicked = null;
+    let minDist = Infinity;
+    let clickEx = 0, clickEy = 0;
+    for (const ent of state.projection.visible_entities) {
+      const f = ent.fields || {};
+      const ex = parseInt(f.x, 10);
+      const ey = parseInt(f.y, 10);
+      if (isNaN(ex) || isNaN(ey)) continue;
+      const dx = worldX - ex;
+      const dy = worldY - ey;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < 1.2 && dist < minDist) {
+        minDist = dist;
+        clicked = ent;
+        clickEx = ex;
+        clickEy = ey;
+      }
+    }
+
+    if (clicked) {
+      state.selectedEntityId = clicked.entity_id;
+      const f = clicked.fields || {};
+      const name = (typeof tEntity === 'function') ? tEntity(f) : (f.display_name || f.name || f.entity_key || f.object_key || 'Entity');
+      addFloatingText(clickEx, clickEy - 0.5, name, '#0ea5e9');
+    } else {
+      state.selectedEntityId = null;
+    }
+  });
 
   // ---------------------------------------------------------------------------
   // 15. Startup
@@ -1014,7 +1180,8 @@
     resizeCanvas();
     initJoystick();
     initKeyboard();
-    log('先驱者客户端启动…');
+    log(t('ui.client_boot', '先驱者客户端启动…'));
+    requestAnimationFrame(gameLoop);
     await doBootstrap();
   }
 
