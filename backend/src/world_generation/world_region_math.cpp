@@ -35,6 +35,35 @@ world_runtime::WorldCellCoord WorldRegionMath::regionCoordToWorld(
     return world_runtime::WorldCellCoord{world_x, world_y, layer_key};
 }
 
+int WorldRegionMath::regionMinLocalCoord(int region_size) {
+    if (region_size <= 0) return 0;
+    return -(region_size / 2);
+}
+
+int WorldRegionMath::regionMaxLocalCoord(int region_size) {
+    if (region_size <= 0) return 0;
+    int half = region_size / 2;
+    return half - (region_size % 2 == 0 ? 1 : 0);
+}
+
+int WorldRegionMath::regionMinWorldCoord(int region_coord, int region_size) {
+    return region_coord * region_size + regionMinLocalCoord(region_size);
+}
+
+int WorldRegionMath::regionMaxWorldCoord(int region_coord, int region_size) {
+    return region_coord * region_size + regionMaxLocalCoord(region_size);
+}
+
+bool WorldRegionMath::coordBelongsToRegion(
+    const world_runtime::WorldCellCoord& coord,
+    const WorldRegionCoord& region,
+    int region_size,
+    const std::string& layer_key) {
+    if (region_size <= 0 || coord.layer_key != layer_key) return false;
+    auto actual = coordToRegion(coord.x, coord.y, region_size);
+    return actual.rx == region.rx && actual.ry == region.ry;
+}
+
 std::vector<WorldRegionCoord> WorldRegionMath::regionsCoveringCoords(
     const std::vector<world_runtime::WorldCellCoord>& coords,
     int region_size) {
@@ -63,12 +92,8 @@ std::vector<world_runtime::WorldCellCoord> WorldRegionMath::cellsInRegion(
     int region_size,
     const std::string& layer_key) {
     std::vector<world_runtime::WorldCellCoord> result;
-    int half = region_size / 2;
-    int min_c = -half;
-    int max_c = half - 1;
-    if (region_size % 2 != 0) {
-        max_c = half;
-    }
+    int min_c = regionMinLocalCoord(region_size);
+    int max_c = regionMaxLocalCoord(region_size);
     for (int cx = min_c; cx <= max_c; ++cx) {
         for (int cy = min_c; cy <= max_c; ++cy) {
             result.push_back(regionCoordToWorld(region, cx, cy, region_size, layer_key));

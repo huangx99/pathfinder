@@ -379,7 +379,7 @@ void run_cross_region_move_tests() {
     version = cross_cmd.value().new_projection_version;
 
     // Verify runtime generated region (1,0)
-    assert(f.factory.world_runtime->isRegionGenerated("region_1_0"));
+    assert(f.factory.world_runtime->isRegionGenerated("world_default:surface:region:1:0:16"));
 
     // Verify player now at x=8 via refresh
     auto refresh = f.harness.fakeRefresh("session_cross", "client_1", version);
@@ -439,7 +439,7 @@ void run_negative_cross_region_move_tests() {
     assert(cross_cmd.is_ok());
     assert(cross_cmd.value().result.result_kind == WorldCommandResultKind::Succeeded);
 
-    assert(f.factory.world_runtime->isRegionGenerated("region_-1_0"));
+    assert(f.factory.world_runtime->isRegionGenerated("world_default:surface:region:-1:0:16"));
 
     std::cout << "client_runtime_bridge_negative_cross_region_move_tests: all passed" << std::endl;
 }

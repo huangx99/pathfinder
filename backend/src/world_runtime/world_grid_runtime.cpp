@@ -21,6 +21,8 @@ Result<void> WorldGridRuntime::initialize(const WorldRuntimeConfig& config) {
     entities_.clear();
     actors_.clear();
     exploration_.clear();
+    resource_nodes_.clear();
+    generated_regions_.clear();
     return Result<void>::ok();
 }
 
@@ -42,6 +44,18 @@ uint64_t WorldGridRuntime::worldSeed() const {
 
 int WorldGridRuntime::regionSize() const {
     return config_.region_size;
+}
+
+std::string WorldGridRuntime::generatorVersion() const {
+    return config_.generator_version;
+}
+
+std::string WorldGridRuntime::contentVersion() const {
+    return config_.content_version;
+}
+
+std::string WorldGridRuntime::worldgenProfileKey() const {
+    return config_.worldgen_profile_key;
 }
 
 void WorldGridRuntime::incrementStateVersion() {
@@ -88,6 +102,8 @@ Result<void> WorldGridRuntime::generateInitialWorld(const WorldRuntimeConfig& co
     entities_.clear();
     actors_.clear();
     exploration_.clear();
+    resource_nodes_.clear();
+    generated_regions_.clear();
     world_tick_ = 0;
     state_version_ = 1;
 
@@ -99,11 +115,13 @@ Result<void> WorldGridRuntime::generateInitialWorld(const WorldRuntimeConfig& co
 
     for (int rx = -radius; rx <= radius; ++rx) {
         for (int ry = -radius; ry <= radius; ++ry) {
-            std::string region_id = "region_" + std::to_string(rx) + "_" + std::to_string(ry);
-            for (int cx = 0; cx < size; ++cx) {
-                for (int cy = 0; cy < size; ++cy) {
-                    int world_x = rx * size + cx;
-                    int world_y = ry * size + cy;
+            std::string region_id = config.world_id + ":surface:region:" + std::to_string(rx) + ":" + std::to_string(ry) + ":" + std::to_string(size);
+            int min_local = -(size / 2);
+            int max_local = (size / 2) - (size % 2 == 0 ? 1 : 0);
+            for (int local_x = min_local; local_x <= max_local; ++local_x) {
+                for (int local_y = min_local; local_y <= max_local; ++local_y) {
+                    int world_x = rx * size + local_x;
+                    int world_y = ry * size + local_y;
                     WorldCellCoord coord{world_x, world_y, "surface"};
                     WorldCellRuntime cell;
                     cell.cell_id = coord.cellId();
@@ -160,6 +178,7 @@ Result<void> WorldGridRuntime::generateInitialWorld(const WorldRuntimeConfig& co
                     cells_[cell.cell_id] = std::move(cell);
                 }
             }
+            generated_regions_.insert(region_id);
         }
     }
 
@@ -775,6 +794,183 @@ Result<void> WorldGridRuntime::spawnEntityInInventory(
 
     incrementStateVersion();
     return Result<void>::ok();
+}
+
+// ---------------------------------------------------------------------------
+// P59: IWorldRegionStateQueryPort implementation
+// ---------------------------------------------------------------------------
+
+Result<world_region_state::WorldRegionRuntimeSlice> WorldGridRuntime::readRegionSlice(
+    const world_generation::WorldRegionKey& key) const {
+
+    world_region_state::WorldRegionRuntimeSlice slice;
+    std::string expected_region_id = key.regionRuntimeId();
+
+    // Collect cells
+    for (const auto& [cell_id, cell] : cells_) {
+        if (cell.region_id == expected_region_id) {
+            world_region_state::WorldRegionCellStateRecord record;
+            record.cell_id = cell.cell_id;
+            record.coord = cell.coord;
+            record.terrain_key = cell.terrain_key;
+            record.region_id = cell.region_id;
+            record.generated = cell.generated;
+            record.blocks_movement = cell.blocks_movement;
+            record.movement_cost = cell.movement_cost;
+            record.entity_ids = cell.entity_ids;
+            record.tag_keys = cell.tag_keys;
+            slice.cells.push_back(std::move(record));
+        }
+    }
+
+    // Collect OnMap entities in this region
+    // P59: Actors are cross-region runtime objects; exclude them from region snapshot.
+    for (const auto& [entity_id, entity] : entities_) {
+        if (entity.location_kind != WorldEntityLocationKind::OnMap || !entity.coord.has_value()) {
+            continue;
+        }
+        // Skip actor entities (player, NPCs, beasts)
+        if (actors_.find(entity.entity_key) != actors_.end()) {
+            continue;
+        }
+        auto cell_it = cells_.find(entity.coord.value().cellId());
+        if (cell_it != cells_.end() && cell_it->second.region_id == expected_region_id) {
+            world_region_state::WorldRegionEntityStateRecord record;
+            record.entity_id = entity.entity_id;
+            record.entity_key = entity.entity_key;
+            record.display_name_key = entity.display_name_key;
+            record.location_kind = entity.location_kind;
+            record.coord = entity.coord.value();
+            record.owner_ref = entity.owner_ref;
+            record.container_ref = entity.container_ref;
+            record.blocks_movement = entity.blocks_movement;
+            record.visible_by_default = entity.visible_by_default;
+            record.tag_keys = entity.tag_keys;
+            record.quantity = entity.quantity;
+            record.stackable = entity.stackable;
+            record.stack_key = entity.stack_key;
+            record.state_keys = entity.state_keys;
+            record.numeric_states = entity.numeric_states;
+            slice.on_map_entities.push_back(std::move(record));
+        }
+    }
+
+    // Collect resource nodes in this region
+    for (const auto& [node_id, node] : resource_nodes_) {
+        auto cell_it = cells_.find(node.coord.cellId());
+        if (cell_it != cells_.end() && cell_it->second.region_id == expected_region_id) {
+            world_region_state::WorldRegionResourceNodeStateRecord record;
+            record.node_id = node.node_id;
+            record.resource_key = node.resource_key;
+            record.coord = node.coord;
+            record.node_kind_str = node.node_kind_str;
+            record.node_state_str = node.node_state_str;
+            record.remaining_charges = node.remaining_charges;
+            record.max_charges = node.max_charges;
+            record.required_action_key = node.required_action_key;
+            record.required_tool_key = node.required_tool_key;
+            record.output_entity_keys = node.output_entity_keys;
+            record.tag_keys = node.tag_keys;
+            slice.resource_nodes.push_back(std::move(record));
+        }
+    }
+
+    // Collect exploration slices restricted to this region
+    for (const auto& [actor_key, exp] : exploration_) {
+        world_region_state::WorldRegionExplorationStateSlice exp_slice;
+        exp_slice.actor_key = actor_key;
+        for (const auto& [cell_id, visibility] : exp.cell_visibility_by_id) {
+            auto cell_it = cells_.find(cell_id);
+            if (cell_it != cells_.end() && cell_it->second.region_id == expected_region_id) {
+                exp_slice.cell_visibility_by_id[cell_id] = visibility;
+            }
+        }
+        if (!exp_slice.cell_visibility_by_id.empty()) {
+            slice.exploration_slices.push_back(std::move(exp_slice));
+        }
+    }
+
+    return Result<world_region_state::WorldRegionRuntimeSlice>::ok(std::move(slice));
+}
+
+Result<void> WorldGridRuntime::applyExplorationVisibility(
+    const std::string& actor_key,
+    const std::map<std::string, WorldCellVisibility>& cell_visibility_by_id) {
+    auto& exp = exploration_[actor_key];
+    exp.actor_key = actor_key;
+    for (const auto& [cell_id, visibility] : cell_visibility_by_id) {
+        if (cells_.find(cell_id) != cells_.end()) {
+            exp.cell_visibility_by_id[cell_id] = visibility;
+        }
+    }
+    incrementStateVersion();
+    return Result<void>::ok();
+}
+
+Result<std::vector<std::string>> WorldGridRuntime::detachRegion(const std::string& region_id) {
+    std::vector<std::string> removed_cell_ids;
+    std::vector<std::string> removed_entity_ids;
+    std::vector<std::string> removed_node_ids;
+
+    // Find all cells in this region
+    std::set<std::string> region_cell_ids;
+    for (const auto& [cell_id, cell] : cells_) {
+        if (cell.region_id == region_id) {
+            region_cell_ids.insert(cell_id);
+        }
+    }
+
+    // Remove OnMap entities in this region (but not actors)
+    for (auto it = entities_.begin(); it != entities_.end(); ) {
+        const auto& entity = it->second;
+        if (entity.location_kind == WorldEntityLocationKind::OnMap && entity.coord.has_value()) {
+            if (region_cell_ids.find(entity.coord.value().cellId()) != region_cell_ids.end()) {
+                // Do not remove player or actor entities
+                bool is_actor = (actors_.find(entity.entity_key) != actors_.end());
+                if (!is_actor) {
+                    removed_entity_ids.push_back(entity.entity_id);
+                    it = entities_.erase(it);
+                    continue;
+                }
+            }
+        }
+        ++it;
+    }
+
+    // Remove resource nodes in this region
+    for (auto it = resource_nodes_.begin(); it != resource_nodes_.end(); ) {
+        if (region_cell_ids.find(it->second.coord.cellId()) != region_cell_ids.end()) {
+            removed_node_ids.push_back(it->second.node_id);
+            it = resource_nodes_.erase(it);
+        } else {
+            ++it;
+        }
+    }
+
+    // Remove cells
+    for (const auto& cell_id : region_cell_ids) {
+        cells_.erase(cell_id);
+        removed_cell_ids.push_back(cell_id);
+    }
+
+    // Remove from generated_regions_
+    generated_regions_.erase(region_id);
+
+    // Clean up exploration references to removed cells
+    for (auto& [actor_key, exp] : exploration_) {
+        for (const auto& cell_id : removed_cell_ids) {
+            exp.cell_visibility_by_id.erase(cell_id);
+        }
+    }
+
+    incrementStateVersion();
+
+    // Combine all removed IDs for return
+    std::vector<std::string> all_removed;
+    all_removed.insert(all_removed.end(), removed_cell_ids.begin(), removed_cell_ids.end());
+    all_removed.insert(all_removed.end(), removed_entity_ids.begin(), removed_entity_ids.end());
+    all_removed.insert(all_removed.end(), removed_node_ids.begin(), removed_node_ids.end());
+    return Result<std::vector<std::string>>::ok(std::move(all_removed));
 }
 
 } // namespace pathfinder::world_runtime

@@ -17,6 +17,9 @@ public:
     virtual std::string worldId() const = 0;
     virtual uint64_t worldSeed() const = 0;
     virtual int regionSize() const = 0;
+    virtual std::string generatorVersion() const = 0;
+    virtual std::string contentVersion() const = 0;
+    virtual std::string worldgenProfileKey() const = 0;
 
     virtual foundation::Result<const WorldCellRuntime*> findCell(const WorldCellCoord& coord) const = 0;
     virtual foundation::Result<const WorldEntityInstance*> findEntity(const std::string& entity_id) const = 0;
@@ -52,6 +55,10 @@ public:
     // P46: Region generation tracking
     virtual bool isRegionGenerated(const std::string& region_id) const = 0;
     virtual void markRegionGenerated(const std::string& region_id) = 0;
+    virtual foundation::Result<std::vector<std::string>> detachRegion(const std::string& region_id) = 0;
+    virtual foundation::Result<void> applyExplorationVisibility(
+        const std::string& actor_key,
+        const std::map<std::string, WorldCellVisibility>& cell_visibility_by_id) = 0;
 };
 
 } // namespace pathfinder::world_runtime

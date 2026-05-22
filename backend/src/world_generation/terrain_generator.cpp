@@ -1,4 +1,6 @@
 #include "pathfinder/world_generation/terrain_generator.h"
+#include "pathfinder/world_generation/world_region_ensure_types.h"
+#include "pathfinder/world_generation/world_region_math.h"
 #include "pathfinder/world_generation/terrain_noise_field_builder.h"
 #include "pathfinder/world_generation/terrain_classifier.h"
 #include "pathfinder/world_generation/terrain_connectivity_analyzer.h"
@@ -74,21 +76,15 @@ static TerrainGenerator::Result generateWeightedRandom(
 
     TerrainGenerator::Result result;
 
-    int radius = request.region_size / 2;
-    int min_c = -(request.region_size / 2);
-    int max_c = request.region_size / 2 - (request.region_size % 2 == 0 ? 1 : 0);
-    if (request.region_size % 2 == 1) {
-        min_c = -radius;
-        max_c = radius;
-    }
+    int min_c = WorldRegionMath::regionMinLocalCoord(request.region_size);
+    int max_c = WorldRegionMath::regionMaxLocalCoord(request.region_size);
 
-    std::string region_id = request.region_coord.regionId();
+    WorldRegionKey region_key{request.world_id, profile.default_layer, request.region_coord.rx, request.region_coord.ry, request.region_size};
+    std::string region_id = region_key.regionRuntimeId();
 
     for (int cx = min_c; cx <= max_c; ++cx) {
         for (int cy = min_c; cy <= max_c; ++cy) {
-            int world_x = request.region_coord.rx * request.region_size + cx;
-            int world_y = request.region_coord.ry * request.region_size + cy;
-            world_runtime::WorldCellCoord coord{world_x, world_y, profile.default_layer};
+            auto coord = WorldRegionMath::regionCoordToWorld(request.region_coord, cx, cy, request.region_size, profile.default_layer);
             GeneratedCellDraft cell;
             cell.coord = coord;
             cell.region_id = region_id;
@@ -120,7 +116,8 @@ static TerrainGenerator::Result generateNoiseField(
     // Build noise field
     auto noise_field = TerrainNoiseFieldBuilder::build(request, profile);
 
-    std::string region_id = request.region_coord.regionId();
+    WorldRegionKey region_key{request.world_id, profile.default_layer, request.region_coord.rx, request.region_coord.ry, request.region_size};
+    std::string region_id = region_key.regionRuntimeId();
 
     for (const auto& sample : noise_field.samples) {
         auto cell = TerrainClassifier::classify(request, profile, sample, region_id);

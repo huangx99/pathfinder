@@ -2,12 +2,14 @@
 
 #include "pathfinder/world_runtime/iworld_runtime.h"
 #include "pathfinder/world_inventory/iworld_inventory.h"
-#include <set>
+#include "pathfinder/world_region_state/iworld_region_state_query_port.h"
 #include <set>
 
 namespace pathfinder::world_runtime {
 
-class WorldGridRuntime final : public IWorldRuntime, public world_inventory::IWorldEntityLocationPort {
+class WorldGridRuntime final : public IWorldRuntime,
+                                    public world_inventory::IWorldEntityLocationPort,
+                                    public world_region_state::IWorldRegionStateQueryPort {
 public:
     WorldGridRuntime();
 
@@ -17,6 +19,9 @@ public:
     std::string worldId() const override;
     uint64_t worldSeed() const override;
     int regionSize() const override;
+    std::string generatorVersion() const override;
+    std::string contentVersion() const override;
+    std::string worldgenProfileKey() const override;
 
     foundation::Result<const WorldCellRuntime*> findCell(const WorldCellCoord& coord) const override;
     foundation::Result<const WorldEntityInstance*> findEntity(const std::string& entity_id) const override;
@@ -89,6 +94,16 @@ public:
         const std::vector<std::string>& state_keys,
         const std::map<std::string, double>& numeric_states,
         const std::vector<std::string>& tag_keys) override;
+
+    // P59: IWorldRegionStateQueryPort implementation
+    foundation::Result<world_region_state::WorldRegionRuntimeSlice> readRegionSlice(
+        const world_generation::WorldRegionKey& key) const override;
+
+    // P59: Detach region from runtime (remove cells/entities/nodes for this region)
+    foundation::Result<std::vector<std::string>> detachRegion(const std::string& region_id) override;
+    foundation::Result<void> applyExplorationVisibility(
+        const std::string& actor_key,
+        const std::map<std::string, WorldCellVisibility>& cell_visibility_by_id) override;
 
 private:
     WorldRuntimeConfig config_;

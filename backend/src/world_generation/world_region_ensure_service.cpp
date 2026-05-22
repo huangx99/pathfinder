@@ -106,7 +106,7 @@ WorldRegionEnsureItemResult WorldRegionEnsureService::ensureSingleRegion(
     item.region_key.ry = region.ry;
     item.region_key.region_size = request.region_size;
 
-    std::string region_id = region.regionId();
+    std::string region_id = item.region_key.regionRuntimeId();
 
     // Check if already generated in runtime
     if (world_runtime_.isRegionGenerated(region_id)) {
@@ -193,7 +193,13 @@ Result<WorldRegionEnsureResult> WorldRegionEnsureService::ensureRegions(
 
     // First pass: count missing regions
     for (const auto& region : desired_regions) {
-        if (!world_runtime_.isRegionGenerated(region.regionId())) {
+        WorldRegionKey check_key;
+        check_key.world_id = request.world_id;
+        check_key.layer_key = request.layer_key;
+        check_key.rx = region.rx;
+        check_key.ry = region.ry;
+        check_key.region_size = request.region_size;
+        if (!world_runtime_.isRegionGenerated(check_key.regionRuntimeId())) {
             ++missing_count;
         }
     }

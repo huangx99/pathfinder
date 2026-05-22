@@ -47,10 +47,6 @@ std::string toString(WorldRegionCoverageMode mode) {
     }
 }
 
-std::string WorldRegionKey::toString() const {
-    return world_id + ":" + layer_key + ":region:" + std::to_string(rx) + ":" + std::to_string(ry) + ":" + std::to_string(region_size);
-}
-
 bool WorldRegionKey::operator==(const WorldRegionKey& other) const {
     return world_id == other.world_id && layer_key == other.layer_key
         && rx == other.rx && ry == other.ry && region_size == other.region_size;

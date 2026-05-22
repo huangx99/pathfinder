@@ -2,6 +2,7 @@
 
 #include "pathfinder/world_generation/world_region_ensure_service.h"
 #include "pathfinder/world_generation/world_region_ensure_types.h"
+#include "pathfinder/world_region_state/world_region_lifecycle_service.h"
 #include "pathfinder/world_runtime/iworld_runtime.h"
 #include "pathfinder/foundation/result.h"
 
@@ -11,7 +12,8 @@ class ClientWorldRegionEnsureAdapter {
 public:
     ClientWorldRegionEnsureAdapter(
         pathfinder::world_generation::WorldRegionEnsureService& ensure_service,
-        pathfinder::world_runtime::IWorldRuntime& world_runtime);
+        pathfinder::world_runtime::IWorldRuntime& world_runtime,
+        pathfinder::world_region_state::WorldRegionLifecycleService* lifecycle_service = nullptr);
 
     pathfinder::foundation::Result<pathfinder::world_generation::WorldRegionEnsureResult> ensureForBootstrap(
         const std::string& actor_key,
@@ -34,6 +36,7 @@ public:
 private:
     pathfinder::world_generation::WorldRegionEnsureService& ensure_service_;
     pathfinder::world_runtime::IWorldRuntime& world_runtime_;
+    pathfinder::world_region_state::WorldRegionLifecycleService* lifecycle_service_;
 
     pathfinder::foundation::Result<pathfinder::world_generation::WorldRegionEnsureResult> ensureWithRequest(
         const std::string& actor_key,

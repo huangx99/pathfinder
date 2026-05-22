@@ -55,13 +55,25 @@ public:
     }
 
     std::string findGroundItem() const {
+        auto player_coord = playerCoord();
         auto snap = world_runtime.snapshotForDebug();
         if (snap.is_ok()) {
             for (const auto& [id, entity] : snap.value().entities) {
-                if (entity.location_kind == WorldEntityLocationKind::OnMap && entity.entity_key != "player") {
-                    return id;
+                if (entity.location_kind == WorldEntityLocationKind::OnMap &&
+                    entity.entity_key != "player" && entity.coord.has_value()) {
+                    int dx = std::abs(entity.coord.value().x - player_coord.x);
+                    int dy = std::abs(entity.coord.value().y - player_coord.y);
+                    if ((dx == 0 && dy == 0) || (dx == 1 && dy == 0) || (dx == 0 && dy == 1)) {
+                        return id;
+                    }
                 }
             }
+        }
+        auto spawn_res = const_cast<WorldGridRuntime&>(world_runtime).spawnEntityOnMap(
+            "test_adjacent_pickup_item", "loose_stone", "entity.loose_stone",
+            player_coord, 1, "loose_stone:default", true, {}, {}, {});
+        if (spawn_res.is_ok()) {
+            return "test_adjacent_pickup_item";
         }
         return "";
     }

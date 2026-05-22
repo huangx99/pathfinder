@@ -370,15 +370,30 @@ void run_capacity_exceeded_tests() {
     TestFixture f;
     f.setup();
 
-    // Find multiple ground items (if any)
+    // Find or create multiple reachable ground items. P59 centered regions mean
+    // map iteration may include far entities before adjacent ones.
+    auto player_coord = f.playerCoord();
     auto snap = f.world_runtime.snapshotForDebug();
     assert(snap.is_ok());
 
     std::vector<std::string> ground_items;
     for (const auto& [id, entity] : snap.value().entities) {
-        if (entity.location_kind == WorldEntityLocationKind::OnMap && entity.entity_key != "player") {
-            ground_items.push_back(id);
+        if (entity.location_kind == WorldEntityLocationKind::OnMap &&
+            entity.entity_key != "player" && entity.coord.has_value()) {
+            int dx = std::abs(entity.coord.value().x - player_coord.x);
+            int dy = std::abs(entity.coord.value().y - player_coord.y);
+            if ((dx == 0 && dy == 0) || (dx == 1 && dy == 0) || (dx == 0 && dy == 1)) {
+                ground_items.push_back(id);
+            }
         }
+    }
+    while (ground_items.size() < 2) {
+        std::string id = "test_capacity_item_" + std::to_string(ground_items.size());
+        auto spawn_res = f.world_runtime.spawnEntityOnMap(
+            id, "loose_stone", "entity.loose_stone",
+            player_coord, 1, "loose_stone:default", true, {}, {}, {});
+        assert(spawn_res.is_ok() && "Should spawn reachable capacity test item");
+        ground_items.push_back(id);
     }
 
     // Set very small capacity

@@ -1,4 +1,5 @@
 #include "pathfinder/world_generation/terrain_noise_field_builder.h"
+#include "pathfinder/world_generation/world_region_math.h"
 
 namespace pathfinder::world_generation {
 
@@ -13,20 +14,16 @@ TerrainNoiseField TerrainNoiseFieldBuilder::build(
     TerrainNoiseField field;
     TerrainNoiseSampler sampler(request.world_seed);
 
-    int radius = request.region_size / 2;
-    int min_c = -(request.region_size / 2);
-    int max_c = request.region_size / 2 - (request.region_size % 2 == 0 ? 1 : 0);
-    if (request.region_size % 2 == 1) {
-        min_c = -radius;
-        max_c = radius;
-    }
+    int min_c = WorldRegionMath::regionMinLocalCoord(request.region_size);
+    int max_c = WorldRegionMath::regionMaxLocalCoord(request.region_size);
 
     const std::string& layer_key = profile.default_layer;
 
     for (int cx = min_c; cx <= max_c; ++cx) {
         for (int cy = min_c; cy <= max_c; ++cy) {
-            int world_x = request.region_coord.rx * request.region_size + cx;
-            int world_y = request.region_coord.ry * request.region_size + cy;
+            auto coord = WorldRegionMath::regionCoordToWorld(request.region_coord, cx, cy, request.region_size, layer_key);
+            int world_x = coord.x;
+            int world_y = coord.y;
 
             TerrainNoiseSample sample;
             sample.x = world_x;

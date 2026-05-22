@@ -946,6 +946,30 @@ target_link_libraries(pathfinder_world_agent_execution PUBLIC
     pathfinder_goal_execution
 )
 
+# World Region State library (P59)
+add_library(pathfinder_world_region_state STATIC
+    src/world_region_state/world_region_state_types.cpp
+    src/world_region_state/in_memory_world_region_state_store.cpp
+    src/world_region_state/world_region_snapshot_builder.cpp
+    src/world_region_state/world_region_snapshot_restorer.cpp
+    src/world_region_state/world_grid_runtime_apply_port.cpp
+    src/world_region_state/world_region_unload_guard.cpp
+    src/world_region_state/world_region_lifecycle_service.cpp
+    src/world_region_state/world_region_save_bridge.cpp
+    src/world_region_state/world_region_ensure_service_adapter.cpp
+)
+
+target_include_directories(pathfinder_world_region_state PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(pathfinder_world_region_state PUBLIC
+    pathfinder_foundation
+    pathfinder_world_runtime
+    pathfinder_world_generation
+    pathfinder_world_inventory
+)
+
 # World Beast Ecology library (P52)
 add_library(pathfinder_world_beast_ecology STATIC
     src/world_beast_ecology/world_beast_ecology_types.cpp
@@ -1015,6 +1039,7 @@ target_link_libraries(pathfinder_client_runtime_bridge PUBLIC
     pathfinder_world_runtime
     pathfinder_world_command
     pathfinder_world_generation
+    pathfinder_world_region_state
 )
 
 # Client Protocol library (P53)

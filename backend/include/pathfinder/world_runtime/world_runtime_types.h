@@ -61,6 +61,9 @@ struct WorldRuntimeConfig {
     int initial_region_radius = 1;
     int region_size = 16;
     int default_vision_radius = 3;
+    std::string generator_version = "1.0.0";
+    std::string content_version = "1.0.0";
+    std::string worldgen_profile_key = "first_world";
     WorldLayerPolicy layer_policy = WorldLayerPolicy::SurfaceOnly;
 };
 

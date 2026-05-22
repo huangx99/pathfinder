@@ -22,6 +22,17 @@ public:
         int region_size,
         const std::string& layer_key);
 
+    static int regionMinLocalCoord(int region_size);
+    static int regionMaxLocalCoord(int region_size);
+    static int regionMinWorldCoord(int region_coord, int region_size);
+    static int regionMaxWorldCoord(int region_coord, int region_size);
+
+    static bool coordBelongsToRegion(
+        const world_runtime::WorldCellCoord& coord,
+        const WorldRegionCoord& region,
+        int region_size,
+        const std::string& layer_key);
+
     static std::vector<WorldRegionCoord> regionsCoveringCoords(
         const std::vector<world_runtime::WorldCellCoord>& coords,
         int region_size);

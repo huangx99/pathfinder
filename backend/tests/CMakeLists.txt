@@ -5617,14 +5617,17 @@ add_executable(pathfinder_tests_world_learning_integration
 
 target_link_libraries(pathfinder_tests_world_learning_integration PRIVATE
     pathfinder_world_learning
+    pathfinder_world_reaction
     pathfinder_world_command
     pathfinder_world_runtime
+    pathfinder_world_inventory
     pathfinder_content
     pathfinder_learning
     pathfinder_knowledge
     pathfinder_foundation
 )
 
+add_test(NAME world_learning_ext_item_reaction_command_to_knowledge COMMAND pathfinder_tests_world_learning_integration ext_item_reaction_command_to_knowledge)
 add_test(NAME world_learning_craft_experience_uses_p48_knowledge_template COMMAND pathfinder_tests_world_learning_integration craft_experience_uses_p48_knowledge_template)
 add_test(NAME world_learning_harvest_experience_uses_p47_output COMMAND pathfinder_tests_world_learning_integration harvest_experience_uses_p47_output)
 add_test(NAME world_learning_command_result_merges_learning_events COMMAND pathfinder_tests_world_learning_integration command_result_merges_learning_events)
@@ -5884,4 +5887,45 @@ add_test(
 add_test(
     NAME architecture_client_available_command_adapter_no_wait_inspect_stub
     COMMAND bash -c "grep -rn 'option_bridge_' ${CMAKE_CURRENT_SOURCE_DIR}/../src/client_protocol/client_available_command_adapter.cpp"
+)
+
+# World Region State tests (P59)
+add_executable(pathfinder_tests_world_region_state
+    unit/world_region_state/world_region_state_main.cpp
+    unit/world_region_state/world_region_state_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_world_region_state PRIVATE
+    pathfinder_world_region_state
+    pathfinder_world_runtime
+    pathfinder_world_generation
+    pathfinder_world_inventory
+    pathfinder_foundation
+)
+
+add_test(NAME world_region_state_smoke COMMAND pathfinder_tests_world_region_state smoke)
+add_test(NAME world_region_state_read_region_slice COMMAND pathfinder_tests_world_region_state read_region_slice)
+add_test(NAME world_region_state_in_memory_store COMMAND pathfinder_tests_world_region_state in_memory_store)
+add_test(NAME world_region_state_snapshot_builder COMMAND pathfinder_tests_world_region_state snapshot_builder)
+add_test(NAME world_region_state_snapshot_roundtrip COMMAND pathfinder_tests_world_region_state snapshot_roundtrip)
+add_test(NAME world_region_state_active_region_restore_rejected COMMAND pathfinder_tests_world_region_state active_region_restore_rejected)
+add_test(NAME world_region_state_cross_region_entity_conflict COMMAND pathfinder_tests_world_region_state cross_region_entity_conflict)
+add_test(NAME world_region_state_lifecycle_seal_restore COMMAND pathfinder_tests_world_region_state lifecycle_seal_restore)
+add_test(NAME world_region_state_ensure_available COMMAND pathfinder_tests_world_region_state ensure_available)
+add_test(NAME world_region_state_harvest_state_preservation COMMAND pathfinder_tests_world_region_state harvest_state_preservation)
+add_test(NAME world_region_state_entity_roundtrip COMMAND pathfinder_tests_world_region_state entity_roundtrip)
+add_test(NAME world_region_state_unload_guard COMMAND pathfinder_tests_world_region_state unload_guard)
+add_test(NAME world_region_state_negative_coord_region COMMAND pathfinder_tests_world_region_state negative_coord_region)
+add_test(NAME world_region_state_snapshot_validation COMMAND pathfinder_tests_world_region_state snapshot_validation)
+add_test(NAME world_region_state_save_bridge COMMAND pathfinder_tests_world_region_state save_bridge)
+add_test(NAME world_region_state_double_seal COMMAND pathfinder_tests_world_region_state double_seal)
+add_test(NAME world_region_state_detach_safe_only_detaches COMMAND pathfinder_tests_world_region_state detach_safe_only_detaches)
+add_test(NAME world_region_state_exploration_restore COMMAND pathfinder_tests_world_region_state exploration_restore)
+add_test(NAME world_region_state_region_coord_consistency COMMAND pathfinder_tests_world_region_state region_coord_consistency)
+add_test(NAME world_region_state_p45_pickup_drop_boundary COMMAND pathfinder_tests_world_region_state p45_pickup_drop_boundary)
+
+# Architecture guard: P59 must not depend on frontend projection for snapshot
+add_test(
+    NAME architecture_p59_no_frontend_projection_dependency
+    COMMAND bash -c "! grep -rn 'client_protocol\|client_runtime_bridge\|ClientWorldProjection' ${CMAKE_CURRENT_SOURCE_DIR}/../src/world_region_state/ ${CMAKE_CURRENT_SOURCE_DIR}/../include/pathfinder/world_region_state/"
 )

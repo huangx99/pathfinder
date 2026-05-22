@@ -3,6 +3,13 @@
 #include "pathfinder/world_learning/world_knowledge_projection_bridge.h"
 #include "pathfinder/world_learning/world_knowledge_store_port.h"
 #include "pathfinder/world_command/world_command_types.h"
+#include "pathfinder/world_command/world_command_registry.h"
+#include "pathfinder/world_command/world_command_dispatcher.h"
+#include "pathfinder/world_command/world_command_pipeline.h"
+#include "pathfinder/world_reaction/world_reaction_service.h"
+#include "pathfinder/world_reaction/craft_command_handler.h"
+#include "pathfinder/world_runtime/world_grid_runtime.h"
+#include "pathfinder/world_inventory/world_inventory_runtime.h"
 #include "pathfinder/content/content_registry.h"
 #include "pathfinder/learning/learning_loop.h"
 #include "pathfinder/knowledge/knowledge_repository.h"
@@ -11,6 +18,9 @@
 
 using namespace pathfinder::world_learning;
 using namespace pathfinder::world_command;
+using namespace pathfinder::world_reaction;
+using namespace pathfinder::world_runtime;
+using namespace pathfinder::world_inventory;
 using namespace pathfinder::content;
 using namespace pathfinder::learning;
 using namespace pathfinder::knowledge;
@@ -285,6 +295,162 @@ void run_world_learning_missing_template_does_not_fail_craft_tests() {
     std::cout << "world_learning_missing_template_does_not_fail_craft: passed" << std::endl;
 }
 
+
+// ---------------------------------------------------------------------------
+// ext-style new item reaction must go Command -> Experience -> Knowledge
+// ---------------------------------------------------------------------------
+
+static std::shared_ptr<ContentRegistry> makeExtStyleIncenseRegistry() {
+    ContentDraftRegistry draft;
+
+    ObjectDefinitionContent herb_obj;
+    herb_obj.key = ObjectDefinitionKey("test_ext_herb");
+    herb_obj.display_key = "entity.test_ext_herb";
+    draft.addObject(std::move(herb_obj));
+
+    ObjectDefinitionContent incense_obj;
+    incense_obj.key = ObjectDefinitionKey("test_ext_incense");
+    incense_obj.display_key = "entity.test_ext_incense";
+    draft.addObject(std::move(incense_obj));
+
+    ReactionDefinitionContent reaction;
+    reaction.key = ReactionDefinitionKey("test_ext_herb_make_incense");
+    reaction.inputs = {
+        ReactionInputDto{"test_ext_herb", "fresh", 1, 0}
+    };
+    reaction.action_key = "craft";
+    reaction.effect_key = "make_incense";
+    reaction.outputs = {
+        ReactionOutputDto{"test_ext_incense", 1}
+    };
+    reaction.consume = {
+        ReactionConsumeDto{"test_ext_herb", "fresh", -1}
+    };
+    reaction.summary_key = "reaction.test_ext_make_incense.summary";
+    reaction.knowledge_templates = {"knowledge_test_ext_make_incense"};
+    draft.addReaction(std::move(reaction));
+
+    KnowledgeTemplateContent tmpl;
+    tmpl.key = KnowledgeTemplateKey("knowledge_test_ext_make_incense");
+    tmpl.subject_object_key = "test_ext_incense";
+    tmpl.action_key = "craft";
+    tmpl.effect_key = "make_incense";
+    tmpl.target_object_key = "";
+    tmpl.default_status = "Hypothesis";
+    tmpl.teachable = true;
+    tmpl.usable_by_ai = true;
+    tmpl.summary_key = "knowledge.test_ext_make_incense";
+    draft.addKnowledgeTemplate(std::move(tmpl));
+
+    return ContentRegistry::build(draft);
+}
+
+static void spawnExtHerbToInventory(WorldInventoryRuntime& inventory_runtime) {
+    InventoryTransferRequest req;
+    req.transfer_id = "setup_test_ext_herb";
+    req.transfer_kind = InventoryTransferKind::SpawnToInventory;
+    req.actor_key = "player";
+    req.entity_key = "test_ext_herb";
+    req.quantity = 1;
+    req.parameters["stack_key"] = "test_ext_herb:fresh";
+    req.parameters["state_keys"] = "fresh";
+    auto res = inventory_runtime.transfer(req);
+    assert(res.is_ok());
+    assert(res.value().ok);
+}
+
+void run_world_learning_ext_item_reaction_command_to_knowledge_tests() {
+    auto registry = makeExtStyleIncenseRegistry();
+
+    WorldRuntimeConfig config;
+    config.seed = 42;
+    config.region_size = 9;
+    config.initial_region_radius = 0;
+    config.default_vision_radius = 3;
+
+    WorldGridRuntime world_runtime;
+    world_runtime.initialize(config);
+    world_runtime.generateInitialWorld(config);
+
+    WorldInventoryRuntime inventory_runtime(world_runtime);
+    inventory_runtime.initialize();
+    spawnExtHerbToInventory(inventory_runtime);
+
+    WorldReactionService reaction_service(*registry, world_runtime, inventory_runtime, world_runtime);
+    auto craft_handler = createCraftCommandHandler(reaction_service, world_runtime, inventory_runtime);
+
+    WorldCommandHandlerRegistry command_registry;
+    auto reg_res = command_registry.registerHandler(craft_handler);
+    assert(reg_res.is_ok());
+    WorldCommandDispatcher dispatcher(command_registry);
+    WorldCommandPipeline pipeline(dispatcher);
+
+    WorldCommandDto craft_cmd;
+    craft_cmd.command_id = "cmd_test_ext_make_incense";
+    craft_cmd.command_key = "craft";
+    craft_cmd.command_kind = WorldCommandKind::Craft;
+    craft_cmd.source = WorldCommandSource::PlayerInput;
+    craft_cmd.actor_key = "player";
+    craft_cmd.target.recipe_key = "test_ext_herb_make_incense";
+    craft_cmd.context.issued_tick = 21;
+
+    auto command_res = pipeline.execute("session_ext_test", craft_cmd);
+    assert(command_res.is_ok());
+    const auto& command_response = command_res.value();
+    assert(command_response.result.result_kind == WorldCommandResultKind::Succeeded);
+    assert(!command_response.experiences.empty());
+    assert(command_response.experiences[0].command_key == "craft");
+    assert(command_response.experiences[0].subject_entity_key == "test_ext_incense");
+    assert(command_response.experiences[0].effect_key == "make_incense");
+    assert(command_response.experiences[0].reason_keys.size() >= 2);
+
+    bool has_template_reason = false;
+    for (const auto& reason : command_response.experiences[0].reason_keys) {
+        if (reason == "knowledge_test_ext_make_incense") {
+            has_template_reason = true;
+        }
+    }
+    assert(has_template_reason);
+
+    auto inv_res = inventory_runtime.queryItems(InventoryOwnerRef{InventoryOwnerKind::Actor, "player"}, "test_ext_incense");
+    assert(inv_res.is_ok());
+    assert(!inv_res.value().empty());
+    assert(inv_res.value()[0].quantity == 1);
+
+    WorldCommandExecutionResult execution_result;
+    execution_result.result_kind = command_response.result.result_kind;
+    execution_result.events = command_response.event_feed;
+    execution_result.experiences = command_response.experiences;
+    execution_result.state_deltas = command_response.result.state_deltas;
+
+    LearningLoopService learning_service;
+    KnowledgeRepository repository;
+    WorldKnowledgeLearningService learning(*registry, learning_service, repository);
+
+    WorldKnowledgeLearningRequest learning_request;
+    learning_request.request_id = "req_test_ext_make_incense";
+    learning_request.actor_key = "player";
+    learning_request.source_kind = WorldLearningSourceKind::DirectExperience;
+    learning_request.tick = 21;
+    learning_request.source_command = craft_cmd;
+    learning_request.command_result = execution_result;
+
+    auto learning_res = learning.learnFromCommandResult(learning_request);
+    assert(learning_res.is_ok());
+    const auto& learned = learning_res.value();
+    assert(learned.ok);
+    assert(learned.decision == WorldKnowledgeLearningDecision::Learned);
+    assert(!learned.learned_claims.empty());
+    assert(!learned.knowledge_deltas.empty());
+    assert(learned.knowledge_deltas[0].action_key == "craft");
+    assert(learned.knowledge_deltas[0].effect_key == "make_incense");
+    assert(!learned.drafts.empty());
+    assert(!learned.drafts[0].templates.empty());
+    assert(learned.drafts[0].templates[0].key.value() == "knowledge_test_ext_make_incense");
+
+    std::cout << "world_learning_ext_item_reaction_command_to_knowledge: passed" << std::endl;
+}
+
 // ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
@@ -297,7 +463,9 @@ int main(int argc, char* argv[]) {
 
     std::string test_name = argv[1];
 
-    if (test_name == "craft_experience_uses_p48_knowledge_template") {
+    if (test_name == "ext_item_reaction_command_to_knowledge") {
+        run_world_learning_ext_item_reaction_command_to_knowledge_tests();
+    } else if (test_name == "craft_experience_uses_p48_knowledge_template") {
         run_world_learning_craft_experience_uses_p48_knowledge_template_tests();
     } else if (test_name == "harvest_experience_uses_p47_output") {
         run_world_learning_harvest_experience_uses_p47_output_tests();

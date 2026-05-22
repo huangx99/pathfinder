@@ -56,7 +56,13 @@ struct WorldRegionKey {
     int ry = 0;
     int region_size = 16;
 
-    std::string toString() const;
+    std::string toString() const {
+        return world_id + ":" + layer_key + ":region:" + std::to_string(rx) + ":" + std::to_string(ry) + ":" + std::to_string(region_size);
+    }
+    // P59: Runtime-stable region identity used for cell.region_id and generated_regions_ tracking.
+    std::string regionRuntimeId() const {
+        return world_id + ":" + layer_key + ":region:" + std::to_string(rx) + ":" + std::to_string(ry) + ":" + std::to_string(region_size);
+    }
     bool operator==(const WorldRegionKey& other) const;
     bool operator<(const WorldRegionKey& other) const;
 };
