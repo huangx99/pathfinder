@@ -381,8 +381,11 @@ void run_world_generation_then_gather_berry_bush_tests() {
     assert(apply_result.ok);
 
     // Find a berry bush node with gather action
-    WorldResourceNodeRuntime* target_node = nullptr;
-    for (auto& [id, node] : world_runtime.snapshotForDebug().value().resource_nodes) {
+    auto snapshot_res = world_runtime.snapshotForDebug();
+    assert(snapshot_res.is_ok());
+    const auto& snapshot = snapshot_res.value();
+    const WorldResourceNodeRuntime* target_node = nullptr;
+    for (const auto& [id, node] : snapshot.resource_nodes) {
         if (node.required_action_key == "gather" && !node.output_entity_keys.empty()) {
             target_node = &node;
             break;

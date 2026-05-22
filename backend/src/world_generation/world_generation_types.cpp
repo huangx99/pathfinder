@@ -86,6 +86,41 @@ std::string toString(SpawnPointKind kind) {
     return "Unknown";
 }
 
+std::string toString(TerrainGenerationMode mode) {
+    switch (mode) {
+        case TerrainGenerationMode::Unknown: return "Unknown";
+        case TerrainGenerationMode::WeightedRandom: return "WeightedRandom";
+        case TerrainGenerationMode::NoiseField: return "NoiseField";
+        case TerrainGenerationMode::TestOnly: return "TestOnly";
+    }
+    return "Unknown";
+}
+
+std::string toString(NoiseChannelKind kind) {
+    switch (kind) {
+        case NoiseChannelKind::Unknown: return "Unknown";
+        case NoiseChannelKind::Elevation: return "Elevation";
+        case NoiseChannelKind::Moisture: return "Moisture";
+        case NoiseChannelKind::Temperature: return "Temperature";
+        case NoiseChannelKind::Roughness: return "Roughness";
+        case NoiseChannelKind::ResourceRichness: return "ResourceRichness";
+        case NoiseChannelKind::DangerPressure: return "DangerPressure";
+        case NoiseChannelKind::TestOnly: return "TestOnly";
+    }
+    return "Unknown";
+}
+
+std::string toString(NoiseAlgorithmKind kind) {
+    switch (kind) {
+        case NoiseAlgorithmKind::Unknown: return "Unknown";
+        case NoiseAlgorithmKind::ValueNoise2D: return "ValueNoise2D";
+        case NoiseAlgorithmKind::Perlin2D: return "Perlin2D";
+        case NoiseAlgorithmKind::FractalPerlin2D: return "FractalPerlin2D";
+        case NoiseAlgorithmKind::TestOnly: return "TestOnly";
+    }
+    return "Unknown";
+}
+
 // ---------------------------------------------------------------------------
 // Validation
 // ---------------------------------------------------------------------------

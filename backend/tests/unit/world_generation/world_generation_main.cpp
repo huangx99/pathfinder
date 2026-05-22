@@ -34,6 +34,19 @@ void run_world_generation_resource_node_missing_cell_fails_tests();
 void run_world_generation_resource_nodes_applied_to_existing_cells_tests();
 void run_world_generation_invalid_layer_rejected_tests();
 
+// P57 forward declarations
+void run_world_generation_spawn_cell_is_walkable_tests();
+void run_world_generation_spawn_radius_blocked_ratio_limited_tests();
+void run_world_generation_walkable_ratio_above_policy_tests();
+void run_world_generation_reachable_from_spawn_above_minimum_tests();
+void run_world_generation_spawn_has_cardinal_escape_routes_tests();
+void run_world_generation_forest_is_walkable_with_cost_tests();
+void run_world_generation_stone_field_is_walkable_with_cost_tests();
+void run_world_generation_only_blocking_terrains_block_movement_tests();
+void run_world_generation_many_seeds_never_trap_spawn_tests();
+void run_world_generation_far_region_is_deterministic_tests();
+void run_world_generation_adjacent_region_noise_has_no_seam_tests();
+
 int main(int argc, char* argv[]) {
     if (argc < 2) {
         std::cout << "Usage: " << argv[0] << " <test_name>" << std::endl;
@@ -48,7 +61,11 @@ int main(int argc, char* argv[]) {
                    "repeated_apply_blocked, spawn_safety_uses_tags, command_handler_parsing, "
                    "spawn_entity_missing_cell_fails, ground_items_non_empty, "
                    "resource_node_missing_cell_fails, resource_nodes_applied_to_existing_cells, "
-                   "invalid_layer_rejected" << std::endl;
+                   "invalid_layer_rejected, "
+                   "spawn_walkable, spawn_radius_blocked, walkable_ratio, reachable_from_spawn, "
+                   "cardinal_escape_routes, forest_walkable, stone_field_walkable, "
+                   "only_blocking_block, many_seeds_no_trap, far_region_deterministic, "
+                   "adjacent_region_no_seam" << std::endl;
         return 1;
     }
 
@@ -119,6 +136,28 @@ int main(int argc, char* argv[]) {
         run_world_generation_resource_nodes_applied_to_existing_cells_tests();
     } else if (test_name == "invalid_layer_rejected") {
         run_world_generation_invalid_layer_rejected_tests();
+    } else if (test_name == "spawn_walkable") {
+        run_world_generation_spawn_cell_is_walkable_tests();
+    } else if (test_name == "spawn_radius_blocked") {
+        run_world_generation_spawn_radius_blocked_ratio_limited_tests();
+    } else if (test_name == "walkable_ratio") {
+        run_world_generation_walkable_ratio_above_policy_tests();
+    } else if (test_name == "reachable_from_spawn") {
+        run_world_generation_reachable_from_spawn_above_minimum_tests();
+    } else if (test_name == "cardinal_escape_routes") {
+        run_world_generation_spawn_has_cardinal_escape_routes_tests();
+    } else if (test_name == "forest_walkable") {
+        run_world_generation_forest_is_walkable_with_cost_tests();
+    } else if (test_name == "stone_field_walkable") {
+        run_world_generation_stone_field_is_walkable_with_cost_tests();
+    } else if (test_name == "only_blocking_block") {
+        run_world_generation_only_blocking_terrains_block_movement_tests();
+    } else if (test_name == "many_seeds_no_trap") {
+        run_world_generation_many_seeds_never_trap_spawn_tests();
+    } else if (test_name == "far_region_deterministic") {
+        run_world_generation_far_region_is_deterministic_tests();
+    } else if (test_name == "adjacent_region_no_seam") {
+        run_world_generation_adjacent_region_noise_has_no_seam_tests();
     } else {
         std::cout << "Unknown test: " << test_name << std::endl;
         return 1;

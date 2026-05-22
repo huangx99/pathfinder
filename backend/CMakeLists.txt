@@ -787,11 +787,16 @@ target_link_libraries(pathfinder_world_command PUBLIC
     pathfinder_foundation
 )
 
-# World Generation library (P46)
+# World Generation library (P46 + P57)
 add_library(pathfinder_world_generation STATIC
     src/world_generation/world_generation_types.cpp
     src/world_generation/world_generation_rng.cpp
     src/world_generation/terrain_generator.cpp
+    src/world_generation/terrain_noise_sampler.cpp
+    src/world_generation/terrain_noise_field_builder.cpp
+    src/world_generation/terrain_classifier.cpp
+    src/world_generation/terrain_connectivity_analyzer.cpp
+    src/world_generation/terrain_connectivity_repairer.cpp
     src/world_generation/resource_distribution_generator.cpp
     src/world_generation/spawn_safety_planner.cpp
     src/world_generation/world_generation_service.cpp

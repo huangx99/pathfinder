@@ -424,6 +424,7 @@ Result<void> WorldGridRuntime::createOrUpdateGeneratedCell(
     const std::vector<std::string>& tag_keys) {
     std::string cell_id = coord.cellId();
     auto it = cells_.find(cell_id);
+    bool is_new = (it == cells_.end());
     if (it != cells_.end()) {
         it->second.terrain_key = terrain_key;
         it->second.region_id = region_id;
@@ -442,6 +443,19 @@ Result<void> WorldGridRuntime::createOrUpdateGeneratedCell(
         cell.tag_keys = tag_keys;
         cells_[cell_id] = std::move(cell);
     }
+
+    // P57: when a new cell is created within an actor's vision, update exploration
+    if (is_new) {
+        for (const auto& [actor_key, actor] : actors_) {
+            if (coord.layer_key != actor.coord.layer_key) continue;
+            int dx = std::abs(actor.coord.x - coord.x);
+            int dy = std::abs(actor.coord.y - coord.y);
+            if (dx + dy <= actor.vision_radius) {
+                exploration_[actor_key].cell_visibility_by_id[cell_id] = WorldCellVisibility::Visible;
+            }
+        }
+    }
+
     incrementStateVersion();
     return Result<void>::ok();
 }

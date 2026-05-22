@@ -653,11 +653,13 @@
     ctx.fillStyle = '#05070a';
     ctx.fillRect(0, 0, w, h);
 
+    const exploredSet = new Set();
     for (const c of cells) {
       const f = c.fields || {};
       const x = parseInt(f.x, 10);
       const y = parseInt(f.y, 10);
       if (isNaN(x) || isNaN(y)) continue;
+      exploredSet.add(`${x},${y}`);
       const px = (x - viewMinX) * TILE_SIZE;
       const py = (y - viewMinY) * TILE_SIZE;
       if (px < -TILE_SIZE || px >= w || py < -TILE_SIZE || py >= h) continue;
@@ -702,6 +704,23 @@
         else drawEntityFallback(ctx, px + TILE_SIZE / 2, py + TILE_SIZE / 2, TILE_SIZE * 0.7, f, false);
       }
     }
+
+    // Fog of war for unexplored cells
+    for (let vy = 0; vy < VIEWPORT_TILES; ++vy) {
+      for (let vx = 0; vx < VIEWPORT_TILES; ++vx) {
+        const worldX = viewMinX + vx;
+        const worldY = viewMinY + vy;
+        if (!exploredSet.has(`${worldX},${worldY}`)) {
+          const px = vx * TILE_SIZE;
+          const py = vy * TILE_SIZE;
+          ctx.fillStyle = '#0a0f14';
+          ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+          ctx.strokeStyle = '#111820';
+          ctx.lineWidth = 0.5;
+          ctx.strokeRect(px + 0.25, py + 0.25, TILE_SIZE - 0.5, TILE_SIZE - 0.5);
+        }
+      }
+    }
   }
 
   function terrainColor(key) {
@@ -712,6 +731,11 @@
       sand: '#3a3220',
       mountain: '#2a2a2a',
       plain: '#1e2e1e',
+      // P57 noise terrain colors
+      stone_field: '#4a4a40',
+      water_edge: '#1a4a3a',
+      blocked: '#3a1a1a',
+      deep_water: '#0a1a3a',
       unknown: '#141e2e',
     };
     return map[key] || map.unknown;

@@ -15,6 +15,7 @@ public:
     struct Result {
         std::vector<GeneratedCellDraft> cells;
         std::vector<std::string> trace_roll_keys;
+        TerrainGenerationDiagnostics diagnostics;
         bool ok = true;
     };
 
@@ -24,7 +25,7 @@ public:
         const WorldgenProfile& profile,
         WorldGenerationRng& rng);
 
-private:
+    // P57: these are kept for backward compatibility but also used by internal helpers
     static std::string pickTerrain(
         WorldGenerationRng& rng,
         const std::vector<TerrainWeight>& weights,
@@ -33,6 +34,8 @@ private:
     static bool blocksMovement(const std::string& terrain_key);
     static int movementCost(const std::string& terrain_key);
     static WorldBiomeKind biomeKindFromTerrain(const std::string& terrain_key);
+
+private:
 };
 
 } // namespace pathfinder::world_generation

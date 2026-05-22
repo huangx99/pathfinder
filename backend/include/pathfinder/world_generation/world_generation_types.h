@@ -24,7 +24,8 @@ enum class WorldGenerationFailureKind {
     InvalidLayer,
     DeterminismMismatch,
     ApplyFailed,
-    RuntimeConflict
+    RuntimeConflict,
+    GenerationConstraintFailed
 };
 
 std::string toString(WorldGenerationFailureKind kind);
@@ -84,6 +85,105 @@ enum class SpawnPointKind {
 std::string toString(SpawnPointKind kind);
 
 // ---------------------------------------------------------------------------
+// P57: Noise-based terrain generation enums and structs
+// ---------------------------------------------------------------------------
+
+enum class TerrainGenerationMode {
+    Unknown,
+    WeightedRandom,
+    NoiseField,
+    TestOnly
+};
+
+std::string toString(TerrainGenerationMode mode);
+
+enum class NoiseChannelKind {
+    Unknown,
+    Elevation,
+    Moisture,
+    Temperature,
+    Roughness,
+    ResourceRichness,
+    DangerPressure,
+    TestOnly
+};
+
+std::string toString(NoiseChannelKind kind);
+
+enum class NoiseAlgorithmKind {
+    Unknown,
+    ValueNoise2D,
+    Perlin2D,
+    FractalPerlin2D,
+    TestOnly
+};
+
+std::string toString(NoiseAlgorithmKind kind);
+
+struct NoiseChannelConfig {
+    NoiseChannelKind channel = NoiseChannelKind::Unknown;
+    NoiseAlgorithmKind algorithm = NoiseAlgorithmKind::FractalPerlin2D;
+    double scale = 24.0;
+    int octaves = 3;
+    double persistence = 0.5;
+    double lacunarity = 2.0;
+    double bias = 0.0;
+    double weight = 1.0;
+    uint64_t salt = 0;
+};
+
+struct TerrainThresholdRule {
+    std::string terrain_key;
+    double min_elevation = -1.0;
+    double max_elevation = 1.0;
+    double min_moisture = -1.0;
+    double max_moisture = 1.0;
+    double min_roughness = -1.0;
+    double max_roughness = 1.0;
+    int priority = 0;
+    std::vector<std::string> tag_keys;
+};
+
+struct TerrainConnectivityPolicy {
+    bool enabled = true;
+    int spawn_safe_radius = 3;
+    double min_walkable_ratio = 0.72;
+    double max_blocked_ratio_in_spawn_radius = 0.10;
+    int min_reachable_cells_from_spawn = 80;
+    bool carve_cardinal_corridors = true;
+    int corridor_half_width = 1;
+    std::vector<std::string> repair_preferred_terrain_keys;
+};
+
+struct TerrainGenerationDiagnostics {
+    int total_cells = 0;
+    int walkable_cells = 0;
+    int blocked_cells = 0;
+    int reachable_from_spawn = 0;
+    double walkable_ratio = 0.0;
+    double blocked_ratio_in_spawn_radius = 0.0;
+    bool spawn_cell_walkable = false;
+    bool connectivity_repaired = false;
+    int repaired_cells = 0;
+    std::vector<std::string> warning_keys;
+};
+
+struct TerrainNoiseSample {
+    int x = 0;
+    int y = 0;
+    std::string layer_key;
+    double elevation = 0.0;
+    double moisture = 0.0;
+    double roughness = 0.0;
+    double resource_richness = 0.0;
+    double danger_pressure = 0.0;
+};
+
+struct TerrainNoiseField {
+    std::vector<TerrainNoiseSample> samples;
+};
+
+// ---------------------------------------------------------------------------
 // 9. Core DTOs
 // ---------------------------------------------------------------------------
 
@@ -130,6 +230,7 @@ struct WorldGenerationManifest {
     std::vector<std::string> generated_resource_node_ids;
     std::vector<std::string> trace_roll_keys;
     uint64_t generation_timestamp = 0;
+    TerrainGenerationDiagnostics diagnostics;
 };
 
 struct GeneratedCellDraft {
@@ -251,6 +352,12 @@ struct WorldgenProfile {
     std::vector<ResourceDistributionRule> resource_rules;
     std::vector<GroundItemPlacementRule> ground_item_rules;
     SpawnSafetyPolicy spawn_safety;
+
+    // P57: Noise-based terrain generation
+    TerrainGenerationMode terrain_generation_mode = TerrainGenerationMode::NoiseField;
+    std::vector<NoiseChannelConfig> noise_channels;
+    std::vector<TerrainThresholdRule> terrain_threshold_rules;
+    TerrainConnectivityPolicy connectivity_policy;
 };
 
 // ---------------------------------------------------------------------------
