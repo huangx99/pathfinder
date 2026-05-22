@@ -108,7 +108,7 @@ Result<std::vector<WorldCellPatchDto>> ClientRuntimeProjectionBridge::buildVisib
 
     for (const auto& [cell_id, cell] : snapshot.cells) {
         auto visibility = grid->getCellVisibility(actor_key, cell_id);
-        if (visibility != WorldCellVisibility::Unknown) {
+        if (visibility == WorldCellVisibility::Visible) {
             visible_cell_ids.push_back(cell_id);
         }
     }

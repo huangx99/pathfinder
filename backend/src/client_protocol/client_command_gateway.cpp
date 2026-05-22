@@ -7,6 +7,7 @@ using pathfinder::foundation::ErrorCode;
 using pathfinder::foundation::makeError;
 using pathfinder::foundation::Result;
 using pathfinder::world_command::WorldCommandResponseDto;
+using pathfinder::world_command::WorldCommandKind;
 using pathfinder::world_command::WorldCommandResultKind;
 using pathfinder::world_command::WorldCommandSource;
 
@@ -19,6 +20,11 @@ ClientCommandGateway::ClientCommandGateway(
     , pipeline_(pipeline)
     , patch_contract_(patch_contract)
     , available_command_adapter_(available_command_adapter) {}
+
+void ClientCommandGateway::setRegionEnsureAdapter(
+    client_runtime_bridge::ClientWorldRegionEnsureAdapter* ensure_adapter) {
+    ensure_adapter_ = ensure_adapter;
+}
 
 Result<void> ClientCommandGateway::validateClientCommandDto(
     const WorldCommandDto& command,
@@ -265,6 +271,25 @@ Result<ClientCommandResponse> ClientCommandGateway::handleCommand(
 
     auto command = cmd_result.value();
 
+    // Ensure the actor's visibility window around the move target before the
+    // command runs. Otherwise newly generated edge regions can miss the current
+    // projection patch and appear as temporary fog until the next action.
+    if (ensure_adapter_ && command.command_kind == WorldCommandKind::Move && command.target.target_coord.has_value()) {
+        auto layer_result = session_gateway_.getSessionLayerKey(request.session_id);
+        std::string layer_key = layer_result.is_ok() ? layer_result.value() : command.target.target_coord->layer_key;
+        world_runtime::WorldCellCoord target_coord{
+            command.target.target_coord->x,
+            command.target.target_coord->y,
+            command.target.target_coord->layer_key.empty() ? layer_key : command.target.target_coord->layer_key
+        };
+        auto ensure_target_res = ensure_adapter_->ensureForTargetVision(actor_key, layer_key, target_coord);
+        if (ensure_target_res.is_error()) {
+            auto response = buildBlockedResponse(
+                request.session_id, request.client_sequence, current_version, "region_ensure_failed", false, actor_key);
+            return Result<ClientCommandResponse>::ok(std::move(response));
+        }
+    }
+
     // Sync pipeline projection version to session's current version before execution.
     // This prevents version crosstalk when multiple sessions share the same pipeline.
     pipeline_.setCurrentProjectionVersion(current_version);
@@ -298,7 +323,23 @@ Result<ClientCommandResponse> ClientCommandGateway::handleCommand(
 
     // If pipeline did not provide available_commands, build from adapter.
     if (pipeline_response.available_commands.empty()) {
-        auto options_result = available_command_adapter_.buildOptions(actor_key, "surface");
+        // P58: Ensure neighboring regions exist before building move options.
+        auto layer_result = session_gateway_.getSessionLayerKey(request.session_id);
+        std::string layer_key = layer_result.is_ok() ? layer_result.value() : "surface";
+        if (ensure_adapter_) {
+            auto ensure_res = ensure_adapter_->ensureForAvailableCommands(actor_key, layer_key);
+            if (ensure_res.is_error()) {
+                response.warning_keys.push_back("region_ensure_failed");
+            } else if (!ensure_res.value().ok) {
+                for (const auto& w : ensure_res.value().warning_keys) {
+                    response.warning_keys.push_back(w);
+                }
+                for (const auto& f : ensure_res.value().failure_reason_keys) {
+                    response.warning_keys.push_back(f);
+                }
+            }
+        }
+        auto options_result = available_command_adapter_.buildOptions(actor_key, layer_key);
         if (options_result.is_ok()) {
             response.available_commands = options_result.value();
         }

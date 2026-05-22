@@ -803,6 +803,10 @@ add_library(pathfinder_world_generation STATIC
     src/world_generation/world_generation_applier.cpp
     src/world_generation/world_generation_projection_bridge.cpp
     src/world_generation/generate_world_command_handler.cpp
+    src/world_generation/world_region_math.cpp
+    src/world_generation/world_region_ensure_types.cpp
+    src/world_generation/world_region_ensure_service.cpp
+    src/world_generation/move_target_region_guard.cpp
 )
 
 target_include_directories(pathfinder_world_generation PUBLIC
@@ -828,6 +832,7 @@ target_include_directories(pathfinder_world_command_runtime PUBLIC
 target_link_libraries(pathfinder_world_command_runtime PUBLIC
     pathfinder_world_command
     pathfinder_world_runtime
+    pathfinder_world_generation
 )
 
 # World Inventory library (P45)
@@ -998,6 +1003,7 @@ add_library(pathfinder_client_runtime_bridge STATIC
     src/client_runtime_bridge/client_runtime_bridge_types.cpp
     src/client_runtime_bridge/client_runtime_projection_bridge.cpp
     src/client_runtime_bridge/client_runtime_command_option_bridge.cpp
+    src/client_runtime_bridge/client_world_region_ensure_adapter.cpp
 )
 
 target_include_directories(pathfinder_client_runtime_bridge PUBLIC
@@ -1008,6 +1014,7 @@ target_link_libraries(pathfinder_client_runtime_bridge PUBLIC
     pathfinder_foundation
     pathfinder_world_runtime
     pathfinder_world_command
+    pathfinder_world_generation
 )
 
 # Client Protocol library (P53)

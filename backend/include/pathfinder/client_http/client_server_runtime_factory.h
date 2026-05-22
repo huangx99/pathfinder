@@ -9,6 +9,8 @@
 #include "pathfinder/client_http/client_http_gateway.h"
 #include "pathfinder/client_runtime_bridge/client_runtime_projection_bridge.h"
 #include "pathfinder/client_runtime_bridge/client_runtime_command_option_bridge.h"
+#include "pathfinder/client_runtime_bridge/client_world_region_ensure_adapter.h"
+#include "pathfinder/world_generation/move_target_region_guard.h"
 #include "pathfinder/world_runtime/world_grid_runtime.h"
 #include "pathfinder/world_command/world_command_registry.h"
 #include "pathfinder/world_command/world_command_dispatcher.h"
@@ -32,6 +34,12 @@ struct ClientServerRuntimeFactory {
     pathfinder::client_protocol::ClientProjectionAdapter projection_adapter;
     pathfinder::client_protocol::ClientPatchContract patch_contract;
     pathfinder::client_protocol::ClientAvailableCommandAdapter available_command_adapter;
+
+    // P58: Region ensure infrastructure (must outlive session_gateway and handlers)
+    std::shared_ptr<pathfinder::world_generation::WorldGenerationService> worldgen_service;
+    std::shared_ptr<pathfinder::world_generation::WorldRegionEnsureService> ensure_service;
+    std::shared_ptr<pathfinder::client_runtime_bridge::ClientWorldRegionEnsureAdapter> ensure_adapter;
+    std::shared_ptr<pathfinder::world_generation::MoveTargetRegionGuard> move_guard;
 
     pathfinder::client_protocol::ClientSessionGateway session_gateway;
     pathfinder::world_command::WorldCommandHandlerRegistry registry;

@@ -2,6 +2,7 @@
 #include "pathfinder/foundation/error.h"
 #include <cmath>
 #include <algorithm>
+#include <set>
 
 namespace pathfinder::world_runtime {
 
@@ -29,6 +30,18 @@ uint64_t WorldGridRuntime::currentWorldTick() const {
 
 uint64_t WorldGridRuntime::stateVersion() const {
     return state_version_;
+}
+
+std::string WorldGridRuntime::worldId() const {
+    return config_.world_id;
+}
+
+uint64_t WorldGridRuntime::worldSeed() const {
+    return config_.seed;
+}
+
+int WorldGridRuntime::regionSize() const {
+    return config_.region_size;
 }
 
 void WorldGridRuntime::incrementStateVersion() {
@@ -309,6 +322,16 @@ Result<MoveActorResult> WorldGridRuntime::moveActor(const std::string& actor_key
 
     // Perform move
     WorldCellCoord old_coord = actor.coord;
+    std::set<std::string> visible_before_move;
+    auto exp_before_it = exploration_.find(actor_key);
+    if (exp_before_it != exploration_.end()) {
+        for (const auto& [cell_id, visibility] : exp_before_it->second.cell_visibility_by_id) {
+            if (visibility == WorldCellVisibility::Visible) {
+                visible_before_move.insert(cell_id);
+            }
+        }
+    }
+
     actor.coord = target;
     result.to = target;
     result.moved = true;
@@ -337,10 +360,11 @@ Result<MoveActorResult> WorldGridRuntime::moveActor(const std::string& actor_key
     // Update exploration
     updateExplorationForActor(actor_key);
 
-    // Add newly discovered cells to changed list
+    // Add only newly visible cells to the patch. Sending the whole visible
+    // window every step makes mobile clients feel unresponsive over tunnels.
     auto& exp = exploration_[actor_key];
     for (const auto& [cell_id, visibility] : exp.cell_visibility_by_id) {
-        if (visibility == WorldCellVisibility::Visible) {
+        if (visibility == WorldCellVisibility::Visible && visible_before_move.find(cell_id) == visible_before_move.end()) {
             if (std::find(result.changed_cell_ids.begin(), result.changed_cell_ids.end(), cell_id) == result.changed_cell_ids.end()) {
                 result.changed_cell_ids.push_back(cell_id);
             }
@@ -423,6 +447,15 @@ Result<WorldRuntimeSnapshot> WorldGridRuntime::snapshotForDebug() const {
     snapshot.actors = actors_;
     snapshot.resource_nodes = resource_nodes_;
     return Result<WorldRuntimeSnapshot>::ok(std::move(snapshot));
+}
+
+Result<void> WorldGridRuntime::refreshActorExploration(const std::string& actor_key) {
+    if (actors_.find(actor_key) == actors_.end()) {
+        return Result<void>::fail(
+            makeError(ErrorCode::id_not_found, "actor_not_found", "Actor not found: " + actor_key));
+    }
+    updateExplorationForActor(actor_key);
+    return Result<void>::ok();
 }
 
 // ---------------------------------------------------------------------------

@@ -16,7 +16,7 @@ void run_generate_world_runtime_tests() {
     WorldCommandHandlerRegistry registry;
     registry.registerHandler(pathfinder::world_runtime::createGenerateWorldCommandHandler(runtime));
     registry.registerHandler(pathfinder::world_runtime::createWaitCommandHandler(runtime));
-    registry.registerHandler(pathfinder::world_runtime::createMoveCommandHandler(runtime));
+    registry.registerHandler(pathfinder::world_runtime::createMoveCommandHandler(runtime, nullptr));
     registry.registerHandler(pathfinder::world_runtime::createInspectCommandHandler(runtime));
 
     WorldCommandDispatcher dispatcher(registry);
@@ -214,7 +214,7 @@ void run_pipeline_with_runtime_tests() {
     WorldCommandHandlerRegistry registry;
     registry.registerHandler(pathfinder::world_runtime::createGenerateWorldCommandHandler(runtime));
     registry.registerHandler(pathfinder::world_runtime::createWaitCommandHandler(runtime));
-    registry.registerHandler(pathfinder::world_runtime::createMoveCommandHandler(runtime));
+    registry.registerHandler(pathfinder::world_runtime::createMoveCommandHandler(runtime, nullptr));
     registry.registerHandler(pathfinder::world_runtime::createInspectCommandHandler(runtime));
 
     WorldCommandDispatcher dispatcher(registry);
@@ -340,7 +340,7 @@ void run_pipeline_projection_patch_runtime_tests() {
     WorldCommandHandlerRegistry registry;
     registry.registerHandler(pathfinder::world_runtime::createGenerateWorldCommandHandler(runtime));
     registry.registerHandler(pathfinder::world_runtime::createWaitCommandHandler(runtime));
-    registry.registerHandler(pathfinder::world_runtime::createMoveCommandHandler(runtime));
+    registry.registerHandler(pathfinder::world_runtime::createMoveCommandHandler(runtime, nullptr));
     registry.registerHandler(pathfinder::world_runtime::createInspectCommandHandler(runtime));
 
     WorldCommandDispatcher dispatcher(registry);

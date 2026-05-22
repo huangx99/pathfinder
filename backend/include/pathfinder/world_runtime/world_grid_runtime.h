@@ -14,6 +14,9 @@ public:
     foundation::Result<void> initialize(const WorldRuntimeConfig& config) override;
     uint64_t currentWorldTick() const override;
     uint64_t stateVersion() const override;
+    std::string worldId() const override;
+    uint64_t worldSeed() const override;
+    int regionSize() const override;
 
     foundation::Result<const WorldCellRuntime*> findCell(const WorldCellCoord& coord) const override;
     foundation::Result<const WorldEntityInstance*> findEntity(const std::string& entity_id) const override;
@@ -29,6 +32,7 @@ public:
     foundation::Result<AdvanceWorldTimeResult> advanceWorldTime(uint64_t tick_delta) override;
 
     foundation::Result<WorldRuntimeSnapshot> snapshotForDebug() const override;
+    foundation::Result<void> refreshActorExploration(const std::string& actor_key) override;
 
     // P46: Generated cell creation/updating
     foundation::Result<void> createOrUpdateGeneratedCell(

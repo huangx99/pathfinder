@@ -21,6 +21,11 @@
         <div class="quest-title">世界状态</div>
         <div class="quest-body" id="questBody">等待后端数据…</div>
       </section>
+      <div class="zoom-controls" id="zoomControls">
+        <button class="zoom-btn" id="zoomOutBtn" title="缩小">−</button>
+        <button class="zoom-btn" id="zoomInBtn" title="放大">＋</button>
+      </div>
+      <button class="follow-btn" id="followBtn" title="切换镜头跟随">跟随：关</button>
       <button class="reset-btn" id="resetBtn" title="重置世界">↻ 重置</button>
     </header>
 
@@ -34,22 +39,20 @@
       <div class="log-entries" id="logEntries"></div>
     </section>
 
-    <!-- 手机方向键：稳定优先，前端只提交后端提供的移动 option_id -->
+    <!-- 备用虚拟摇杆：主操作已改为拖拽地图、滚轮缩放、双击地块寻路 -->
     <div class="joystick-zone" id="joystickZone">
-      <div class="dpad" id="dpad" aria-label="移动方向键">
-        <button class="dpad-btn dpad-up" data-dir="up" aria-label="向上">▲</button>
-        <button class="dpad-btn dpad-left" data-dir="left" aria-label="向左">◀</button>
-        <button class="dpad-btn dpad-right" data-dir="right" aria-label="向右">▶</button>
-        <button class="dpad-btn dpad-down" data-dir="down" aria-label="向下">▼</button>
+      <div class="joystick-base" id="joystickBase" aria-label="移动摇杆">
+        <div class="joystick-ring"></div>
+        <div class="joystick-thumb" id="joystickThumb"></div>
       </div>
-      <div class="joystick-label">移动</div>
+      <div class="joystick-label">备用移动</div>
     </div>
 
     <!-- WASD 提示：电脑显示，手机隐藏 -->
     <div class="wasd-hint" id="wasdHint">
       <div class="wasd-row"><span class="wasd-key">W</span></div>
       <div class="wasd-row"><span class="wasd-key">A</span><span class="wasd-key">S</span><span class="wasd-key">D</span></div>
-      <div class="wasd-label">移动</div>
+      <div class="wasd-label">备用移动</div>
     </div>
 
     <details class="debug-panel" id="debugPanel">

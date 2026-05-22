@@ -14,6 +14,10 @@ public:
     virtual uint64_t currentWorldTick() const = 0;
     virtual uint64_t stateVersion() const = 0;
 
+    virtual std::string worldId() const = 0;
+    virtual uint64_t worldSeed() const = 0;
+    virtual int regionSize() const = 0;
+
     virtual foundation::Result<const WorldCellRuntime*> findCell(const WorldCellCoord& coord) const = 0;
     virtual foundation::Result<const WorldEntityInstance*> findEntity(const std::string& entity_id) const = 0;
     virtual foundation::Result<const WorldActorRuntime*> findActor(const std::string& actor_key) const = 0;
@@ -24,6 +28,10 @@ public:
     virtual foundation::Result<AdvanceWorldTimeResult> advanceWorldTime(uint64_t tick_delta) = 0;
 
     virtual foundation::Result<WorldRuntimeSnapshot> snapshotForDebug() const = 0;
+
+    // Refresh actor exploration after new regions are generated or applied.
+    // This keeps client projections aligned with already-ensured map cells.
+    virtual foundation::Result<void> refreshActorExploration(const std::string& actor_key) = 0;
 
     // P46: Generated cell creation/updating
     virtual foundation::Result<void> createOrUpdateGeneratedCell(

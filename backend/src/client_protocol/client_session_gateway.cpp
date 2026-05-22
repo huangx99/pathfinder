@@ -13,6 +13,11 @@ ClientSessionGateway::ClientSessionGateway(
     : projection_adapter_(projection_adapter)
     , available_command_adapter_(available_command_adapter) {}
 
+void ClientSessionGateway::setRegionEnsureAdapter(
+    client_runtime_bridge::ClientWorldRegionEnsureAdapter* ensure_adapter) {
+    ensure_adapter_ = ensure_adapter;
+}
+
 ClientSessionGateway::SessionState& ClientSessionGateway::getOrCreateSession(
     const ClientBootstrapRequest& request) {
     auto it = sessions_.find(request.session_id);
@@ -46,6 +51,14 @@ Result<ClientBootstrapResponse> ClientSessionGateway::bootstrap(
 
     auto& session = getOrCreateSession(request);
 
+    // P58: Ensure regions before building projection and options.
+    if (ensure_adapter_) {
+        auto ensure_res = ensure_adapter_->ensureForBootstrap(session.actor_key, session.layer_key);
+        if (ensure_res.is_error()) {
+            return Result<ClientBootstrapResponse>::fail(ensure_res.errors());
+        }
+    }
+
     auto proj_result = projection_adapter_.buildFullProjection(
         session.actor_key, session.layer_key, session.projection_version);
     if (proj_result.is_error()) {
@@ -55,6 +68,14 @@ Result<ClientBootstrapResponse> ClientSessionGateway::bootstrap(
     // P56: Sync session projection_version to runtime-backed full_projection version.
     const uint64_t runtime_version = proj_result.value().projection_version;
     session.projection_version = runtime_version;
+
+    // P58: Ensure neighbor regions before building move options.
+    if (ensure_adapter_) {
+        auto ensure_cmd_res = ensure_adapter_->ensureForAvailableCommands(session.actor_key, session.layer_key);
+        if (ensure_cmd_res.is_error()) {
+            return Result<ClientBootstrapResponse>::fail(ensure_cmd_res.errors());
+        }
+    }
 
     auto options_result = available_command_adapter_.buildOptions(
         session.actor_key, session.layer_key);
@@ -96,6 +117,15 @@ Result<ClientRefreshResponse> ClientSessionGateway::refresh(
     }
 
     auto& session = it->second;
+
+    // P58: Ensure vision window before refresh projection.
+    if (ensure_adapter_) {
+        auto ensure_res = ensure_adapter_->ensureForRefresh(session.actor_key, session.layer_key, 0);
+        if (ensure_res.is_error()) {
+            return Result<ClientRefreshResponse>::fail(ensure_res.errors());
+        }
+    }
+
     auto proj_result = projection_adapter_.buildScopedProjection(
         session.actor_key, session.layer_key, session.projection_version, request.requested_scopes);
     if (proj_result.is_error()) {
@@ -105,6 +135,14 @@ Result<ClientRefreshResponse> ClientSessionGateway::refresh(
     // P56: Sync session projection_version to runtime-backed full_projection version.
     const uint64_t runtime_version = proj_result.value().projection_version;
     session.projection_version = runtime_version;
+
+    // P58: Ensure neighbor regions before building move options.
+    if (ensure_adapter_) {
+        auto ensure_cmd_res = ensure_adapter_->ensureForAvailableCommands(session.actor_key, session.layer_key);
+        if (ensure_cmd_res.is_error()) {
+            return Result<ClientRefreshResponse>::fail(ensure_cmd_res.errors());
+        }
+    }
 
     auto options_result = available_command_adapter_.buildOptions(
         session.actor_key, session.layer_key);

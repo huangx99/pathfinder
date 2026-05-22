@@ -254,7 +254,7 @@ void run_movement_provider_tests() {
     runtime.generateInitialWorld(config);
 
     WorldCommandHandlerRegistry registry;
-    registry.registerHandler(pathfinder::world_runtime::createMoveCommandHandler(runtime));
+    registry.registerHandler(pathfinder::world_runtime::createMoveCommandHandler(runtime, nullptr));
 
     MovementCommandOptionProvider provider(registry);
 
@@ -291,7 +291,7 @@ void run_movement_provider_disabled_reason_tests() {
     runtime.generateInitialWorld(config);
 
     WorldCommandHandlerRegistry registry;
-    registry.registerHandler(createMoveCommandHandler(runtime));
+    registry.registerHandler(createMoveCommandHandler(runtime, nullptr));
 
     MovementCommandOptionProvider provider(registry);
 
@@ -403,7 +403,7 @@ void run_diagnostics_tests() {
     runtime.generateInitialWorld(config);
 
     WorldCommandHandlerRegistry registry;
-    registry.registerHandler(createMoveCommandHandler(runtime));
+    registry.registerHandler(createMoveCommandHandler(runtime, nullptr));
     registry.registerHandler(createWaitCommandHandler(runtime));
     registry.registerHandler(createInspectCommandHandler(runtime));
 

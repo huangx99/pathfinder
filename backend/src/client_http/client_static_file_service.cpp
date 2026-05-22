@@ -47,7 +47,7 @@ ClientHttpResponse ClientStaticFileService::serve(const std::string& path) const
     return ClientHttpResponse{
         200,
         mimeType(safe_path),
-        {},
+        {{"Cache-Control", "no-store, max-age=0"}},
         content
     };
 }

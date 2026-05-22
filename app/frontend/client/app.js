@@ -25,10 +25,27 @@
     floatingTexts: [],
     screenShake: 0,
     lastTimestamp: 0,
+    lastMapRenderTime: 0,
+    actorAnimation: null,
+    actorFacing: 'down',
+    cameraCoord: null,
+    cameraLockedToActor: false,
+    cameraDrag: null,
+    pinchZoom: null,
+    zoom: 1,
+    pathTarget: null,
+    activePath: [],
+    pathRunning: false,
+    pathParticles: [],
+    lastTap: null,
   };
 
   const DIRECTION_COOLDOWN_MS = 80;
   const DIRECTION_REPEAT_MS = 120;
+  const MAP_FRAME_INTERVAL_MS = 120;
+  const ACTOR_MOVE_ANIMATION_MS = 220;
+  const MIN_ZOOM = 0.6;
+  const MAX_ZOOM = 1.8;
 
   // ---------------------------------------------------------------------------
   // 2. DOM refs
@@ -45,8 +62,12 @@
   const debugPre = document.getElementById('debugPre');
   const resetBtn = document.getElementById('resetBtn');
   const toastContainer = document.getElementById('toastContainer');
+  const followBtn = document.getElementById('followBtn');
+  const zoomInBtn = document.getElementById('zoomInBtn');
+  const zoomOutBtn = document.getElementById('zoomOutBtn');
   const joystickZone = document.getElementById('joystickZone');
-  const dpadButtons = Array.from(document.querySelectorAll('.dpad-btn'));
+  const joystickBase = document.getElementById('joystickBase');
+  const joystickThumb = document.getElementById('joystickThumb');
   const wasdKeys = {
     w: null, a: null, s: null, d: null,
   };
@@ -88,15 +109,51 @@
     });
   }
 
+  function addPathPixelBurst(worldX, worldY) {
+    const colors = ['#38bdf8', '#7dd3fc', '#facc15', '#e0f2fe'];
+    for (let i = 0; i < 14; ++i) {
+      const angle = (Math.PI * 2 * i / 14) + Math.random() * 0.35;
+      const speed = 0.45 + Math.random() * 0.65;
+      state.pathParticles.push({
+        x: worldX + 0.5,
+        y: worldY + 0.5,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        color: colors[i % colors.length],
+        startTime: performance.now(),
+        life: 360 + Math.random() * 220,
+      });
+    }
+  }
+
+  function renderPathParticles(timestamp, viewMinX, viewMinY) {
+    const tile = tileSize();
+    state.pathParticles = state.pathParticles.filter(p => {
+      const elapsed = timestamp - p.startTime;
+      if (elapsed > p.life) return false;
+      const progress = elapsed / p.life;
+      const px = (p.x + p.vx * progress - viewMinX) * tile;
+      const py = (p.y + p.vy * progress - viewMinY) * tile;
+      const size = Math.max(2, Math.floor(tile * (0.08 - progress * 0.035)));
+      ctx.save();
+      ctx.globalAlpha = 1 - progress;
+      ctx.fillStyle = p.color;
+      ctx.fillRect(Math.round(px - size / 2), Math.round(py - size / 2), size, size);
+      ctx.restore();
+      return true;
+    });
+  }
+
   function renderFloatingTexts(timestamp, viewMinX, viewMinY) {
+    const tile = tileSize();
     state.floatingTexts = state.floatingTexts.filter(ft => {
       const elapsed = timestamp - ft.startTime;
       if (elapsed > ft.life) return false;
       const progress = elapsed / ft.life;
-      const px = (ft.x - viewMinX) * TILE_SIZE + TILE_SIZE / 2;
-      const py = (ft.y - viewMinY) * TILE_SIZE - 36 * progress;
+      const px = (ft.x - viewMinX) * tile + tile / 2;
+      const py = (ft.y - viewMinY) * tile - 36 * progress;
       const alpha = 1 - progress;
-      if (alpha <= 0 || px < -TILE_SIZE || px > canvas.width + TILE_SIZE || py < -TILE_SIZE || py > canvas.height + TILE_SIZE) {
+      if (alpha <= 0 || px < -tile || px > canvas.width + tile || py < -tile || py > canvas.height + tile) {
         return alpha > 0;
       }
       ctx.save();
@@ -203,14 +260,15 @@
   }
 
   async function apiRefresh() {
+    const actorCoord = getActorCoord() || { x: 0, y: 0 };
     return postJson('/api/client/refresh', {
       session_id: state.sessionId,
       client_id: state.clientId,
       known_projection_version: state.projectionVersion,
       requested_scopes: ['full_safe_world'],
       requested_layer_key: 'surface',
-      viewport_center_x: 0,
-      viewport_center_y: 0,
+      viewport_center_x: actorCoord.x,
+      viewport_center_y: actorCoord.y,
     });
   }
 
@@ -246,6 +304,7 @@
   // 6. Projection helpers
   // ---------------------------------------------------------------------------
   function applyFullProjection(proj) {
+    state.actorAnimation = null;
     state.projection = {
       projection_version: safe(proj.projection_version, 0),
       actor_key: safe(proj.actor_key, ''),
@@ -257,6 +316,9 @@
       area_effects: safe(proj.area_effects, []),
       safe_summary_keys: safe(proj.safe_summary_keys, []),
     };
+    if (!state.cameraCoord || state.cameraLockedToActor) {
+      state.cameraCoord = getActorCoord();
+    }
   }
 
   function applyPatch(patch) {
@@ -319,6 +381,110 @@
     return null;
   }
 
+  function easeOutCubic(t) {
+    return 1 - Math.pow(1 - t, 3);
+  }
+
+  function sameCoord(a, b) {
+    if (!a || !b) return false;
+    return a.x === b.x && a.y === b.y && (a.layer_key || 'surface') === (b.layer_key || 'surface');
+  }
+
+  function getRenderActorCoord(timestamp = performance.now()) {
+    const anim = state.actorAnimation;
+    if (!anim) return getActorCoord();
+    const progress = Math.min(1, Math.max(0, (timestamp - anim.startTime) / anim.duration));
+    const eased = easeOutCubic(progress);
+    const coord = {
+      x: anim.fromX + (anim.toX - anim.fromX) * eased,
+      y: anim.fromY + (anim.toY - anim.fromY) * eased,
+      layer_key: anim.layer_key,
+    };
+    if (progress >= 1) {
+      state.actorAnimation = null;
+      return { x: anim.toX, y: anim.toY, layer_key: anim.layer_key };
+    }
+    return coord;
+  }
+
+  function startActorMoveAnimation(fromCoord, toCoord) {
+    if (!fromCoord || !toCoord || sameCoord(fromCoord, toCoord)) return;
+    const dx = toCoord.x - fromCoord.x;
+    const dy = toCoord.y - fromCoord.y;
+    if (Math.abs(dx) >= Math.abs(dy) && dx !== 0) {
+      state.actorFacing = dx > 0 ? 'right' : 'left';
+    } else if (dy !== 0) {
+      state.actorFacing = dy > 0 ? 'down' : 'up';
+    }
+    state.actorAnimation = {
+      fromX: fromCoord.x,
+      fromY: fromCoord.y,
+      toX: toCoord.x,
+      toY: toCoord.y,
+      layer_key: toCoord.layer_key || fromCoord.layer_key || 'surface',
+      startTime: performance.now(),
+      duration: ACTOR_MOVE_ANIMATION_MS,
+    };
+  }
+
+  function getPlayerSprite(timestamp) {
+    const sprites = window.SPRITES || {};
+    const frames = sprites.playerWalk && sprites.playerWalk[state.actorFacing || 'down'];
+    if (!frames || !frames.length) return sprites.player;
+    if (!state.actorAnimation) return frames[0];
+    const elapsed = Math.max(0, timestamp - state.actorAnimation.startTime);
+    return frames[1 + (Math.floor(elapsed / 72) % Math.max(1, frames.length - 1))] || frames[0];
+  }
+
+  function updateCameraForActor(actorCoord) {
+    if (!actorCoord) return null;
+    if (!state.cameraLockedToActor) {
+      if (!state.cameraCoord || state.cameraCoord.layer_key !== actorCoord.layer_key) {
+        state.cameraCoord = { ...actorCoord };
+      }
+      return state.cameraCoord;
+    }
+    if (!state.cameraCoord || state.cameraCoord.layer_key !== actorCoord.layer_key) {
+      state.cameraCoord = { ...actorCoord };
+      return state.cameraCoord;
+    }
+
+    const halfX = Math.max(2, Math.floor(viewportTilesX() / 2));
+    const halfY = Math.max(2, Math.floor(viewportTilesY() / 2));
+    const deadX = Math.max(2, halfX - 2);
+    const deadY = Math.max(1, halfY - 2);
+    let cameraX = state.cameraCoord.x;
+    let cameraY = state.cameraCoord.y;
+
+    if (actorCoord.x < cameraX - deadX) cameraX = actorCoord.x + deadX;
+    else if (actorCoord.x > cameraX + deadX) cameraX = actorCoord.x - deadX;
+
+    if (actorCoord.y < cameraY - deadY) cameraY = actorCoord.y + deadY;
+    else if (actorCoord.y > cameraY + deadY) cameraY = actorCoord.y - deadY;
+
+    state.cameraCoord = {
+      x: Math.round(cameraX),
+      y: Math.round(cameraY),
+      layer_key: actorCoord.layer_key || 'surface',
+    };
+    return state.cameraCoord;
+  }
+
+  function centerCameraOnActor(lock = false) {
+    const actorCoord = getActorCoord();
+    if (!actorCoord) return;
+    state.cameraCoord = { ...actorCoord };
+    state.cameraLockedToActor = lock;
+    updateFollowButton();
+    renderMap();
+  }
+
+  function updateFollowButton() {
+    if (!followBtn) return;
+    followBtn.textContent = state.cameraLockedToActor ? '跟随：开' : '跟随：关';
+    followBtn.classList.toggle('active', state.cameraLockedToActor);
+  }
+
   // ---------------------------------------------------------------------------
   // 8. Move direction resolution
   // ---------------------------------------------------------------------------
@@ -356,6 +522,87 @@
     );
   }
 
+  function directionBetween(from, to) {
+    if (!from || !to) return null;
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    if (dx === 0 && dy === -1) return 'up';
+    if (dx === 0 && dy === 1) return 'down';
+    if (dx === -1 && dy === 0) return 'left';
+    if (dx === 1 && dy === 0) return 'right';
+    return null;
+  }
+
+  function cellKey(x, y) {
+    return `${x},${y}`;
+  }
+
+  function isCellWalkable(cell) {
+    const f = cell && cell.fields ? cell.fields : {};
+    const blocked = String(f.blocks_movement || '').toLowerCase();
+    if (blocked === 'true' || blocked === '1' || blocked === 'yes') return false;
+    return true;
+  }
+
+  function buildVisibleWalkableSet() {
+    const walkable = new Set();
+    if (!state.projection) return walkable;
+    for (const cell of state.projection.visible_cells) {
+      const f = cell.fields || {};
+      const x = parseInt(f.x, 10);
+      const y = parseInt(f.y, 10);
+      if (Number.isNaN(x) || Number.isNaN(y) || !isCellWalkable(cell)) continue;
+      walkable.add(cellKey(x, y));
+    }
+    return walkable;
+  }
+
+  function findPathTo(target) {
+    const start = getActorCoord();
+    if (!start || !target) return [];
+    if (start.x === target.x && start.y === target.y) return [];
+
+    const walkable = buildVisibleWalkableSet();
+    const startKey = cellKey(start.x, start.y);
+    const targetKey = cellKey(target.x, target.y);
+    walkable.add(startKey);
+    if (!walkable.has(targetKey)) return null;
+
+    const queue = [{ x: start.x, y: start.y }];
+    const cameFrom = new Map();
+    cameFrom.set(startKey, null);
+    const dirs = [
+      { dx: 0, dy: -1 },
+      { dx: 0, dy: 1 },
+      { dx: -1, dy: 0 },
+      { dx: 1, dy: 0 },
+    ];
+
+    for (let head = 0; head < queue.length; ++head) {
+      const cur = queue[head];
+      if (cur.x === target.x && cur.y === target.y) break;
+      for (const d of dirs) {
+        const nx = cur.x + d.dx;
+        const ny = cur.y + d.dy;
+        const nk = cellKey(nx, ny);
+        if (!walkable.has(nk) || cameFrom.has(nk)) continue;
+        cameFrom.set(nk, cellKey(cur.x, cur.y));
+        queue.push({ x: nx, y: ny });
+      }
+    }
+
+    if (!cameFrom.has(targetKey)) return null;
+    const path = [];
+    let currentKey = targetKey;
+    while (currentKey && currentKey !== startKey) {
+      const [x, y] = currentKey.split(',').map(Number);
+      path.push({ x, y, layer_key: start.layer_key || 'surface' });
+      currentKey = cameFrom.get(currentKey);
+    }
+    path.reverse();
+    return path;
+  }
+
   function commandLabel(cmd, fallback) {
     if (!cmd) return fallback || t('ui.unknown_cmd', '未知命令');
     return cmd.label_text || cmd.command_kind || cmd.option_id || fallback || t('ui.unknown_cmd', '未知命令');
@@ -385,13 +632,13 @@
   async function submitOption(optionId) {
     if (state.requestState !== 'idle') {
       toast(t('ui.request_pending', '请求处理中，请稍候'), 'warn');
-      return;
+      return { status: 'busy', resultKind: 'busy', failureReasons: [] };
     }
     const found = state.availableCommands.find(c => c.option_id === optionId);
     if (!found) {
       toast(t('ui.option_expired', '该选项已过期，正在刷新…'), 'warn');
       await doRefresh();
-      return;
+      return { status: 'expired', resultKind: 'expired', failureReasons: [] };
     }
 
     const label = commandLabel(found, optionId);
@@ -404,7 +651,7 @@
         log(t('ui.version_mismatch', '状态不同步，刷新后再确认') + `: ${label}`, 'warn');
         setRequestState('idle');
         await doRefresh();
-        return;
+        return outcome;
       }
 
       const kind = outcome.resultKind;
@@ -417,9 +664,11 @@
         log(t('ui.exec_doing', '执行') + `${resultText(kind)}: ${label}${reason}`, kind === 'blocked' ? 'warn' : 'error');
       }
       appendEvents(resp.event_feed, resp.frontend_hints, resp.warning_keys);
+      return outcome;
     } catch (err) {
       state.screenShake = 8;
       handleError(t('ui.command_submit_failed', '命令提交失败'), err);
+      return { status: 'error', resultKind: 'failed', failureReasons: [err.message || 'error'] };
     } finally {
       setRequestState('idle');
       render();
@@ -436,11 +685,73 @@
       return;
     }
     state.lastDirectionSubmitTime = now;
-    await submitOption(optionId);
+    return await submitOption(optionId);
+  }
+
+  async function runPathTo(target) {
+    if (state.pathRunning) {
+      toast('正在寻路中', 'warn');
+      return;
+    }
+    const path = findPathTo(target);
+    state.pathTarget = target;
+    state.activePath = path || [];
+    renderMap();
+
+    if (path === null) {
+      toast('当前可见区域内没有可走路径', 'warn');
+      log(`无法寻路到 ${target.x},${target.y}`, 'warn');
+      return;
+    }
+    if (!path.length) {
+      toast('已经在目标格', 'info');
+      return;
+    }
+
+    state.pathRunning = true;
+    log(`开始寻路到 ${target.x},${target.y}，共 ${path.length} 步`, 'info');
+    try {
+      while (state.activePath.length) {
+        const current = getActorCoord();
+        const next = state.activePath[0];
+        const direction = directionBetween(current, next);
+        if (!direction) {
+          log('寻路中断：当前位置已变化，需要重新规划', 'warn');
+          break;
+        }
+        const optionId = resolveMoveOption(direction);
+        if (!optionId) {
+          log(`寻路中断：后端当前不允许${directionText(direction)}`, 'warn');
+          toast('路径被阻挡或需要重新探索', 'warn');
+          break;
+        }
+        const outcome = await submitOption(optionId);
+        if (!outcome || outcome.resultKind !== 'succeeded') {
+          log('寻路中断：移动未成功', 'warn');
+          break;
+        }
+        const after = getActorCoord();
+        if (!after || after.x !== next.x || after.y !== next.y) {
+          log('寻路中断：后端位置与路径不一致', 'warn');
+          break;
+        }
+        const reached = state.activePath.shift();
+        addPathPixelBurst(reached.x, reached.y);
+        renderMap();
+        await new Promise(resolve => setTimeout(resolve, 60));
+      }
+    } finally {
+      state.pathRunning = false;
+      if (!state.activePath.length) {
+        state.pathTarget = null;
+      }
+      renderMap();
+    }
   }
 
   function applyCommandResponse(resp) {
     state.sessionId = safe(resp.session_id, state.sessionId);
+    const actorCoordBefore = getRenderActorCoord(performance.now()) || getActorCoord();
 
     const result = resp.result || {};
     const failureReasons = safe(result.failure_reason_keys, []);
@@ -469,6 +780,11 @@
         outcome.status = 'needs_refresh';
         return outcome;
       }
+    }
+
+    const actorCoordAfter = getActorCoord();
+    if (outcome.resultKind === 'succeeded' && actorCoordBefore && actorCoordAfter && !sameCoord(actorCoordBefore, actorCoordAfter)) {
+      startActorMoveAnimation(actorCoordBefore, actorCoordAfter);
     }
 
     state.projectionVersion = safe(resp.new_projection_version, state.projectionVersion);
@@ -595,13 +911,72 @@
   // ---------------------------------------------------------------------------
   const TILE_SIZE = 48;
 
-  function viewportTilesX() { return Math.floor(canvas.width / TILE_SIZE); }
-  function viewportTilesY() { return Math.floor(canvas.height / TILE_SIZE); }
+  function tileSize() { return TILE_SIZE * state.zoom; }
+
+  function viewportTilesX() { return Math.max(1, Math.floor(canvas.width / tileSize())); }
+  function viewportTilesY() { return Math.max(1, Math.floor(canvas.height / tileSize())); }
+
+  function clampZoom(value) {
+    return Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, value));
+  }
+
+  function updateZoomButtons() {
+    if (zoomOutBtn) zoomOutBtn.disabled = state.zoom <= MIN_ZOOM + 0.001;
+    if (zoomInBtn) zoomInBtn.disabled = state.zoom >= MAX_ZOOM - 0.001;
+  }
+
+  function setZoomAt(clientX, clientY, nextZoom) {
+    const before = screenToWorld(clientX, clientY);
+    const oldZoom = state.zoom;
+    state.zoom = clampZoom(nextZoom);
+    updateZoomButtons();
+    if (Math.abs(state.zoom - oldZoom) < 0.001) return false;
+    state.cameraLockedToActor = false;
+    updateFollowButton();
+    const after = screenToWorld(clientX, clientY);
+    if (state.cameraCoord) {
+      state.cameraCoord.x += before.x - after.x;
+      state.cameraCoord.y += before.y - after.y;
+    }
+    renderMap();
+    return true;
+  }
+
+  function visibleViewMin(cameraCoord = state.cameraCoord || getActorCoord()) {
+    const halfX = Math.floor(viewportTilesX() / 2);
+    const halfY = Math.floor(viewportTilesY() / 2);
+    if (!cameraCoord) return { x: 0, y: 0 };
+    return {
+      x: cameraCoord.x - halfX,
+      y: cameraCoord.y - halfY,
+    };
+  }
+
+  function screenToWorld(clientX, clientY) {
+    const rect = canvas.getBoundingClientRect();
+    const sx = clientX - rect.left;
+    const sy = clientY - rect.top;
+    const tile = tileSize();
+    const viewMin = visibleViewMin();
+    return {
+      x: Math.floor(viewMin.x + sx / tile),
+      y: Math.floor(viewMin.y + sy / tile),
+      sx,
+      sy,
+    };
+  }
+
+  function worldToScreen(x, y, viewMinX = state.viewMinX || 0, viewMinY = state.viewMinY || 0) {
+    const tile = tileSize();
+    return {
+      x: (x - viewMinX) * tile,
+      y: (y - viewMinY) * tile,
+    };
+  }
 
   function resizeCanvas() {
-    // Align canvas to integer multiples of TILE_SIZE to avoid partial-tile gaps
-    canvas.width = Math.floor(window.innerWidth / TILE_SIZE) * TILE_SIZE;
-    canvas.height = Math.floor(window.innerHeight / TILE_SIZE) * TILE_SIZE;
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
     renderMap();
   }
 
@@ -636,6 +1011,7 @@
     state.lastTimestamp = timestamp;
     const w = canvas.width;
     const h = canvas.height;
+    const tile = tileSize();
 
     ctx.save();
     if (state.screenShake > 0) {
@@ -649,21 +1025,24 @@
     ctx.clearRect(-8, -8, w + 16, h + 16);
 
     if (!state.projection) {
-      ctx.fillStyle = '#05070a';
+      ctx.fillStyle = '#091423';
       ctx.fillRect(0, 0, w, h);
       ctx.fillStyle = '#475569';
       ctx.font = '10px monospace';
       ctx.textAlign = 'center';
       ctx.fillText(t('ui.loading', '等待世界投影…'), w / 2, h / 2);
+      ctx.restore();
       return;
     }
 
     const cells = state.projection.visible_cells;
     const entities = state.projection.visible_entities;
-    const actorCoord = getActorCoord();
+    const logicActorCoord = getActorCoord();
+    const renderActorCoord = getRenderActorCoord(timestamp) || logicActorCoord;
+    const cameraCoord = updateCameraForActor(logicActorCoord) || logicActorCoord || renderActorCoord;
 
     if (!cells.length && !entities.length) {
-      ctx.fillStyle = '#05070a';
+      ctx.fillStyle = '#091423';
       ctx.fillRect(0, 0, w, h);
       ctx.fillStyle = '#475569';
       ctx.font = '10px monospace';
@@ -671,16 +1050,12 @@
       ctx.fillText(t('ui.empty_world', '世界投影为空'), w / 2, h / 2);
       ctx.font = '9px monospace';
       ctx.fillText(t('ui.empty_world_hint', '后端尚未返回可见格子和实体'), w / 2, h / 2 + 18);
+      ctx.restore();
       return;
     }
 
-    const halfX = Math.floor(viewportTilesX() / 2);
-    const halfY = Math.floor(viewportTilesY() / 2);
-    let viewMinX, viewMinY;
-    if (actorCoord) {
-      viewMinX = actorCoord.x - halfX;
-      viewMinY = actorCoord.y - halfY;
-    } else {
+    let { x: viewMinX, y: viewMinY } = visibleViewMin(cameraCoord);
+    if (!cameraCoord) {
       let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
       for (const c of cells) {
         const f = c.fields || {};
@@ -698,33 +1073,74 @@
       if (!isFinite(minY)) { minY = 0; maxY = 0; }
       const centerX = Math.floor((minX + maxX) / 2);
       const centerY = Math.floor((minY + maxY) / 2);
-      viewMinX = centerX - halfX;
-      viewMinY = centerY - halfY;
+      state.cameraCoord = { x: centerX, y: centerY, layer_key: 'surface' };
+      ({ x: viewMinX, y: viewMinY } = visibleViewMin(state.cameraCoord));
     }
 
-    ctx.fillStyle = '#05070a';
+    ctx.fillStyle = '#091423';
     ctx.fillRect(0, 0, w, h);
 
-    const exploredSet = new Set();
     for (const c of cells) {
       const f = c.fields || {};
       const x = parseInt(f.x, 10);
       const y = parseInt(f.y, 10);
       if (isNaN(x) || isNaN(y)) continue;
-      exploredSet.add(`${x},${y}`);
-      const px = (x - viewMinX) * TILE_SIZE;
-      const py = (y - viewMinY) * TILE_SIZE;
-      // Only skip tiles fully outside the left/top edge; canvas is TILE_SIZE-aligned
-      if (px < -TILE_SIZE || py < -TILE_SIZE) continue;
+      const px = (x - viewMinX) * tile;
+      const py = (y - viewMinY) * tile;
+      if (px < -tile || py < -tile || px > w + tile || py > h + tile) continue;
 
       const terrain = f.terrain_key || f.terrain || 'unknown';
       const sprite = window.SPRITES && window.SPRITES[terrain];
       if (sprite) {
-        ctx.drawImage(sprite, px, py, TILE_SIZE, TILE_SIZE);
+        ctx.drawImage(sprite, px, py, tile, tile);
       } else {
         ctx.fillStyle = terrainColor(terrain);
-        ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+        ctx.fillRect(px, py, tile, tile);
       }
+
+      ctx.strokeStyle = 'rgba(15, 23, 42, 0.18)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(px, py, tile, tile);
+    }
+
+    if (state.activePath.length || state.pathTarget) {
+      ctx.save();
+      const pixel = Math.max(3, Math.floor(tile / 8));
+      const pulse = Math.floor(timestamp / 180) % 2;
+      state.activePath.forEach((step, index) => {
+        const p = worldToScreen(step.x, step.y, viewMinX, viewMinY);
+        const cx = Math.round(p.x + tile / 2 - pixel / 2);
+        const cy = Math.round(p.y + tile / 2 - pixel / 2);
+        ctx.fillStyle = ((index + pulse) % 2 === 0) ? '#38bdf8' : '#facc15';
+        ctx.fillRect(cx, cy, pixel, pixel);
+        ctx.fillStyle = 'rgba(224, 242, 254, 0.65)';
+        ctx.fillRect(cx + pixel, cy, pixel, pixel);
+        if (index > 0) {
+          const prev = state.activePath[index - 1];
+          const pp = worldToScreen(prev.x, prev.y, viewMinX, viewMinY);
+          const x1 = Math.round(pp.x + tile / 2);
+          const y1 = Math.round(pp.y + tile / 2);
+          const x2 = Math.round(p.x + tile / 2);
+          const y2 = Math.round(p.y + tile / 2);
+          ctx.fillStyle = 'rgba(56, 189, 248, 0.55)';
+          if (x1 === x2) {
+            const y = Math.min(y1, y2) + pixel;
+            ctx.fillRect(x1 - Math.floor(pixel / 2), y, pixel, Math.max(pixel, Math.abs(y2 - y1) - pixel * 2));
+          } else if (y1 === y2) {
+            const x = Math.min(x1, x2) + pixel;
+            ctx.fillRect(x, y1 - Math.floor(pixel / 2), Math.max(pixel, Math.abs(x2 - x1) - pixel * 2), pixel);
+          }
+        }
+      });
+      if (state.pathTarget) {
+        const p = worldToScreen(state.pathTarget.x, state.pathTarget.y, viewMinX, viewMinY);
+        ctx.fillStyle = 'rgba(250, 204, 21, 0.28)';
+        ctx.fillRect(Math.round(p.x + pixel), Math.round(p.y + pixel), Math.round(tile - pixel * 2), pixel);
+        ctx.fillRect(Math.round(p.x + pixel), Math.round(p.y + tile - pixel * 2), Math.round(tile - pixel * 2), pixel);
+        ctx.fillRect(Math.round(p.x + pixel), Math.round(p.y + pixel), pixel, Math.round(tile - pixel * 2));
+        ctx.fillRect(Math.round(p.x + tile - pixel * 2), Math.round(p.y + pixel), pixel, Math.round(tile - pixel * 2));
+      }
+      ctx.restore();
     }
 
     const actorKey = state.projection.actor_key;
@@ -735,24 +1151,26 @@
     });
     for (const e of sortedEntities) {
       const f = e.fields || {};
-      const x = parseInt(f.x, 10);
-      const y = parseInt(f.y, 10);
+      let x = parseInt(f.x, 10);
+      let y = parseInt(f.y, 10);
       if (isNaN(x) || isNaN(y)) continue;
-      const px = (x - viewMinX) * TILE_SIZE;
-      const py = (y - viewMinY) * TILE_SIZE;
-      if (px < -TILE_SIZE || py < -TILE_SIZE) continue;
+      const isActor = f.actor_key === actorKey || e.entity_id === actorKey || e.entity_id.startsWith(actorKey);
+      if (isActor && renderActorCoord) {
+        x = renderActorCoord.x;
+        y = renderActorCoord.y;
+      }
+      const px = (x - viewMinX) * tile;
+      const py = (y - viewMinY) * tile;
+      if (px < -tile || py < -tile || px > w + tile || py > h + tile) continue;
 
-      // Shadow
       ctx.fillStyle = 'rgba(0,0,0,0.18)';
       ctx.beginPath();
-      ctx.ellipse(px + TILE_SIZE / 2, py + TILE_SIZE - 3, TILE_SIZE * 0.28, 4, 0, 0, Math.PI * 2);
+      ctx.ellipse(px + tile / 2, py + tile - 3, tile * 0.28, 4, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      // Breathing animation
       const breathe = Math.sin(timestamp * 0.003 + x * 0.7 + y * 0.4) * 1.2;
       const drawY = py + breathe;
 
-      // Selection halo
       if (state.selectedEntityId === e.entity_id) {
         const pulse = 0.5 + 0.3 * Math.sin(timestamp * 0.005);
         ctx.save();
@@ -761,18 +1179,17 @@
         ctx.globalAlpha = pulse;
         ctx.setLineDash([4, 3]);
         ctx.beginPath();
-        ctx.ellipse(px + TILE_SIZE / 2, py + TILE_SIZE - 4, TILE_SIZE * 0.35, 5, 0, 0, Math.PI * 2);
+        ctx.ellipse(px + tile / 2, py + tile - 4, tile * 0.35, 5, 0, 0, Math.PI * 2);
         ctx.stroke();
         ctx.setLineDash([]);
         ctx.globalAlpha = 1;
         ctx.restore();
       }
 
-      const isActor = f.actor_key === actorKey || e.entity_id === actorKey || e.entity_id.startsWith(actorKey);
       if (isActor) {
-        const sprite = window.SPRITES && window.SPRITES.player;
-        if (sprite) ctx.drawImage(sprite, px, drawY);
-        else drawEntityFallback(ctx, px + TILE_SIZE / 2, drawY + TILE_SIZE / 2, TILE_SIZE * 0.7, f, true);
+        const sprite = getPlayerSprite(timestamp);
+        if (sprite) ctx.drawImage(sprite, px, drawY, tile, tile);
+        else drawEntityFallback(ctx, px + tile / 2, drawY + tile / 2, tile * 0.7, f, true);
       } else {
         const kind = f.entity_kind || f.kind || f.object_key || 'unknown';
         let spriteKey = null;
@@ -784,50 +1201,33 @@
         else spriteKey = 'unknown';
 
         const sprite = window.SPRITES && window.SPRITES[spriteKey];
-        if (sprite) ctx.drawImage(sprite, px, drawY);
-        else drawEntityFallback(ctx, px + TILE_SIZE / 2, drawY + TILE_SIZE / 2, TILE_SIZE * 0.7, f, false);
+        if (sprite) ctx.drawImage(sprite, px, drawY, tile, tile);
+        else drawEntityFallback(ctx, px + tile / 2, drawY + tile / 2, tile * 0.7, f, false);
       }
     }
 
-    // Fog of war for unexplored cells
-    const vtw = viewportTilesX();
-    const vth = viewportTilesY();
-    for (let vy = 0; vy < vth; ++vy) {
-      for (let vx = 0; vx < vtw; ++vx) {
-        const worldX = viewMinX + vx;
-        const worldY = viewMinY + vy;
-        if (!exploredSet.has(`${worldX},${worldY}`)) {
-          const px = vx * TILE_SIZE;
-          const py = vy * TILE_SIZE;
-          // Soft fog — no grid lines, just a very subtle dark fill
-          ctx.fillStyle = '#070a0e';
-          ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
-        }
-      }
-    }
-
-    // Floating name labels
     state.viewMinX = viewMinX;
     state.viewMinY = viewMinY;
+    renderPathParticles(timestamp, viewMinX, viewMinY);
     renderFloatingTexts(timestamp, viewMinX, viewMinY);
 
-    ctx.restore(); // screen shake
+    ctx.restore();
   }
 
   function terrainColor(key) {
     const map = {
-      grass: '#1a3a2a',
-      forest: '#0f2e1c',
-      water: '#1a2d4a',
-      sand: '#3a3220',
-      mountain: '#2a2a2a',
-      plain: '#1e2e1e',
+      grass: '#285c31',
+      forest: '#1c4b31',
+      water: '#24558c',
+      sand: '#82663c',
+      mountain: '#555968',
+      plain: '#316739',
       // P57 noise terrain colors
-      stone_field: '#4a4a40',
-      water_edge: '#1a4a3a',
-      blocked: '#3a1a1a',
-      deep_water: '#0a1a3a',
-      unknown: '#141e2e',
+      stone_field: '#67685a',
+      water_edge: '#26705a',
+      blocked: '#6b3436',
+      deep_water: '#163a72',
+      unknown: '#263956',
     };
     return map[key] || map.unknown;
   }
@@ -886,19 +1286,9 @@
       return;
     }
     // Separate move and non-move commands
-    const moveCmds = [];
     const otherCmds = [];
     for (const c of cmds) {
-      if (c.command_kind === 'Move' || c.command_kind === 'move') moveCmds.push(c);
-      else otherCmds.push(c);
-    }
-
-    // Show move hint if there are move commands
-    if (moveCmds.length) {
-      const hint = document.createElement('div');
-      hint.style.cssText = 'font-size:11px;color:var(--text-dim);padding:4px 0;border-bottom:1px solid rgba(148,163,184,0.1);margin-bottom:6px;';
-      hint.textContent = t('ui.move_hint', '移动') + ': ' + (window.innerWidth <= 768 ? t('ui.move_hint_dpad', '使用左下摇杆') : t('ui.move_hint_wasd', 'WASD 移动'));
-      commandList.appendChild(hint);
+      if (c.command_kind !== 'Move' && c.command_kind !== 'move') otherCmds.push(c);
     }
 
     for (const c of otherCmds) {
@@ -944,11 +1334,12 @@
   }
 
   // ---------------------------------------------------------------------------
-  // 12. Mobile D-pad
+  // 12. Mobile joystick
   // ---------------------------------------------------------------------------
   let directionHoldTimer = null;
-  let activeDirectionButton = null;
   let activeDirectionPointerId = null;
+  const JOYSTICK_DEAD_ZONE = 18;
+  const JOYSTICK_MAX_RADIUS = 48;
 
   function directionText(direction) {
     const map = { up: t('dir_up', '向上'), down: t('dir_down', '向下'), left: t('dir_left', '向左'), right: t('dir_right', '向右') };
@@ -960,22 +1351,26 @@
       clearInterval(directionHoldTimer);
       directionHoldTimer = null;
     }
-    if (activeDirectionButton) {
-      activeDirectionButton.classList.remove('active');
-      activeDirectionButton = null;
+    if (joystickBase) {
+      joystickBase.classList.remove('active');
+    }
+    if (joystickThumb) {
+      joystickThumb.style.transform = 'translate(-50%, -50%)';
     }
     activeDirectionPointerId = null;
     state.pendingDirection = null;
   }
 
-  function startDirectionHold(direction, button) {
-    stopDirectionHold();
-    activeDirectionButton = button;
-    activeDirectionButton.classList.add('active');
-    activeDirectionPointerId = null;
+  function setJoystickDirection(direction) {
+    if (!direction || direction === state.pendingDirection) return;
     state.pendingDirection = direction;
     log(t('ui.move_input', '移动输入') + `: ${directionText(direction)}`, 'info');
     submitDirection(direction, true);
+  }
+
+  function startDirectionHold(direction) {
+    if (directionHoldTimer) clearInterval(directionHoldTimer);
+    setJoystickDirection(direction);
     directionHoldTimer = setInterval(() => {
       if (state.pendingDirection) {
         submitDirection(state.pendingDirection);
@@ -983,56 +1378,93 @@
     }, DIRECTION_REPEAT_MS);
   }
 
+  function directionFromJoystick(dx, dy) {
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    if (distance < JOYSTICK_DEAD_ZONE) return null;
+    if (Math.abs(dx) >= Math.abs(dy)) {
+      return dx >= 0 ? 'right' : 'left';
+    }
+    return dy >= 0 ? 'down' : 'up';
+  }
+
+  function updateJoystickFromPoint(clientX, clientY) {
+    if (!joystickBase || !joystickThumb) return null;
+    const rect = joystickBase.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    let dx = clientX - centerX;
+    let dy = clientY - centerY;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    if (distance > JOYSTICK_MAX_RADIUS) {
+      const scale = JOYSTICK_MAX_RADIUS / distance;
+      dx *= scale;
+      dy *= scale;
+    }
+    joystickThumb.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+    return directionFromJoystick(dx, dy);
+  }
+
   function initJoystick() {
-    if (!dpadButtons.length) {
-      log(t('ui.joystick_init_failed', '移动方向键初始化失败'), 'error');
+    if (!joystickBase || !joystickThumb) {
+      log(t('ui.joystick_init_failed', '移动摇杆初始化失败'), 'error');
       return;
     }
 
-    for (const button of dpadButtons) {
-      const direction = button.dataset.dir;
-      if (!direction) continue;
+    joystickBase.addEventListener('contextmenu', e => e.preventDefault());
 
-      button.addEventListener('contextmenu', e => e.preventDefault());
-
-      if (window.PointerEvent) {
-        button.addEventListener('pointerdown', e => {
-          e.preventDefault();
-          activeDirectionPointerId = e.pointerId;
-          button.setPointerCapture(e.pointerId);
-          startDirectionHold(direction, button);
-        });
-
-        const endPointer = e => {
-          if (activeDirectionPointerId !== null && e.pointerId !== activeDirectionPointerId) return;
-          e.preventDefault();
-          if (button.hasPointerCapture && button.hasPointerCapture(e.pointerId)) {
-            button.releasePointerCapture(e.pointerId);
-          }
-          stopDirectionHold();
-        };
-
-        button.addEventListener('pointerup', endPointer);
-        button.addEventListener('pointercancel', endPointer);
-      } else {
-        button.addEventListener('touchstart', e => {
-          e.preventDefault();
-          startDirectionHold(direction, button);
-        }, { passive: false });
-        button.addEventListener('touchend', e => {
-          e.preventDefault();
-          stopDirectionHold();
-        }, { passive: false });
-        button.addEventListener('touchcancel', e => {
-          e.preventDefault();
-          stopDirectionHold();
-        }, { passive: false });
-        button.addEventListener('mousedown', e => {
-          e.preventDefault();
-          startDirectionHold(direction, button);
-        });
-        window.addEventListener('mouseup', stopDirectionHold);
+    const begin = e => {
+      e.preventDefault();
+      joystickBase.classList.add('active');
+      if (e.pointerId !== undefined) {
+        activeDirectionPointerId = e.pointerId;
+        joystickBase.setPointerCapture(e.pointerId);
       }
+      const direction = updateJoystickFromPoint(e.clientX, e.clientY);
+      if (direction) startDirectionHold(direction);
+    };
+
+    const move = e => {
+      if (activeDirectionPointerId !== null && e.pointerId !== activeDirectionPointerId) return;
+      e.preventDefault();
+      const direction = updateJoystickFromPoint(e.clientX, e.clientY);
+      if (direction) {
+        if (!directionHoldTimer) startDirectionHold(direction);
+        else setJoystickDirection(direction);
+      } else {
+        state.pendingDirection = null;
+      }
+    };
+
+    const end = e => {
+      if (activeDirectionPointerId !== null && e.pointerId !== undefined && e.pointerId !== activeDirectionPointerId) return;
+      e.preventDefault();
+      if (e.pointerId !== undefined && joystickBase.hasPointerCapture && joystickBase.hasPointerCapture(e.pointerId)) {
+        joystickBase.releasePointerCapture(e.pointerId);
+      }
+      stopDirectionHold();
+    };
+
+    if (window.PointerEvent) {
+      joystickBase.addEventListener('pointerdown', begin);
+      joystickBase.addEventListener('pointermove', move);
+      joystickBase.addEventListener('pointerup', end);
+      joystickBase.addEventListener('pointercancel', end);
+    } else {
+      joystickBase.addEventListener('touchstart', e => {
+        if (!e.touches.length) return;
+        begin(e.touches[0]);
+      }, { passive: false });
+      joystickBase.addEventListener('touchmove', e => {
+        if (!e.touches.length) return;
+        move(e.touches[0]);
+      }, { passive: false });
+      joystickBase.addEventListener('touchend', e => end(e.changedTouches[0] || e), { passive: false });
+      joystickBase.addEventListener('touchcancel', e => end(e.changedTouches[0] || e), { passive: false });
+      joystickBase.addEventListener('mousedown', begin);
+      window.addEventListener('mousemove', e => {
+        if (directionHoldTimer) move(e);
+      });
+      window.addEventListener('mouseup', end);
     }
   }
 
@@ -1090,7 +1522,10 @@
   // ---------------------------------------------------------------------------
   function gameLoop(timestamp) {
     state.lastTimestamp = timestamp;
-    renderMap(timestamp);
+    if (state.actorAnimation || state.cameraDrag || state.activePath.length || state.pathParticles.length || timestamp - state.lastMapRenderTime >= MAP_FRAME_INTERVAL_MS || state.screenShake > 0 || state.floatingTexts.length > 0) {
+      state.lastMapRenderTime = timestamp;
+      renderMap(timestamp);
+    }
     requestAnimationFrame(gameLoop);
   }
 
@@ -1100,48 +1535,35 @@
   resetBtn.addEventListener('click', doReset);
   window.addEventListener('resize', resizeCanvas);
 
-  // Canvas click — entity selection
-  canvas.addEventListener('click', (e) => {
-    if (!state.projection) return;
-    const rect = canvas.getBoundingClientRect();
-    const sx = e.clientX - rect.left;
-    const sy = e.clientY - rect.top;
-
-    const vtw = viewportTilesX();
-    const vth = viewportTilesY();
-    const halfX = Math.floor(vtw / 2);
-    const halfY = Math.floor(vth / 2);
-    const actorCoord = getActorCoord();
-    let viewMinX, viewMinY;
-    if (actorCoord) {
-      viewMinX = actorCoord.x - halfX;
-      viewMinY = actorCoord.y - halfY;
-    } else {
-      const cells = state.projection.visible_cells;
-      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-      for (const c of cells) {
-        const f = c.fields || {};
-        const cx = parseInt(f.x, 10); const cy = parseInt(f.y, 10);
-        if (!isNaN(cx)) { minX = Math.min(minX, cx); maxX = Math.max(maxX, cx); }
-        if (!isNaN(cy)) { minY = Math.min(minY, cy); maxY = Math.max(maxY, cy); }
+  if (followBtn) {
+    followBtn.addEventListener('click', () => {
+      if (state.cameraLockedToActor) {
+        state.cameraLockedToActor = false;
+        updateFollowButton();
+        renderMap();
+      } else {
+        centerCameraOnActor(true);
       }
-      for (const ent of state.projection.visible_entities) {
-        const f = ent.fields || {};
-        const cx = parseInt(f.x, 10); const cy = parseInt(f.y, 10);
-        if (!isNaN(cx)) { minX = Math.min(minX, cx); maxX = Math.max(maxX, cx); }
-        if (!isNaN(cy)) { minY = Math.min(minY, cy); maxY = Math.max(maxY, cy); }
-      }
-      if (!isFinite(minX)) { minX = 0; maxX = 0; }
-      if (!isFinite(minY)) { minY = 0; maxY = 0; }
-      const centerX = Math.floor((minX + maxX) / 2);
-      const centerY = Math.floor((minY + maxY) / 2);
-      viewMinX = centerX - halfX;
-      viewMinY = centerY - halfY;
-    }
+    });
+    updateFollowButton();
+  }
 
-    const worldX = viewMinX + Math.floor(sx / TILE_SIZE);
-    const worldY = viewMinY + Math.floor(sy / TILE_SIZE);
+  if (zoomInBtn) {
+    zoomInBtn.addEventListener('click', () => {
+      setZoomAt(canvas.width / 2, canvas.height / 2, state.zoom * 1.18);
+    });
+  }
 
+  if (zoomOutBtn) {
+    zoomOutBtn.addEventListener('click', () => {
+      setZoomAt(canvas.width / 2, canvas.height / 2, state.zoom / 1.18);
+    });
+  }
+
+  updateZoomButtons();
+
+  function selectEntityAt(worldX, worldY) {
+    if (!state.projection) return false;
     let clicked = null;
     let minDist = Infinity;
     let clickEx = 0, clickEy = 0;
@@ -1166,10 +1588,124 @@
       const f = clicked.fields || {};
       const name = (typeof tEntity === 'function') ? tEntity(f) : (f.display_name || f.name || f.entity_key || f.object_key || 'Entity');
       addFloatingText(clickEx, clickEy - 0.5, name, '#0ea5e9');
-    } else {
-      state.selectedEntityId = null;
+      renderMap();
+      return true;
+    }
+    state.selectedEntityId = null;
+    renderMap();
+    return false;
+  }
+
+  function isDoubleTapCell(world) {
+    const now = Date.now();
+    const last = state.lastTap;
+    state.lastTap = { x: world.x, y: world.y, time: now };
+    return !!last && last.x === world.x && last.y === world.y && now - last.time <= 420;
+  }
+
+  canvas.addEventListener('pointerdown', (e) => {
+    if (!state.projection) return;
+    if (e.pointerType === 'touch' && e.isPrimary === false) return;
+    const world = screenToWorld(e.clientX, e.clientY);
+    state.cameraDrag = {
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      startY: e.clientY,
+      lastX: e.clientX,
+      lastY: e.clientY,
+      moved: false,
+      startWorld: world,
+    };
+    if (canvas.setPointerCapture) canvas.setPointerCapture(e.pointerId);
+  });
+
+  canvas.addEventListener('pointermove', (e) => {
+    const drag = state.cameraDrag;
+    if (!drag || drag.pointerId !== e.pointerId || !state.cameraCoord) return;
+    const dx = e.clientX - drag.lastX;
+    const dy = e.clientY - drag.lastY;
+    const totalDx = e.clientX - drag.startX;
+    const totalDy = e.clientY - drag.startY;
+    if (Math.hypot(totalDx, totalDy) > 5) drag.moved = true;
+    if (drag.moved) {
+      state.cameraLockedToActor = false;
+      updateFollowButton();
+      const tile = tileSize();
+      state.cameraCoord = {
+        x: state.cameraCoord.x - dx / tile,
+        y: state.cameraCoord.y - dy / tile,
+        layer_key: state.cameraCoord.layer_key || 'surface',
+      };
+      drag.lastX = e.clientX;
+      drag.lastY = e.clientY;
+      renderMap();
     }
   });
+
+  canvas.addEventListener('pointerup', (e) => {
+    const drag = state.cameraDrag;
+    if (!drag || drag.pointerId !== e.pointerId) return;
+    if (canvas.releasePointerCapture && canvas.hasPointerCapture && canvas.hasPointerCapture(e.pointerId)) {
+      canvas.releasePointerCapture(e.pointerId);
+    }
+    state.cameraDrag = null;
+    if (drag.moved) return;
+
+    const world = screenToWorld(e.clientX, e.clientY);
+    if (isDoubleTapCell(world)) {
+      state.cameraLockedToActor = false;
+      updateFollowButton();
+      runPathTo({ x: world.x, y: world.y, layer_key: (getActorCoord() || {}).layer_key || 'surface' });
+    } else {
+      selectEntityAt(world.x, world.y);
+    }
+  });
+
+  canvas.addEventListener('pointercancel', (e) => {
+    if (state.cameraDrag && state.cameraDrag.pointerId === e.pointerId) {
+      state.cameraDrag = null;
+    }
+  });
+
+  canvas.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const factor = e.deltaY < 0 ? 1.12 : 0.9;
+    setZoomAt(e.clientX, e.clientY, state.zoom * factor);
+  }, { passive: false });
+
+  canvas.addEventListener('touchstart', (e) => {
+    if (e.touches.length === 2) {
+      const a = e.touches[0];
+      const b = e.touches[1];
+      state.cameraDrag = null;
+      state.pinchZoom = {
+        distance: Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY),
+        zoom: state.zoom,
+        centerX: (a.clientX + b.clientX) / 2,
+        centerY: (a.clientY + b.clientY) / 2,
+      };
+    }
+  }, { passive: false });
+
+  canvas.addEventListener('touchmove', (e) => {
+    if (e.touches.length !== 2 || !state.pinchZoom) return;
+    e.preventDefault();
+    const a = e.touches[0];
+    const b = e.touches[1];
+    const distance = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+    if (state.pinchZoom.distance <= 0) return;
+    const centerX = (a.clientX + b.clientX) / 2;
+    const centerY = (a.clientY + b.clientY) / 2;
+    setZoomAt(centerX, centerY, state.pinchZoom.zoom * (distance / state.pinchZoom.distance));
+  }, { passive: false });
+
+  canvas.addEventListener('touchend', (e) => {
+    if (e.touches.length < 2) state.pinchZoom = null;
+  }, { passive: false });
+
+  canvas.addEventListener('touchcancel', () => {
+    state.pinchZoom = null;
+  }, { passive: false });
 
   // ---------------------------------------------------------------------------
   // 15. Startup

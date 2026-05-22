@@ -5,6 +5,9 @@
 #include "pathfinder/world_generation/world_generation_service.h"
 #include "pathfinder/world_generation/world_generation_applier.h"
 #include "pathfinder/world_generation/world_generation_command_handler.h"
+#include "pathfinder/world_generation/world_region_ensure_service.h"
+#include "pathfinder/world_generation/move_target_region_guard.h"
+#include "pathfinder/client_runtime_bridge/client_world_region_ensure_adapter.h"
 #include "pathfinder/foundation/error.h"
 #include <iostream>
 
@@ -30,45 +33,49 @@ ClientServerRuntimeFactory::ClientServerRuntimeFactory()
     WorldRuntimeConfig config;
     config.world_id = "world_default";
     config.seed = 1;
-    config.region_size = 9;
-    config.default_vision_radius = 12;
+    config.region_size = 16;
+    config.default_vision_radius = 18;
 
     auto init_res = world_runtime->initialize(config);
     if (init_res.is_error()) {
         std::cerr << "[P56] World runtime initialization failed\n";
     }
 
-    // P57: Generate terrain via WorldGenerationService.
-    // Preload an 11x11 region grid so the player can explore a large area.
-    auto worldgen_service = std::make_shared<world_generation::WorldGenerationService>();
-    int total_cells = 0;
-    for (int rx = -5; rx <= 5; ++rx) {
-        for (int ry = -5; ry <= 5; ++ry) {
-            world_generation::WorldGenerationRequest wg_request;
-            wg_request.world_id = config.world_id;
-            wg_request.world_seed = config.seed;
-            wg_request.generator_version = "1.0.0";
-            wg_request.content_version = "1.0.0";
-            wg_request.worldgen_profile_key = "first_world";
-            wg_request.region_coord = world_generation::WorldRegionCoord{rx, ry};
-            wg_request.region_size = config.region_size;
-            wg_request.enabled_layer_keys = std::vector<std::string>{"surface"};
+    // P58: Create world generation service and ensure service.
+    worldgen_service = std::make_shared<world_generation::WorldGenerationService>();
+    ensure_service = std::make_shared<world_generation::WorldRegionEnsureService>(
+        *worldgen_service, *world_runtime, *world_runtime);
+    ensure_adapter = std::make_shared<client_runtime_bridge::ClientWorldRegionEnsureAdapter>(
+        *ensure_service, *world_runtime);
+    move_guard = std::make_shared<world_generation::MoveTargetRegionGuard>(*ensure_service);
 
-            auto wg_result = worldgen_service->generate(wg_request);
-            if (wg_result.ok && !wg_result.cell_drafts.empty()) {
-                world_generation::WorldGenerationApplier applier(*world_runtime, *world_runtime);
-                auto apply_result = applier.apply(wg_result);
-                if (apply_result.ok) {
-                    total_cells += static_cast<int>(wg_result.cell_drafts.size());
-                } else {
-                    std::cerr << "[P57] Applier failed for region " << rx << "," << ry << "\n";
-                }
+    // P58: Only pre-generate origin region. Rest is on-demand.
+    int total_cells = 0;
+    {
+        world_generation::WorldGenerationRequest wg_request;
+        wg_request.world_id = config.world_id;
+        wg_request.world_seed = config.seed;
+        wg_request.generator_version = "1.0.0";
+        wg_request.content_version = "1.0.0";
+        wg_request.worldgen_profile_key = "first_world";
+        wg_request.region_coord = world_generation::WorldRegionCoord{0, 0};
+        wg_request.region_size = config.region_size;
+        wg_request.enabled_layer_keys = std::vector<std::string>{"surface"};
+
+        auto wg_result = worldgen_service->generate(wg_request);
+        if (wg_result.ok && !wg_result.cell_drafts.empty()) {
+            world_generation::WorldGenerationApplier applier(*world_runtime, *world_runtime);
+            auto apply_result = applier.apply(wg_result);
+            if (apply_result.ok) {
+                total_cells += static_cast<int>(wg_result.cell_drafts.size());
             } else {
-                std::cerr << "[P57] Generation failed for region " << rx << "," << ry << "\n";
+                std::cerr << "[P58] Applier failed for origin region\n";
             }
+        } else {
+            std::cerr << "[P58] Generation failed for origin region\n";
         }
     }
-    std::cerr << "[P57] Total cells generated: " << total_cells << "\n";
+    std::cerr << "[P58] Origin region cells generated: " << total_cells << "\n";
 
     // Setup player actor after terrain is applied so origin cell exists.
     auto player_res = world_runtime->setupPlayerActor(config);
@@ -76,9 +83,13 @@ ClientServerRuntimeFactory::ClientServerRuntimeFactory()
         std::cerr << "[P57] Player actor setup failed\n";
     }
 
+    // P58: Inject ensure adapter into session gateway and command gateway.
+    session_gateway.setRegionEnsureAdapter(ensure_adapter.get());
+    command_gateway.setRegionEnsureAdapter(ensure_adapter.get());
+
     // Register runtime-aware handlers (P56)
     registry.registerHandler(createGenerateWorldCommandHandler(worldgen_service, *world_runtime, *world_runtime));
-    registry.registerHandler(createMoveCommandHandler(*world_runtime));
+    registry.registerHandler(createMoveCommandHandler(*world_runtime, move_guard.get()));
     registry.registerHandler(createInspectCommandHandler(*world_runtime));
     registry.registerHandler(createWaitCommandHandler(*world_runtime));
 

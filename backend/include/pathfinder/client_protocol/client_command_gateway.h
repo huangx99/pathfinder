@@ -4,6 +4,7 @@
 #include "pathfinder/client_protocol/client_session_gateway.h"
 #include "pathfinder/client_protocol/client_patch_contract.h"
 #include "pathfinder/client_protocol/client_available_command_adapter.h"
+#include "pathfinder/client_runtime_bridge/client_world_region_ensure_adapter.h"
 #include "pathfinder/world_command/world_command_pipeline.h"
 #include "pathfinder/foundation/result.h"
 
@@ -19,6 +20,8 @@ public:
         const ClientPatchContract& patch_contract,
         const ClientAvailableCommandAdapter& available_command_adapter);
 
+    void setRegionEnsureAdapter(client_runtime_bridge::ClientWorldRegionEnsureAdapter* ensure_adapter);
+
     pathfinder::foundation::Result<ClientCommandResponse> handleCommand(
         const ClientCommandRequest& request);
 
@@ -27,6 +30,7 @@ private:
     pathfinder::world_command::WorldCommandPipeline& pipeline_;
     const ClientPatchContract& patch_contract_;
     const ClientAvailableCommandAdapter& available_command_adapter_;
+    client_runtime_bridge::ClientWorldRegionEnsureAdapter* ensure_adapter_ = nullptr;
 
     // Resolve command from OptionId or WorldCommandDto.
     // Uses session snapshot for OptionId authority.

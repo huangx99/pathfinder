@@ -3,6 +3,7 @@
 #include "pathfinder/client_protocol/client_protocol_types.h"
 #include "pathfinder/client_protocol/client_projection_adapter.h"
 #include "pathfinder/client_protocol/client_available_command_adapter.h"
+#include "pathfinder/client_runtime_bridge/client_world_region_ensure_adapter.h"
 #include "pathfinder/foundation/result.h"
 #include <map>
 #include <string>
@@ -17,6 +18,8 @@ public:
     ClientSessionGateway(
         const ClientProjectionAdapter& projection_adapter,
         const ClientAvailableCommandAdapter& available_command_adapter);
+
+    void setRegionEnsureAdapter(client_runtime_bridge::ClientWorldRegionEnsureAdapter* ensure_adapter);
 
     pathfinder::foundation::Result<ClientBootstrapResponse> bootstrap(
         const ClientBootstrapRequest& request);
@@ -75,6 +78,7 @@ private:
 
     const ClientProjectionAdapter& projection_adapter_;
     const ClientAvailableCommandAdapter& available_command_adapter_;
+    client_runtime_bridge::ClientWorldRegionEnsureAdapter* ensure_adapter_ = nullptr;
     std::map<std::string, SessionState> sessions_;
 
     SessionState& getOrCreateSession(const ClientBootstrapRequest& request);

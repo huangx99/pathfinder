@@ -27,6 +27,11 @@ public:
         const world_command::WorldCommandContext& context,
         const world_command::WorldCommandDto& command);
 
+    // P58: Accessors for command handlers that need runtime config.
+    std::string worldId() const { return runtime_.worldId(); }
+    uint64_t worldSeed() const { return runtime_.worldSeed(); }
+    int regionSize() const { return runtime_.regionSize(); }
+
     // Helper to build projection patch for a command result
     world_command::WorldProjectionPatchDto buildProjectionPatch(
         const std::vector<std::string>& changed_cell_ids,
