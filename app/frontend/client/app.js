@@ -672,7 +672,7 @@
       const terrain = f.terrain_key || f.terrain || 'unknown';
       const sprite = window.SPRITES && window.SPRITES[terrain];
       if (sprite) {
-        ctx.drawImage(sprite, px, py);
+        ctx.drawImage(sprite, px, py, TILE_SIZE, TILE_SIZE);
       } else {
         ctx.fillStyle = terrainColor(terrain);
         ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
