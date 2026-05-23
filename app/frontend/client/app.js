@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const CLIENT_BUILD = '20260523-mobile-radius-v4';
+  const CLIENT_BUILD = '20260523-path-option-refresh-v1';
 
   // ---------------------------------------------------------------------------
   // 1. State
@@ -669,6 +669,30 @@
     return null;
   }
 
+  function optionExpiredFromReasons(reasons) {
+    return safe(reasons, []).some(reason => {
+      const text = String(reason || '').toLowerCase();
+      return text.includes('expired option')
+        || text.includes('unknown or expired option')
+        || text.includes('option_id') && text.includes('expired')
+        || text.includes('projection_version_stale');
+    });
+  }
+
+  function shouldRefreshForNavigation(outcome) {
+    if (!outcome) return false;
+    if (outcome.status === 'expired' || outcome.status === 'needs_refresh') return true;
+    return optionExpiredFromReasons(outcome.failureReasons);
+  }
+
+  async function refreshNavigationSnapshot(message) {
+    if (state.requestState !== 'idle') return false;
+    await closeInteractionMenu(false);
+    const ok = await doRefresh();
+    if (ok && message) log(message, 'info');
+    return !!ok;
+  }
+
   function resultKindOf(resp) {
     const result = resp && resp.result ? resp.result : {};
     return String(result.result_kind || 'unknown').toLowerCase();
@@ -717,6 +741,9 @@
         await doRefresh();
         return outcome;
       }
+      if (optionExpiredFromReasons(outcome.failureReasons)) {
+        outcome.status = 'expired';
+      }
 
       const kind = outcome.resultKind;
       if (kind === 'succeeded') {
@@ -744,13 +771,21 @@
     if (state.requestState !== 'idle') return;
     const now = Date.now();
     if (!force && now - state.lastDirectionSubmitTime < DIRECTION_COOLDOWN_MS) return;
-    const optionId = resolveMoveOption(direction);
+    let optionId = resolveMoveOption(direction);
+    if (!optionId && force) {
+      await refreshNavigationSnapshot('移动选项已刷新');
+      optionId = resolveMoveOption(direction);
+    }
     if (!optionId) {
       if (force) log(t('ui.no_move_cmd', '没有可用移动命令') + `: ${directionText(direction)}`, 'warn');
       return;
     }
     state.lastDirectionSubmitTime = now;
-    return await submitOption(optionId);
+    const outcome = await submitOption(optionId);
+    if (force && shouldRefreshForNavigation(outcome)) {
+      await refreshNavigationSnapshot('移动选项过期，已刷新');
+    }
+    return outcome;
   }
 
   async function runPathTo(target) {
@@ -759,7 +794,10 @@
       return;
     }
     const runToken = ++state.pathRunToken;
-    const path = findPathTo(target);
+    await refreshNavigationSnapshot('寻路前同步移动选项');
+    if (runToken !== state.pathRunToken) return;
+
+    let path = findPathTo(target);
     state.pathTarget = target;
     state.activePath = path || [];
     renderMap();
@@ -777,16 +815,31 @@
     state.pathRunning = true;
     log(`开始寻路到 ${target.x},${target.y}，共 ${path.length} 步`, 'info');
     try {
+      let refreshRetries = 0;
       while (state.activePath.length && runToken === state.pathRunToken) {
         const current = getActorCoord();
         const next = state.activePath[0];
         const direction = directionBetween(current, next);
         if (!direction) {
+          path = findPathTo(target);
+          if (path && path.length) {
+            state.activePath = path;
+            log('当前位置变化，已重新规划路径', 'info');
+            continue;
+          }
           log('寻路中断：当前位置已变化，需要重新规划', 'warn');
           break;
         }
-        const optionId = resolveMoveOption(direction);
+        let optionId = resolveMoveOption(direction);
         if (!optionId) {
+          if (refreshRetries < 2 && await refreshNavigationSnapshot('移动选项缺失，刷新后重新规划路径')) {
+            refreshRetries += 1;
+            path = findPathTo(target);
+            if (path && path.length) {
+              state.activePath = path;
+              continue;
+            }
+          }
           log(`寻路中断：后端当前不允许${directionText(direction)}`, 'warn');
           toast('路径被阻挡或需要重新探索', 'warn');
           break;
@@ -795,31 +848,33 @@
         if (runToken !== state.pathRunToken) {
           break;
         }
-        if (outcome && outcome.status === 'needs_refresh') {
-          const replanned = findPathTo(target);
-          if (replanned && replanned.length) {
-            state.activePath = replanned;
-            log('世界状态已刷新，重新规划路径', 'info');
-            continue;
+        if (shouldRefreshForNavigation(outcome)) {
+          if (refreshRetries < 3 && await refreshNavigationSnapshot('移动选项过期，刷新后重新规划路径')) {
+            refreshRetries += 1;
+            path = findPathTo(target);
+            if (path && path.length) {
+              state.activePath = path;
+              continue;
+            }
           }
+        } else {
+          refreshRetries = 0;
         }
         if (!outcome || outcome.resultKind !== 'succeeded') {
           const detail = outcome && outcome.failureReasons && outcome.failureReasons.length
             ? `（${outcome.failureReasons.join(', ')}）`
             : '';
-          if (outcome && (outcome.status === 'needs_refresh' || outcome.failureReasons.includes('projection_version_stale'))) {
-            const replanned = findPathTo(target);
-            if (replanned && replanned.length) {
-              state.activePath = replanned;
-              log('路径状态过期，刷新后重新规划路径', 'info');
-              continue;
-            }
-          }
           log(`寻路中断：移动未成功${detail}`, 'warn');
           break;
         }
         const after = getActorCoord();
         if (!after || after.x !== next.x || after.y !== next.y) {
+          path = findPathTo(target);
+          if (path && path.length) {
+            state.activePath = path;
+            log('后端位置变化，已重新规划路径', 'info');
+            continue;
+          }
           log('寻路中断：后端位置与路径不一致', 'warn');
           break;
         }
@@ -925,7 +980,7 @@
   }
 
   async function doRefresh() {
-    if (state.requestState !== 'idle') return;
+    if (state.requestState !== 'idle') return false;
     setRequestState('refreshing');
     try {
       const resp = await apiRefresh();
@@ -940,8 +995,10 @@
       appendEvents(resp.event_feed, resp.frontend_hints, resp.warning_keys);
       log(t('ui.refresh_ok', '刷新成功'), 'success');
       saveSession();
+      return true;
     } catch (err) {
       handleError(t('ui.refresh_failed', '刷新失败'), err);
+      return false;
     } finally {
       setRequestState('idle');
       render();
