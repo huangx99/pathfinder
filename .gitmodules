@@ -1,0 +1,3 @@
+[submodule "app/frontend/third_party/axmol"]
+	path = app/frontend/third_party/axmol
+	url = https://github.com/axmolengine/axmol.git
