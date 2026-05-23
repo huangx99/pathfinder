@@ -700,6 +700,76 @@ void run_npc_order_torch_counters_threat_after_teaching_tests() {
     std::cout << "client_runtime_bridge_npc_order_torch_counters_threat_after_teaching_tests: all passed" << std::endl;
 }
 
+
+// ---------------------------------------------------------------------------
+// Nearby predators are not pickup targets; only real items should produce pickup.
+// ---------------------------------------------------------------------------
+void run_pickup_options_exclude_predator_tests() {
+    RuntimeBackedFixture f;
+
+    auto boot = f.harness.fakeBootstrap("client_1", "session_no_pickup_predator", "player");
+    assert(boot.is_ok());
+    spawnMapItem(f, "near_beast_pickup_test", "beast_shadow", {0, 1, "surface"});
+
+    auto refresh = f.harness.fakeRefresh("session_no_pickup_predator", "client_1", boot.value().projection_version);
+    assert(refresh.is_ok());
+    for (const auto& option : refresh.value().available_commands) {
+        assert(!(option.command_kind == WorldCommandKind::Pickup &&
+                 option.target.target_entity_id == "near_beast_pickup_test"));
+    }
+
+    std::cout << "client_runtime_bridge_pickup_options_exclude_predator_tests: all passed" << std::endl;
+}
+
+// ---------------------------------------------------------------------------
+// Player can command an adjacent NPC to follow; subsequent player movement lets
+// the backend move the follower through runtime movement and projection patches.
+// ---------------------------------------------------------------------------
+void run_npc_follow_command_moves_companion_tests() {
+    RuntimeBackedFixture f;
+
+    auto boot = f.harness.fakeBootstrap("client_1", "session_npc_follow", "player");
+    assert(boot.is_ok());
+    uint64_t version = boot.value().projection_version;
+
+    auto companion_before = f.factory.world_runtime->findActor("companion");
+    assert(companion_before.is_ok());
+    const int start_x = companion_before.value()->coord.x;
+
+    const auto* follow_option = findOption(boot.value().available_commands, [](const auto& option) {
+        return option.command_kind == WorldCommandKind::Use &&
+               option.command_key == "set_actor_follow_player" &&
+               option.target.target_actor_key == "companion";
+    });
+    assert(follow_option != nullptr);
+
+    auto follow = f.harness.fakeSubmitOption("session_npc_follow", "client_1", 1, version, follow_option->option_id);
+    assert(follow.is_ok());
+    assert(follow.value().result.result_kind == WorldCommandResultKind::Succeeded);
+    version = follow.value().new_projection_version;
+    auto commands = follow.value().available_commands;
+
+    for (int step = 0; step < 3; ++step) {
+        const auto* east = findOption(commands, [](const auto& option) {
+            return option.command_kind == WorldCommandKind::Move &&
+                   option.command_key == "move_east" &&
+                   option.enabled;
+        });
+        assert(east != nullptr);
+        auto move = f.harness.fakeSubmitOption("session_npc_follow", "client_1", static_cast<uint64_t>(step + 2), version, east->option_id);
+        assert(move.is_ok());
+        assert(move.value().result.result_kind == WorldCommandResultKind::Succeeded);
+        version = move.value().new_projection_version;
+        commands = move.value().available_commands;
+    }
+
+    auto companion_after = f.factory.world_runtime->findActor("companion");
+    assert(companion_after.is_ok());
+    assert(companion_after.value()->coord.x > start_x);
+
+    std::cout << "client_runtime_bridge_npc_follow_command_moves_companion_tests: all passed" << std::endl;
+}
+
 // ---------------------------------------------------------------------------
 // main
 // ---------------------------------------------------------------------------
@@ -721,6 +791,8 @@ int main(int argc, char* argv[]) {
         run_negative_cross_region_move_tests();
         run_npc_order_crafts_axe_after_teaching_tests();
         run_npc_order_torch_counters_threat_after_teaching_tests();
+        run_pickup_options_exclude_predator_tests();
+        run_npc_follow_command_moves_companion_tests();
         return 0;
     }
 
@@ -741,6 +813,8 @@ int main(int argc, char* argv[]) {
     else if (test_name == "negative_cross_region_move") run_negative_cross_region_move_tests();
     else if (test_name == "npc_order_crafts_axe_after_teaching") run_npc_order_crafts_axe_after_teaching_tests();
     else if (test_name == "npc_order_torch_counters_threat_after_teaching") run_npc_order_torch_counters_threat_after_teaching_tests();
+    else if (test_name == "pickup_options_exclude_predator") run_pickup_options_exclude_predator_tests();
+    else if (test_name == "npc_follow_command_moves_companion") run_npc_follow_command_moves_companion_tests();
     else {
         std::cerr << "Unknown test: " << test_name << std::endl;
         return 1;

@@ -1,6 +1,7 @@
 #include "pathfinder/client_runtime_bridge/client_runtime_command_option_bridge.h"
 #include "pathfinder/world_runtime/world_grid_runtime.h"
 #include "pathfinder/foundation/error.h"
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <set>
@@ -71,6 +72,10 @@ namespace {
     bool sameOrAdjacent(const pathfinder::world_runtime::WorldCellCoord& a,
                         const pathfinder::world_runtime::WorldCellCoord& b) {
         return a.layer_key == b.layer_key && std::abs(a.x - b.x) <= 1 && std::abs(a.y - b.y) <= 1;
+    }
+
+    bool hasTag(const std::vector<std::string>& tags, const std::string& tag) {
+        return std::find(tags.begin(), tags.end(), tag) != tags.end();
     }
 
     pathfinder::knowledge::KnowledgeOwner actorKnowledgeOwner(const std::string& actor_key) {
@@ -680,6 +685,20 @@ std::vector<WorldCommandOptionDto> TeachingAndNpcWorkCommandOptionProvider::buil
             options.push_back(std::move(inspect));
         }
 
+        if (registry_.findByKind(WorldCommandKind::Use)) {
+            WorldCommandOptionDto follow;
+            follow.option_id = makeOptionId("opt_actor_follow");
+            follow.command_kind = WorldCommandKind::Use;
+            follow.command_key = "set_actor_follow_player";
+            follow.label_text = "让NPC跟随我";
+            follow.target.target_kind = WorldCommandTargetKind::Actor;
+            follow.target.target_actor_key = candidate_actor_key;
+            follow.target.target_entity_id = target_entity_id;
+            follow.enabled = true;
+            follow.priority = 8;
+            options.push_back(std::move(follow));
+        }
+
         if (registry_.findByKind(WorldCommandKind::Teach)) {
             for (const auto& claim : teacher_claims) {
                 if (!claim.teaching_profile.teachable) continue;
@@ -780,6 +799,9 @@ std::vector<WorldCommandOptionDto> InventoryCommandOptionProvider::buildPickupOp
         if (!entity.coord) continue;
         if (entity.coord->layer_key != actor.coord.layer_key) continue;
         if (entity.location_kind != pathfinder::world_runtime::WorldEntityLocationKind::OnMap) continue;
+        if (hasTag(entity.tag_keys, "creature") ||
+            hasTag(entity.tag_keys, "danger") ||
+            hasTag(entity.tag_keys, "predator")) continue;
 
         int dx = std::abs(entity.coord->x - actor.coord.x);
         int dy = std::abs(entity.coord->y - actor.coord.y);
