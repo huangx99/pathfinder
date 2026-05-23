@@ -145,6 +145,28 @@ Result<std::vector<InventoryItemEntry>> WorldInventoryRuntime::queryItems(
     return Result<std::vector<InventoryItemEntry>>::ok(std::move(result));
 }
 
+Result<void> WorldInventoryRuntime::updateItemNumericState(
+    const std::string& inventory_id,
+    const std::string& entity_id,
+    const std::string& state_key,
+    double value) {
+    auto inv_res = findInventory(inventory_id);
+    if (inv_res.is_error()) {
+        return Result<void>::fail(inv_res.errors()[0]);
+    }
+    auto* inv = inv_res.value();
+    for (auto& entry : inv->entries) {
+        if (entry.entity_id == entity_id) {
+            entry.numeric_states[state_key] = value;
+            incrementStateVersion();
+            return Result<void>::ok();
+        }
+    }
+    return Result<void>::fail(
+        makeError(ErrorCode::id_not_found, "item_not_in_inventory",
+                  "Item not in inventory: " + entity_id));
+}
+
 // ---------------------------------------------------------------------------
 // findOrCreateActorInventory (intended for apply phase only)
 // ---------------------------------------------------------------------------
@@ -185,7 +207,7 @@ bool WorldInventoryRuntime::isSameOrAdjacent(const WorldCellCoord& a, const Worl
     if (a.layer_key != b.layer_key) return false;
     int dx = std::abs(a.x - b.x);
     int dy = std::abs(a.y - b.y);
-    return (dx == 0 && dy == 0) || (dx == 1 && dy == 0) || (dx == 0 && dy == 1);
+    return dx <= 1 && dy <= 1;
 }
 
 // ---------------------------------------------------------------------------
@@ -1026,6 +1048,20 @@ Result<void> WorldInventoryRuntime::applySpawnToInventory(InventoryTransferDraft
             if (!token.empty()) tag_keys.push_back(token);
         }
     }
+    std::map<std::string, double> numeric_states;
+    auto ns_it = request.parameters.find("numeric_states");
+    if (ns_it != request.parameters.end()) {
+        std::stringstream ss(ns_it->second);
+        std::string token;
+        while (std::getline(ss, token, ',')) {
+            const auto pos = token.find('=');
+            if (pos == std::string::npos || pos == 0) continue;
+            try {
+                numeric_states[token.substr(0, pos)] = std::stod(token.substr(pos + 1));
+            } catch (...) {
+            }
+        }
+    }
 
     // Try to merge with existing stack
     bool merged = false;
@@ -1052,6 +1088,7 @@ Result<void> WorldInventoryRuntime::applySpawnToInventory(InventoryTransferDraft
         entry.quantity = request.quantity;
         entry.stackable = stackable;
         entry.state_keys = std::move(state_keys);
+        entry.numeric_states = numeric_states;
 
         // Deterministic entity id: prefer request.entity_id, fallback to transfer-based id
         if (!request.entity_id.empty()) {

@@ -195,7 +195,7 @@ static size_t accumulatedSupportForScope(const std::vector<KnowledgeClaim>& clai
     for (const auto& claim : claims) {
         if (!sameKnowledgeLearningScope(claim, candidate)) continue;
         if (!candidate_is_ambiguous && hasReasonKey(claim.reason_keys, "causal_ambiguous_dose_window")) continue;
-        support = std::max(support, claim.confidence.support_count);
+        support += std::max<size_t>(1, claim.confidence.support_count);
     }
     return support;
 }
@@ -223,7 +223,7 @@ static void applyIndependentExperienceThreshold(KnowledgeClaim& claim, size_t pr
                                                claim.status == KnowledgeStatus::Operational;
     claim.projection_flags.usable_for_teaching = claim.status == KnowledgeStatus::Teachable ||
                                                  claim.status == KnowledgeStatus::Active;
-    claim.teaching_profile.teachable = claim.status == KnowledgeStatus::Teachable;
+    claim.teaching_profile.teachable = claim.projection_flags.usable_for_teaching;
     claim.reason_keys.push_back("independent_experience_threshold_applied");
 }
 

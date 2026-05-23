@@ -28,6 +28,11 @@ public:
     virtual foundation::Result<ItemLocationRef> findItemLocation(const std::string& entity_id) const = 0;
     virtual foundation::Result<std::vector<InventoryItemEntry>> queryItems(
         const InventoryOwnerRef& owner, const std::string& entity_key) const = 0;
+    virtual foundation::Result<void> updateItemNumericState(
+        const std::string& inventory_id,
+        const std::string& entity_id,
+        const std::string& state_key,
+        double value) = 0;
 
     virtual foundation::Result<InventoryTransferResult> transfer(const InventoryTransferRequest& request) = 0;
     virtual foundation::Result<InventoryRuntimeSnapshot> snapshotForDebug() const = 0;

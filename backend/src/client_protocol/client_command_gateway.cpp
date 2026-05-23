@@ -42,6 +42,10 @@ void ClientCommandGateway::setWorldContext(const std::string& world_id, uint64_t
     world_seed_ = world_seed;
 }
 
+void ClientCommandGateway::setPostCommandHook(PostCommandHook hook) {
+    post_command_hook_ = std::move(hook);
+}
+
 Result<void> ClientCommandGateway::validateClientCommandDto(
     const WorldCommandDto& command,
     const std::string& session_actor_key,
@@ -355,9 +359,16 @@ Result<ClientCommandResponse> ClientCommandGateway::handleCommand(
     response.frontend_hints = pipeline_response.frontend_hints;
     response.warning_keys = pipeline_response.warning_keys;
 
-    // If pipeline did not provide available_commands, build from adapter.
+    if (post_command_hook_) {
+        post_command_hook_(command, response);
+    }
+
+    // Client-facing available_commands must be rebuilt after post_command_hook_.
+    // The hook can add knowledge learned from the command result; using the
+    // pipeline's pre-hook options would hide newly teachable / NPC-usable actions
+    // until a manual refresh.
     std::optional<pathfinder::foundation::Result<pathfinder::world_generation::WorldRegionEnsureResult>> ensure_avail_res;
-    if (pipeline_response.available_commands.empty()) {
+    {
         // P58: Ensure neighboring regions exist before building move options.
         auto layer_result = session_gateway_.getSessionLayerKey(request.session_id);
         std::string layer_key = layer_result.is_ok() ? layer_result.value() : "surface";
@@ -377,9 +388,9 @@ Result<ClientCommandResponse> ClientCommandGateway::handleCommand(
         auto options_result = available_command_adapter_.buildOptions(actor_key, layer_key);
         if (options_result.is_ok()) {
             response.available_commands = options_result.value();
+        } else {
+            response.available_commands = pipeline_response.available_commands;
         }
-    } else {
-        response.available_commands = pipeline_response.available_commands;
     }
 
     // P60: Emit restored events from ensure adapters.

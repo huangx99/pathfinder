@@ -224,7 +224,7 @@
           ],
           "node_kind": "Tree",
           "required_action_key": "chop",
-          "required_tool_key": "",
+          "required_tool_key": "axe",
           "output_object_keys": [
             "wood"
           ],
@@ -246,7 +246,7 @@
           "required_action_key": "gather",
           "required_tool_key": "",
           "output_object_keys": [
-            "stone_flake"
+            "loose_stone"
           ],
           "charges": 2
         }
@@ -264,7 +264,27 @@
           "quantity": 1,
           "stackable": true,
           "stack_key": "loose_stone:default",
-          "tag_keys": [],
+          "tag_keys": [
+            "stone_basic"
+          ],
+          "state_keys": [],
+          "numeric_states": {}
+        },
+        {
+          "object_key": "wood",
+          "allowed_terrain_tags": [
+            "forest",
+            "plain"
+          ],
+          "density": 0.025,
+          "min_distance_from_spawn": 0,
+          "max_distance_from_spawn": -1,
+          "quantity": 1,
+          "stackable": true,
+          "stack_key": "wood:default",
+          "tag_keys": [
+            "starter_material"
+          ],
           "state_keys": [],
           "numeric_states": {}
         }

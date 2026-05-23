@@ -9,6 +9,7 @@
 #include "pathfinder/world_map_interaction/region_lifecycle_trigger_service.h"
 #include "pathfinder/world_command/world_command_pipeline.h"
 #include "pathfinder/foundation/result.h"
+#include <functional>
 
 namespace pathfinder::client_protocol {
 
@@ -25,7 +26,10 @@ public:
     void setRegionEnsureAdapter(client_runtime_bridge::ClientWorldRegionEnsureAdapter* ensure_adapter);
     void setActivityWindowService(world_map_interaction::RegionActivityWindowService* service);
     void setLifecycleTriggerService(world_map_interaction::RegionLifecycleTriggerService* service);
+    using PostCommandHook = std::function<void(const WorldCommandDto&, ClientCommandResponse&)>;
+
     void setWorldContext(const std::string& world_id, uint64_t world_seed);
+    void setPostCommandHook(PostCommandHook hook);
     bool hasActivityWindowService() const { return activity_window_service_ != nullptr; }
 
     pathfinder::foundation::Result<ClientCommandResponse> handleCommand(
@@ -41,6 +45,7 @@ private:
     world_map_interaction::RegionLifecycleTriggerService* lifecycle_trigger_service_ = nullptr;
     std::string world_id_ = "world_default";
     uint64_t world_seed_ = 1;
+    PostCommandHook post_command_hook_;
 
     // Resolve command from OptionId or WorldCommandDto.
     // Uses session snapshot for OptionId authority.

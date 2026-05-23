@@ -301,7 +301,8 @@ Result<KnowledgeFormationResult> KnowledgeFormationService::formFromMemorySummar
 
     // Build teaching profile
     KnowledgeTeachingProfile teaching_profile;
-    if (plan.projected_status == KnowledgeStatus::Teachable) {
+    if (plan.projected_status == KnowledgeStatus::Teachable ||
+        plan.projected_status == KnowledgeStatus::Active) {
         teaching_profile.teachable = true;
         teaching_profile.teaching_message_key = "knowledge.teachable." + plan.subject.subject_id + "." + toString(plan.predicate.relation_type);
         if (isRiskRelation(plan.predicate.relation_type)) {

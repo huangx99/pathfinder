@@ -15,8 +15,9 @@ namespace pathfinder::world_teaching {
 
 TeachCommandHandler::TeachCommandHandler(
     pathfinder::knowledge::KnowledgeRepository& repository,
-    std::unique_ptr<IWorldActorQueryPort> actor_query_port)
-    : repository_(repository), actor_query_port_(std::move(actor_query_port)) {}
+    std::unique_ptr<IWorldActorQueryPort> actor_query_port,
+    const pathfinder::content::ContentRegistry* content_registry)
+    : repository_(repository), actor_query_port_(std::move(actor_query_port)), content_registry_(content_registry) {}
 
 world_command::WorldCommandKind TeachCommandHandler::kind() const {
     return world_command::WorldCommandKind::Teach;
@@ -126,7 +127,7 @@ Result<world_command::WorldCommandExecutionResult> TeachCommandHandler::execute(
     }
 
     // 4. Build projection
-    WorldTeachingProjectionBridge projection_bridge;
+    WorldTeachingProjectionBridge projection_bridge(content_registry_);
     auto projection = projection_bridge.project(
         claims_to_store,
         eligibility.source_claim.has_value() ? &eligibility.source_claim.value() : nullptr,
@@ -146,8 +147,9 @@ Result<world_command::WorldCommandExecutionResult> TeachCommandHandler::execute(
 
 std::shared_ptr<world_command::IWorldCommandHandler> createTeachCommandHandler(
     pathfinder::knowledge::KnowledgeRepository& repository,
-    std::unique_ptr<IWorldActorQueryPort> actor_query_port) {
-    return std::make_shared<TeachCommandHandler>(repository, std::move(actor_query_port));
+    std::unique_ptr<IWorldActorQueryPort> actor_query_port,
+    const pathfinder::content::ContentRegistry* content_registry) {
+    return std::make_shared<TeachCommandHandler>(repository, std::move(actor_query_port), content_registry);
 }
 
 } // namespace pathfinder::world_teaching

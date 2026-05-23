@@ -20,6 +20,11 @@ public:
     foundation::Result<ItemLocationRef> findItemLocation(const std::string& entity_id) const override;
     foundation::Result<std::vector<InventoryItemEntry>> queryItems(
         const InventoryOwnerRef& owner, const std::string& entity_key) const override;
+    foundation::Result<void> updateItemNumericState(
+        const std::string& inventory_id,
+        const std::string& entity_id,
+        const std::string& state_key,
+        double value) override;
 
     foundation::Result<InventoryTransferResult> transfer(const InventoryTransferRequest& request) override;
     foundation::Result<InventoryRuntimeSnapshot> snapshotForDebug() const override;

@@ -3,6 +3,7 @@
 
 // Test function declarations
 void run_world_reaction_apply_craft_torch_to_inventory_tests();
+void run_world_reaction_apply_craft_axe_to_inventory_tests();
 void run_world_reaction_validate_input_missing_tests();
 void run_world_reaction_validate_state_mismatch_tests();
 void run_world_reaction_validate_quantity_insufficient_tests();
@@ -19,6 +20,7 @@ int main(int argc, char* argv[]) {
         std::cout << "Usage: " << argv[0] << " <test_name>" << std::endl;
         std::cout << "Available tests:" << std::endl;
         std::cout << "  apply_craft_torch_to_inventory" << std::endl;
+        std::cout << "  apply_craft_axe_to_inventory" << std::endl;
         std::cout << "  validate_input_missing" << std::endl;
         std::cout << "  validate_state_mismatch" << std::endl;
         std::cout << "  validate_quantity_insufficient" << std::endl;
@@ -36,6 +38,8 @@ int main(int argc, char* argv[]) {
 
     if (test_name == "apply_craft_torch_to_inventory") {
         run_world_reaction_apply_craft_torch_to_inventory_tests();
+    } else if (test_name == "apply_craft_axe_to_inventory") {
+        run_world_reaction_apply_craft_axe_to_inventory_tests();
     } else if (test_name == "validate_input_missing") {
         run_world_reaction_validate_input_missing_tests();
     } else if (test_name == "validate_state_mismatch") {

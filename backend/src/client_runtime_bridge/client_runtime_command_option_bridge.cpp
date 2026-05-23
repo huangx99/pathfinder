@@ -4,6 +4,8 @@
 #include <atomic>
 #include <chrono>
 #include <set>
+#include <sstream>
+#include <cmath>
 
 namespace pathfinder::client_runtime_bridge {
 
@@ -26,6 +28,90 @@ namespace {
         uint64_t ts = static_cast<uint64_t>(
             std::chrono::steady_clock::now().time_since_epoch().count());
         return prefix + "_" + std::to_string(ts) + "_" + std::to_string(n);
+    }
+
+    std::string objectName(const pathfinder::content::ContentRegistry& registry, const std::string& object_key) {
+        const auto key = "object." + object_key + ".name";
+        auto translated = registry.translate("zh_cn", key);
+        return translated == key ? object_key : translated;
+    }
+
+    int inputQuantity(const pathfinder::content::ReactionInputDto& input) {
+        return input.min > 0 ? input.min : (input.quantity > 0 ? input.quantity : 1);
+    }
+
+    std::string reactionOutputName(const pathfinder::content::ContentRegistry& registry,
+                                   const pathfinder::content::ReactionDefinitionContent& reaction) {
+        if (reaction.outputs.empty()) return {};
+        return objectName(registry, reaction.outputs.front().object_key);
+    }
+
+    std::string reactionIngredientText(const pathfinder::content::ContentRegistry& registry,
+                                       const pathfinder::content::ReactionDefinitionContent& reaction) {
+        std::ostringstream oss;
+        for (size_t i = 0; i < reaction.inputs.size(); ++i) {
+            if (i > 0) oss << " + ";
+            const auto& input = reaction.inputs[i];
+            oss << objectName(registry, input.object_key) << "×" << inputQuantity(input);
+            if (!input.state.empty()) oss << "[" << input.state << "]";
+        }
+        return oss.str();
+    }
+
+    std::string craftLabel(const pathfinder::content::ContentRegistry& registry,
+                           const pathfinder::content::ReactionDefinitionContent& reaction,
+                           const std::string& verb = "制作") {
+        const auto output = reactionOutputName(registry, reaction);
+        const auto ingredients = reactionIngredientText(registry, reaction);
+        std::string label = output.empty() ? verb : verb + " " + output;
+        if (!ingredients.empty()) label += "（原料：" + ingredients + "）";
+        return label;
+    }
+
+    bool sameOrAdjacent(const pathfinder::world_runtime::WorldCellCoord& a,
+                        const pathfinder::world_runtime::WorldCellCoord& b) {
+        return a.layer_key == b.layer_key && std::abs(a.x - b.x) <= 1 && std::abs(a.y - b.y) <= 1;
+    }
+
+    pathfinder::knowledge::KnowledgeOwner actorKnowledgeOwner(const std::string& actor_key) {
+        pathfinder::knowledge::KnowledgeOwner owner;
+        owner.kind = pathfinder::knowledge::KnowledgeOwnerKind::Actor;
+        owner.entity_id = pathfinder::foundation::EntityId(actor_key);
+        return owner;
+    }
+
+    std::string claimLabel(const pathfinder::content::ContentRegistry& registry,
+                           const pathfinder::knowledge::KnowledgeClaim& claim) {
+        auto render_template = [&](const pathfinder::content::KnowledgeTemplateContent& tmpl) -> std::string {
+            if (tmpl.summary_key.empty()) return {};
+            const auto translated = registry.translate("zh_cn", tmpl.summary_key);
+            return translated == tmpl.summary_key ? tmpl.summary_key : translated;
+        };
+        for (const auto& reason_key : claim.reason_keys) {
+            if (const auto* tmpl = registry.findKnowledgeTemplate(reason_key)) {
+                auto label = render_template(*tmpl);
+                if (!label.empty()) return label;
+            }
+        }
+        for (const auto* tmpl : registry.allKnowledgeTemplates()) {
+            if (!tmpl) continue;
+            if (tmpl->subject_object_key != claim.subject.subject_id) continue;
+            if (tmpl->action_key != claim.predicate.action_key) continue;
+            if (tmpl->effect_key != claim.predicate.effect_key) continue;
+            auto label = render_template(*tmpl);
+            if (!label.empty()) return label;
+        }
+        return objectName(registry, claim.subject.subject_id) + " " + claim.predicate.action_key + " -> " + claim.predicate.effect_key;
+    }
+
+    bool claimCanDriveNpcWork(const pathfinder::knowledge::KnowledgeClaim& claim,
+                              const pathfinder::content::ReactionDefinitionContent& reaction) {
+        if (!claim.projection_flags.usable_by_ai) return false;
+        if (claim.predicate.action_key != reaction.action_key && claim.predicate.action_key != "craft") return false;
+        if (claim.predicate.effect_key != reaction.effect_key) return false;
+        const auto status = pathfinder::knowledge::toString(claim.status);
+        return status == "hypothesis" || status == "candidate" || status == "active" ||
+               status == "teachable" || status == "shared" || status == "operational";
     }
 }
 
@@ -241,6 +327,7 @@ ClientRuntimeCommandOptionBridge::ClientRuntimeCommandOptionBridge(
     , inspect_provider_(registry)
     , wait_provider_(registry)
     , harvest_provider_(nullptr)
+    , craft_provider_(nullptr)
     , inventory_provider_(nullptr) {}
 
 ClientRuntimeCommandOptionBridge::ClientRuntimeCommandOptionBridge(
@@ -260,6 +347,30 @@ ClientRuntimeCommandOptionBridge::ClientRuntimeCommandOptionBridge(
     }
     if (inventory_runtime) {
         inventory_provider_ = std::make_unique<InventoryCommandOptionProvider>(registry, *inventory_runtime);
+    }
+}
+
+void ClientRuntimeCommandOptionBridge::setCraftServices(
+    pathfinder::world_reaction::WorldReactionService* reaction_service,
+    std::shared_ptr<const pathfinder::content::ContentRegistry> content_registry) {
+    craft_provider_.reset();
+    craft_content_registry_ = std::move(content_registry);
+    if (reaction_service && craft_content_registry_) {
+        craft_provider_ = std::make_unique<CraftCommandOptionProvider>(
+            registry_, *craft_content_registry_, *reaction_service);
+    }
+}
+
+
+void ClientRuntimeCommandOptionBridge::setKnowledgeServices(
+    pathfinder::knowledge::KnowledgeRepository* knowledge_repository,
+    std::shared_ptr<const pathfinder::content::ContentRegistry> content_registry) {
+    teaching_provider_.reset();
+    knowledge_repository_ = knowledge_repository;
+    knowledge_content_registry_ = std::move(content_registry);
+    if (knowledge_repository_ && knowledge_content_registry_) {
+        teaching_provider_ = std::make_unique<TeachingAndNpcWorkCommandOptionProvider>(
+            registry_, *knowledge_content_registry_, *knowledge_repository_);
     }
 }
 
@@ -297,20 +408,26 @@ Result<std::vector<WorldCommandOptionDto>> ClientRuntimeCommandOptionBridge::bui
     bool move_move = true;
     bool run_inspect = true;
     bool run_harvest = true;
+    bool run_craft = true;
     bool run_inventory = true;
+    bool run_teaching = true;
 
     if (!request.provider_kinds.empty()) {
         run_wait = false;
         move_move = false;
         run_inspect = false;
         run_harvest = false;
+        run_craft = false;
         run_inventory = false;
+        run_teaching = false;
         for (const auto& kind : request.provider_kinds) {
             if (kind == ClientCommandOptionProviderKind::Wait) run_wait = true;
             if (kind == ClientCommandOptionProviderKind::Move) move_move = true;
             if (kind == ClientCommandOptionProviderKind::Inspect) run_inspect = true;
             if (kind == ClientCommandOptionProviderKind::Harvest) run_harvest = true;
+            if (kind == ClientCommandOptionProviderKind::Craft) run_craft = true;
             if (kind == ClientCommandOptionProviderKind::Inventory) run_inventory = true;
+            if (kind == ClientCommandOptionProviderKind::Teach) run_teaching = true;
         }
     }
 
@@ -334,9 +451,19 @@ Result<std::vector<WorldCommandOptionDto>> ClientRuntimeCommandOptionBridge::bui
         options.insert(options.end(), harvest_opts.begin(), harvest_opts.end());
     }
 
+    if (run_craft && craft_provider_) {
+        auto craft_opts = craft_provider_->buildOptions(*actor);
+        options.insert(options.end(), craft_opts.begin(), craft_opts.end());
+    }
+
     if (run_inventory && inventory_provider_) {
         auto inv_opts = inventory_provider_->buildOptions(*actor, runtime_);
         options.insert(options.end(), inv_opts.begin(), inv_opts.end());
+    }
+
+    if (run_teaching && teaching_provider_) {
+        auto teach_opts = teaching_provider_->buildOptions(*actor, runtime_);
+        options.insert(options.end(), teach_opts.begin(), teach_opts.end());
     }
 
     return Result<std::vector<WorldCommandOptionDto>>::ok(std::move(options));
@@ -449,13 +576,153 @@ std::vector<WorldCommandOptionDto> HarvestCommandOptionProvider::buildOptions(
         opt.option_id = makeOptionId("opt_harvest");
         opt.command_kind = command_kind;
         opt.command_key = command_key;
-        opt.label_text = label_text;
+        opt.label_text = label_text + " object." + node.resource_key + ".name";
         opt.target.target_kind = WorldCommandTargetKind::Entity;
         opt.target.target_entity_id = node_id;
         opt.enabled = true;
         opt.priority = 20;
 
         options.push_back(std::move(opt));
+    }
+
+    return options;
+}
+
+
+// ---------------------------------------------------------------------------
+// CraftCommandOptionProvider
+// ---------------------------------------------------------------------------
+
+CraftCommandOptionProvider::CraftCommandOptionProvider(
+    const WorldCommandHandlerRegistry& registry,
+    const pathfinder::content::ContentRegistry& content_registry,
+    pathfinder::world_reaction::WorldReactionService& reaction_service)
+    : registry_(registry), content_registry_(content_registry), reaction_service_(reaction_service) {}
+
+std::vector<WorldCommandOptionDto> CraftCommandOptionProvider::buildOptions(
+    const WorldActorRuntime& actor) const {
+
+    std::vector<WorldCommandOptionDto> options;
+    if (!registry_.findByKind(WorldCommandKind::Craft)) {
+        return options;
+    }
+
+    for (const auto* reaction : content_registry_.allReactions()) {
+        if (!reaction || (reaction->action_key != "craft" && reaction->action_key != "use" && reaction->action_key != "combine")) continue;
+
+        pathfinder::world_reaction::WorldReactionRequest req;
+        req.reaction_command_id = "option_check_" + reaction->key.value();
+        req.actor_key = actor.actor_key;
+        req.reaction_key = reaction->key.value();
+        req.action_kind = pathfinder::world_reaction::WorldReactionActionKind::Craft;
+        req.output_location_policy = pathfinder::world_reaction::WorldReactionOutputLocationPolicy::ActorInventory;
+
+        auto validate_res = reaction_service_.validate(req);
+        if (!validate_res.is_ok()) continue;
+
+        WorldCommandOptionDto opt;
+        opt.option_id = makeOptionId("opt_craft");
+        opt.command_kind = WorldCommandKind::Craft;
+        opt.command_key = "craft";
+        opt.label_text = craftLabel(content_registry_, *reaction);
+        opt.target.target_kind = WorldCommandTargetKind::Recipe;
+        opt.target.recipe_key = reaction->key.value();
+        opt.enabled = true;
+        opt.priority = 18;
+        options.push_back(std::move(opt));
+    }
+
+    return options;
+}
+
+
+// ---------------------------------------------------------------------------
+// TeachingAndNpcWorkCommandOptionProvider
+// ---------------------------------------------------------------------------
+
+TeachingAndNpcWorkCommandOptionProvider::TeachingAndNpcWorkCommandOptionProvider(
+    const WorldCommandHandlerRegistry& registry,
+    const pathfinder::content::ContentRegistry& content_registry,
+    pathfinder::knowledge::KnowledgeRepository& knowledge_repository)
+    : registry_(registry), content_registry_(content_registry), knowledge_repository_(knowledge_repository) {}
+
+std::vector<WorldCommandOptionDto> TeachingAndNpcWorkCommandOptionProvider::buildOptions(
+    const WorldActorRuntime& actor,
+    const IWorldRuntime& runtime) const {
+
+    std::vector<WorldCommandOptionDto> options;
+    auto snap_res = runtime.snapshotForDebug();
+    if (snap_res.is_error()) return options;
+    const auto& snapshot = snap_res.value();
+
+    auto teacher_claims_res = knowledge_repository_.listByOwner(actorKnowledgeOwner(actor.actor_key));
+    std::vector<pathfinder::knowledge::KnowledgeClaim> teacher_claims;
+    if (teacher_claims_res.is_ok()) teacher_claims = teacher_claims_res.value();
+
+    for (const auto& [candidate_actor_key, candidate_actor] : snapshot.actors) {
+        if (candidate_actor_key == actor.actor_key) continue;
+        if (!sameOrAdjacent(actor.coord, candidate_actor.coord)) continue;
+
+        std::string target_entity_id = candidate_actor.entity_id;
+        if (target_entity_id.empty()) continue;
+
+        if (registry_.findByKind(WorldCommandKind::Inspect)) {
+            WorldCommandOptionDto inspect;
+            inspect.option_id = makeOptionId("opt_inspect_actor_knowledge");
+            inspect.command_kind = WorldCommandKind::Inspect;
+            inspect.command_key = "inspect_actor_knowledge";
+            inspect.label_text = "查看NPC知识";
+            inspect.target.target_kind = WorldCommandTargetKind::Entity;
+            inspect.target.target_entity_id = target_entity_id;
+            inspect.target.target_actor_key = candidate_actor_key;
+            inspect.enabled = true;
+            inspect.priority = 7;
+            options.push_back(std::move(inspect));
+        }
+
+        if (registry_.findByKind(WorldCommandKind::Teach)) {
+            for (const auto& claim : teacher_claims) {
+                if (!claim.teaching_profile.teachable) continue;
+                WorldCommandOptionDto teach;
+                teach.option_id = makeOptionId("opt_teach_knowledge");
+                teach.command_kind = WorldCommandKind::Teach;
+                teach.command_key = "teach";
+                teach.label_text = "教NPC：" + claimLabel(content_registry_, claim);
+                teach.target.target_kind = WorldCommandTargetKind::Actor;
+                teach.target.target_actor_key = candidate_actor_key;
+                teach.target.target_entity_id = target_entity_id;
+                teach.target.knowledge_key = claim.knowledge_id.value();
+                teach.enabled = true;
+                teach.priority = 20;
+                options.push_back(std::move(teach));
+            }
+        }
+
+        if (!registry_.findByKind(WorldCommandKind::Use)) continue;
+        auto worker_claims_res = knowledge_repository_.listByOwner(actorKnowledgeOwner(candidate_actor_key));
+        if (worker_claims_res.is_error()) continue;
+        const auto worker_claims = worker_claims_res.value();
+        for (const auto* reaction : content_registry_.allReactions()) {
+            if (!reaction || (reaction->action_key != "craft" && reaction->action_key != "use" && reaction->action_key != "combine")) continue;
+            bool matched = false;
+            for (const auto& claim : worker_claims) {
+                if (claimCanDriveNpcWork(claim, *reaction)) { matched = true; break; }
+            }
+            if (!matched) continue;
+
+            WorldCommandOptionDto order;
+            order.option_id = makeOptionId("opt_order_npc_craft");
+            order.command_kind = WorldCommandKind::Use;
+            order.command_key = "order_actor_craft";
+            order.label_text = "命令NPC：" + craftLabel(content_registry_, *reaction, "制作");
+            order.target.target_kind = WorldCommandTargetKind::Actor;
+            order.target.target_actor_key = candidate_actor_key;
+            order.target.target_entity_id = target_entity_id;
+            order.target.recipe_key = reaction->key.value();
+            order.enabled = true;
+            order.priority = 25;
+            options.push_back(std::move(order));
+        }
     }
 
     return options;

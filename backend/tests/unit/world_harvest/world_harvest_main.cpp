@@ -13,6 +13,8 @@ void run_world_harvest_validate_too_far_tests();
 void run_world_harvest_validate_not_visible_tests();
 void run_world_harvest_validate_tool_missing_tests();
 void run_world_harvest_validate_tool_present_tests();
+void run_world_harvest_tool_durability_decrements_tests();
+void run_world_harvest_worn_out_tool_rejected_tests();
 void run_world_harvest_apply_gather_creates_output_on_map_tests();
 void run_world_harvest_apply_chop_creates_wood_on_map_tests();
 void run_world_harvest_apply_consumes_one_charge_tests();
@@ -36,7 +38,7 @@ int main(int argc, char* argv[]) {
         std::cout << "Available tests: smoke, enum_to_string, request_validate_basic, kind_from_command_kind, "
                    "validate_actor_missing, validate_node_missing, validate_node_depleted, "
                    "validate_action_mismatch, validate_too_far, validate_not_visible, "
-                   "validate_tool_missing, validate_tool_present, "
+                   "validate_tool_missing, validate_tool_present, tool_durability_decrements, worn_out_tool_rejected, "
                    "apply_gather_creates_output_on_map, apply_chop_creates_wood_on_map, "
                    "apply_consumes_one_charge, apply_depletes_node_at_zero, "
                    "apply_output_id_deterministic, apply_failure_does_not_change_node, "
@@ -75,6 +77,10 @@ int main(int argc, char* argv[]) {
         run_world_harvest_validate_tool_missing_tests();
     } else if (test_name == "validate_tool_present") {
         run_world_harvest_validate_tool_present_tests();
+    } else if (test_name == "tool_durability_decrements") {
+        run_world_harvest_tool_durability_decrements_tests();
+    } else if (test_name == "worn_out_tool_rejected") {
+        run_world_harvest_worn_out_tool_rejected_tests();
     } else if (test_name == "apply_gather_creates_output_on_map") {
         run_world_harvest_apply_gather_creates_output_on_map_tests();
     } else if (test_name == "apply_chop_creates_wood_on_map") {

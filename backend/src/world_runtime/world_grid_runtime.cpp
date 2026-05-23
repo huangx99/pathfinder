@@ -211,6 +211,60 @@ Result<void> WorldGridRuntime::setupPlayerActor(const WorldRuntimeConfig& config
     return Result<void>::ok();
 }
 
+
+Result<void> WorldGridRuntime::spawnActor(
+    const std::string& actor_key,
+    const std::string& entity_key,
+    const std::string& display_name_key,
+    const WorldCellCoord& coord,
+    int vision_radius,
+    bool is_player_controlled) {
+
+    if (actor_key.empty() || entity_key.empty()) {
+        return Result<void>::fail(
+            makeError(ErrorCode::command_missing_required_field, "actor_key_or_entity_key_empty"));
+    }
+    if (actors_.find(actor_key) != actors_.end()) {
+        return Result<void>::ok();
+    }
+    auto cell_it = cells_.find(coord.cellId());
+    if (cell_it == cells_.end()) {
+        return Result<void>::fail(
+            makeError(ErrorCode::id_not_found, "actor_spawn_cell_missing", "Actor spawn cell missing: " + coord.cellId()));
+    }
+    if (cell_it->second.blocks_movement) {
+        return Result<void>::fail(
+            makeError(ErrorCode::state_change_invalid, "actor_spawn_cell_blocked", "Actor spawn cell blocked: " + coord.cellId()));
+    }
+
+    WorldActorRuntime actor;
+    actor.actor_key = actor_key;
+    actor.coord = coord;
+    actor.entity_id = makeStableEntityId(entity_key, coord);
+    actor.vision_radius = std::max(1, vision_radius);
+    actor.is_player_controlled = is_player_controlled;
+    const auto entity_id = actor.entity_id;
+    actors_[actor.actor_key] = actor;
+
+    WorldEntityInstance entity;
+    entity.entity_id = entity_id;
+    entity.entity_key = entity_key;
+    entity.display_name_key = display_name_key.empty() ? "entity." + entity_key : display_name_key;
+    entity.coord = coord;
+    entity.location_kind = WorldEntityLocationKind::OnMap;
+    entity.visible_by_default = true;
+    entities_[entity.entity_id] = std::move(entity);
+
+    auto& entity_ids = cell_it->second.entity_ids;
+    if (std::find(entity_ids.begin(), entity_ids.end(), entity_id) == entity_ids.end()) {
+        entity_ids.push_back(entity_id);
+    }
+
+    updateExplorationForActor(actor_key);
+    incrementStateVersion();
+    return Result<void>::ok();
+}
+
 bool WorldGridRuntime::isAdjacent(const WorldCellCoord& a, const WorldCellCoord& b) const {
     if (a.layer_key != b.layer_key) return false;
     int dx = std::abs(a.x - b.x);
@@ -360,11 +414,16 @@ Result<MoveActorResult> WorldGridRuntime::moveActor(const std::string& actor_key
     // Update exploration
     updateExplorationForActor(actor_key);
 
-    // Add only newly visible cells to the patch. Sending the whole visible
-    // window every step makes mobile clients feel unresponsive over tunnels.
+    // Add visibility boundary changes to the patch without sending the whole
+    // window every step. Newly visible cells must appear, and cells that leave
+    // vision must be resent as Discovered so clients keep explored terrain but
+    // stop treating it as currently visible.
     auto& exp = exploration_[actor_key];
     for (const auto& [cell_id, visibility] : exp.cell_visibility_by_id) {
-        if (visibility == WorldCellVisibility::Visible && visible_before_move.find(cell_id) == visible_before_move.end()) {
+        const bool was_visible = visible_before_move.find(cell_id) != visible_before_move.end();
+        const bool became_visible = visibility == WorldCellVisibility::Visible && !was_visible;
+        const bool became_discovered = visibility == WorldCellVisibility::Discovered && was_visible;
+        if (became_visible || became_discovered) {
             if (std::find(result.changed_cell_ids.begin(), result.changed_cell_ids.end(), cell_id) == result.changed_cell_ids.end()) {
                 result.changed_cell_ids.push_back(cell_id);
             }

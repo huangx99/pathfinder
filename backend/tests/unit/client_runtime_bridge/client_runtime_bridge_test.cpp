@@ -242,6 +242,50 @@ void run_projection_bridge_security_tests() {
 }
 
 // ---------------------------------------------------------------------------
+// Projection bridge keeps discovered cells in full refresh
+// ---------------------------------------------------------------------------
+void run_projection_bridge_keeps_discovered_cells_tests() {
+    WorldGridRuntime runtime;
+    WorldRuntimeConfig config;
+    config.seed = 1;
+    config.region_size = 5;
+    config.default_vision_radius = 1;
+    runtime.initialize(config);
+    runtime.generateInitialWorld(config);
+
+    WorldCellCoord step1{1, 0, "surface"};
+    WorldCellCoord step2{2, 0, "surface"};
+    assert(runtime.findCell(step1).is_ok());
+    assert(runtime.findCell(step2).is_ok());
+    assert(runtime.moveActor("player", step1).is_ok());
+    assert(runtime.moveActor("player", step2).is_ok());
+    assert(runtime.getCellVisibility("player", "surface:0:0") == WorldCellVisibility::Discovered);
+
+    ClientRuntimeProjectionBridge bridge(runtime, ClientRuntimeBridgeMode::RuntimeBacked);
+    ClientRuntimeViewRequest req;
+    req.actor_key = "player";
+    req.layer_key = "surface";
+    req.reason = ClientProjectionBuildReason::Refresh;
+
+    auto view_res = bridge.buildRuntimeView(req);
+    assert(view_res.is_ok());
+
+    bool found_origin = false;
+    for (const auto& cell : view_res.value().visible_cells) {
+        if (cell.cell_id == "surface:0:0") {
+            found_origin = true;
+            assert(cell.fields.count("visibility"));
+            assert(cell.fields.at("visibility") == "Discovered");
+            assert(cell.fields.count("terrain_key"));
+            assert(cell.fields.count("entity_ids") == 0);
+        }
+    }
+    assert(found_origin);
+
+    std::cout << "client_runtime_bridge_projection_keeps_discovered_cells_tests: all passed" << std::endl;
+}
+
+// ---------------------------------------------------------------------------
 // Movement provider generates 4-direction options
 // ---------------------------------------------------------------------------
 void run_movement_provider_tests() {
@@ -433,6 +477,7 @@ int main(int argc, char* argv[]) {
         run_dto_validation_tests();
         run_projection_bridge_non_empty_tests();
         run_projection_bridge_security_tests();
+        run_projection_bridge_keeps_discovered_cells_tests();
         run_movement_provider_tests();
         run_movement_provider_disabled_reason_tests();
         run_wait_inspect_provider_tests();
@@ -446,6 +491,7 @@ int main(int argc, char* argv[]) {
     else if (test_name == "dto_validation") run_dto_validation_tests();
     else if (test_name == "projection_non_empty") run_projection_bridge_non_empty_tests();
     else if (test_name == "projection_security") run_projection_bridge_security_tests();
+    else if (test_name == "projection_discovered") run_projection_bridge_keeps_discovered_cells_tests();
     else if (test_name == "movement_provider") run_movement_provider_tests();
     else if (test_name == "movement_disabled") run_movement_provider_disabled_reason_tests();
     else if (test_name == "wait_inspect_provider") run_wait_inspect_provider_tests();

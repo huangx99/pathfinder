@@ -4,7 +4,9 @@
       "effect_key": "restore_hunger",
       "display_key": "effect.restore_hunger.name",
       "semantic_kind": "actor_need_delta",
-      "goal_kinds": ["satisfy_need"],
+      "goal_kinds": [
+        "satisfy_need"
+      ],
       "target_kind": "actor_self",
       "preconditions": [
         "condition:test:eq:object.quantity.$object.gte.1"
@@ -223,6 +225,47 @@
       "agent": {
         "usable_by_ai": true,
         "risk_score": 5,
+        "time_cost": 2
+      }
+    },
+    {
+      "effect_key": "make_axe",
+      "display_key": "effect.make_axe.name",
+      "semantic_kind": "world_state_delta",
+      "goal_kinds": [],
+      "target_kind": "actor_self",
+      "preconditions": [
+        "condition:test:eq:object.quantity.loose_stone.gte.1",
+        "condition:test:eq:object.quantity.wood.gte.1"
+      ],
+      "operations": [
+        {
+          "op": "consume_object_quantity",
+          "target": "loose_stone",
+          "quantity": 1,
+          "summary_key": "effect.make_axe.consume_stone"
+        },
+        {
+          "op": "consume_object_quantity",
+          "target": "wood",
+          "quantity": 1,
+          "summary_key": "effect.make_axe.consume_wood"
+        },
+        {
+          "op": "produce_object_quantity",
+          "target": "axe",
+          "quantity": 1,
+          "summary_key": "effect.make_axe.produce"
+        }
+      ],
+      "learning": {
+        "knowledge_effect_key": "make_axe",
+        "confidence_delta": 0.4,
+        "teachable": true
+      },
+      "agent": {
+        "usable_by_ai": true,
+        "risk_score": 2,
         "time_cost": 2
       }
     },

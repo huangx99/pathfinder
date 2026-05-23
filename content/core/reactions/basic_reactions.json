@@ -3,19 +3,68 @@
     {
       "reaction_key": "wood_plus_fire_make_torch",
       "inputs": [
-        { "object_key": "wood", "state": "processed", "min": 1 },
-        { "object_key": "camp_fire", "quantity": 1 }
+        {
+          "object_key": "wood",
+          "min": 1
+        },
+        {
+          "object_key": "camp_fire",
+          "quantity": 1
+        }
       ],
       "action_key": "use",
       "effect_key": "make_torch",
       "outputs": [
-        { "object_key": "torch", "quantity_delta": 1 }
+        {
+          "object_key": "torch",
+          "quantity_delta": 1
+        }
       ],
       "consume": [
-        { "object_key": "wood", "state": "processed", "delta": -1 }
+        {
+          "object_key": "wood",
+          "delta": -1
+        }
       ],
       "summary_key": "reaction.make_torch.summary",
-      "knowledge_templates": ["knowledge_make_torch"]
+      "knowledge_templates": [
+        "knowledge_make_torch"
+      ]
+    },
+    {
+      "reaction_key": "loose_stone_plus_wood_make_axe",
+      "inputs": [
+        {
+          "object_key": "loose_stone",
+          "min": 1
+        },
+        {
+          "object_key": "wood",
+          "min": 1
+        }
+      ],
+      "action_key": "craft",
+      "effect_key": "make_axe",
+      "outputs": [
+        {
+          "object_key": "axe",
+          "quantity_delta": 1
+        }
+      ],
+      "consume": [
+        {
+          "object_key": "loose_stone",
+          "delta": -1
+        },
+        {
+          "object_key": "wood",
+          "delta": -1
+        }
+      ],
+      "summary_key": "reaction.make_axe.summary",
+      "knowledge_templates": [
+        "knowledge_make_axe"
+      ]
     }
   ]
 }

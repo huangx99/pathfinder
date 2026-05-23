@@ -248,6 +248,10 @@ Result<void> WorldReactionService::resolveInputs(
                 WorldCellCoord{actor->coord.x - 1, actor->coord.y, actor->coord.layer_key},
                 WorldCellCoord{actor->coord.x, actor->coord.y + 1, actor->coord.layer_key},
                 WorldCellCoord{actor->coord.x, actor->coord.y - 1, actor->coord.layer_key},
+                WorldCellCoord{actor->coord.x + 1, actor->coord.y + 1, actor->coord.layer_key},
+                WorldCellCoord{actor->coord.x - 1, actor->coord.y + 1, actor->coord.layer_key},
+                WorldCellCoord{actor->coord.x + 1, actor->coord.y - 1, actor->coord.layer_key},
+                WorldCellCoord{actor->coord.x - 1, actor->coord.y - 1, actor->coord.layer_key},
             };
             std::sort(adjacent.begin(), adjacent.end(),
                       [](const WorldCellCoord& a, const WorldCellCoord& b) {
@@ -501,8 +505,9 @@ Result<void> WorldReactionService::buildOutputDrafts(
         od.entity_key = output.object_key;
         od.display_name_key = obj->display_key;
         od.quantity = output.quantity_delta;
-        od.stackable = true;
-        od.stack_key = output.object_key + ":crafted";
+        od.numeric_states = obj->default_numeric;
+        od.stackable = od.numeric_states.empty();
+        od.stack_key = od.stackable ? output.object_key + ":crafted" : output.object_key + ":crafted:" + od.entity_id;
         od.state_keys = {"crafted"};
         od.tag_keys = {"reaction_output"};
         od.location_policy = request.output_location_policy;
@@ -729,6 +734,15 @@ Result<void> WorldReactionService::applySpawns(WorldReactionDraft& draft, WorldR
                     ss << od.tag_keys[i];
                 }
                 req.parameters["tag_keys"] = ss.str();
+            }
+            if (!od.numeric_states.empty()) {
+                std::stringstream ss;
+                size_t i = 0;
+                for (const auto& [key, value] : od.numeric_states) {
+                    if (i++ > 0) ss << ",";
+                    ss << key << "=" << value;
+                }
+                req.parameters["numeric_states"] = ss.str();
             }
 
             auto transfer_res = inventory_runtime_.transfer(req);

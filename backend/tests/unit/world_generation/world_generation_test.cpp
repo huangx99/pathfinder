@@ -79,7 +79,7 @@ std::shared_ptr<pathfinder::content::ContentRegistry> makeContentBackedWorldgenR
     stone.tag_keys = {"stone_basic"};
     stone.node_kind = "Stone";
     stone.required_action_key = "gather";
-    stone.output_object_keys = {"stone_flake"};
+    stone.output_object_keys = {"loose_stone"};
     stone.charges = 2;
     profile.resource_rules.push_back(stone);
 

@@ -1,6 +1,95 @@
 #include "pathfinder/world_learning/world_knowledge_projection_bridge.h"
+#include <algorithm>
+#include <sstream>
 
 namespace pathfinder::world_learning {
+
+namespace {
+
+std::string objectName(const pathfinder::content::ContentRegistry& registry, const std::string& object_key) {
+    const auto translated = registry.translate("zh_cn", "object." + object_key + ".name");
+    return translated == "object." + object_key + ".name" ? object_key : translated;
+}
+
+int inputQuantity(const pathfinder::content::ReactionInputDto& input) {
+    return input.min > 0 ? input.min : (input.quantity > 0 ? input.quantity : 1);
+}
+
+std::string recipeText(const pathfinder::content::ContentRegistry& registry,
+                       const pathfinder::content::ReactionDefinitionContent& reaction) {
+    std::ostringstream oss;
+    for (size_t i = 0; i < reaction.inputs.size(); ++i) {
+        if (i > 0) oss << " + ";
+        const auto& input = reaction.inputs[i];
+        oss << objectName(registry, input.object_key) << "×" << inputQuantity(input);
+    }
+    return oss.str();
+}
+
+const pathfinder::content::KnowledgeTemplateContent* findTemplateForClaim(
+    const pathfinder::content::ContentRegistry& registry,
+    const pathfinder::knowledge::KnowledgeClaim& claim) {
+    for (const auto& reason_key : claim.reason_keys) {
+        if (const auto* tmpl = registry.findKnowledgeTemplate(reason_key)) return tmpl;
+    }
+    for (const auto* tmpl : registry.allKnowledgeTemplates()) {
+        if (!tmpl) continue;
+        if (tmpl->subject_object_key == claim.subject.subject_id &&
+            tmpl->action_key == claim.predicate.action_key &&
+            tmpl->effect_key == claim.predicate.effect_key) {
+            return tmpl;
+        }
+    }
+    return nullptr;
+}
+
+const pathfinder::content::ReactionDefinitionContent* findReactionForClaim(
+    const pathfinder::content::ContentRegistry& registry,
+    const pathfinder::knowledge::KnowledgeClaim& claim,
+    const pathfinder::content::KnowledgeTemplateContent* tmpl) {
+    for (const auto* reaction : registry.allReactions()) {
+        if (!reaction) continue;
+        if (tmpl) {
+            const auto& keys = reaction->knowledge_templates;
+            if (std::find(keys.begin(), keys.end(), tmpl->key.value()) != keys.end()) return reaction;
+        }
+        if (reaction->effect_key == claim.predicate.effect_key &&
+            (reaction->action_key == claim.predicate.action_key || claim.predicate.action_key == "craft")) {
+            return reaction;
+        }
+    }
+    return nullptr;
+}
+
+std::string claimSummaryText(const pathfinder::content::ContentRegistry* registry,
+                             const pathfinder::knowledge::KnowledgeClaim& claim) {
+    if (!registry) return {};
+    const auto* tmpl = findTemplateForClaim(*registry, claim);
+    if (tmpl && !tmpl->summary_key.empty()) {
+        const auto translated = registry->translate("zh_cn", tmpl->summary_key);
+        if (translated != tmpl->summary_key) return translated;
+        return tmpl->summary_key;
+    }
+    const auto subject = objectName(*registry, claim.subject.subject_id);
+    const auto action = registry->translate("zh_cn", "action." + claim.predicate.action_key + ".name");
+    const auto effect = registry->translate("zh_cn", "effect." + claim.predicate.effect_key + ".name");
+    return subject + "：" + (action.rfind("action.", 0) == 0 ? claim.predicate.action_key : action) +
+        " → " + (effect.rfind("effect.", 0) == 0 ? claim.predicate.effect_key : effect);
+}
+
+std::string claimRecipeText(const pathfinder::content::ContentRegistry* registry,
+                            const pathfinder::knowledge::KnowledgeClaim& claim) {
+    if (!registry) return {};
+    const auto* tmpl = findTemplateForClaim(*registry, claim);
+    const auto* reaction = findReactionForClaim(*registry, claim, tmpl);
+    return reaction ? recipeText(*registry, *reaction) : std::string{};
+}
+
+} // namespace
+
+WorldKnowledgeProjectionBridge::WorldKnowledgeProjectionBridge(
+    const pathfinder::content::ContentRegistry* content_registry)
+    : content_registry_(content_registry) {}
 
 WorldKnowledgeProjectionBridge::ProjectionResult
 WorldKnowledgeProjectionBridge::project(
@@ -42,6 +131,10 @@ world_command::KnowledgePatchDto WorldKnowledgeProjectionBridge::claimToPatch(
     patch.fields["usable_by_ai"] = claim.projection_flags.usable_by_ai ? "true" : "false";
     patch.fields["usable_for_action"] = claim.projection_flags.usable_for_action ? "true" : "false";
     patch.fields["confidence"] = std::to_string(claim.confidence.confidence);
+    const auto summary = claimSummaryText(content_registry_, claim);
+    if (!summary.empty()) patch.fields["summary_text"] = summary;
+    const auto recipe = claimRecipeText(content_registry_, claim);
+    if (!recipe.empty()) patch.fields["recipe_text"] = recipe;
     return patch;
 }
 

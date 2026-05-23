@@ -3,7 +3,9 @@
 #include "pathfinder/world_learning/world_learning_types.h"
 #include "pathfinder/world_command/world_command_types.h"
 #include "pathfinder/knowledge/knowledge_claim.h"
+#include "pathfinder/content/content_registry.h"
 #include "pathfinder/foundation/result.h"
+#include <string>
 #include <vector>
 
 namespace pathfinder::world_learning {
@@ -12,12 +14,15 @@ namespace pathfinder::world_learning {
 // WorldKnowledgeProjectionBridge
 // ---------------------------------------------------------------------------
 // Converts knowledge learning results into frontend-safe projection patches,
-// events, and state deltas.
-// Does not let frontend derive knowledge.
+// events, and state deltas. Human-readable summaries are derived from
+// ContentRegistry so the frontend never infers recipe or knowledge rules.
 // ---------------------------------------------------------------------------
 
 class WorldKnowledgeProjectionBridge {
 public:
+    explicit WorldKnowledgeProjectionBridge(
+        const pathfinder::content::ContentRegistry* content_registry = nullptr);
+
     struct ProjectionResult {
         world_command::WorldProjectionPatchDto patch;
         std::vector<world_command::WorldEventDto> events;
@@ -32,6 +37,8 @@ public:
         uint64_t tick) const;
 
 private:
+    const pathfinder::content::ContentRegistry* content_registry_{nullptr};
+
     world_command::KnowledgePatchDto claimToPatch(
         const pathfinder::knowledge::KnowledgeClaim& claim,
         const std::string& actor_key) const;

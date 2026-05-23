@@ -13,12 +13,20 @@ using pathfinder::world_runtime::WorldGridRuntime;
 using pathfinder::world_runtime::WorldCellVisibility;
 using pathfinder::world_command::WorldCellPatchDto;
 using pathfinder::world_command::WorldEntityPatchDto;
+using pathfinder::world_command::InventoryPatchDto;
 using pathfinder::world_command::PatchOp;
 
 ClientRuntimeProjectionBridge::ClientRuntimeProjectionBridge(
     IWorldRuntime& runtime,
     ClientRuntimeBridgeMode mode)
+    : ClientRuntimeProjectionBridge(runtime, nullptr, mode) {}
+
+ClientRuntimeProjectionBridge::ClientRuntimeProjectionBridge(
+    IWorldRuntime& runtime,
+    pathfinder::world_inventory::IInventoryRuntime* inventory_runtime,
+    ClientRuntimeBridgeMode mode)
     : runtime_(runtime)
+    , inventory_runtime_(inventory_runtime)
     , mode_(mode) {}
 
 Result<ClientRuntimeView> ClientRuntimeProjectionBridge::buildRuntimeView(
@@ -54,6 +62,11 @@ Result<ClientRuntimeView> ClientRuntimeProjectionBridge::buildRuntimeView(
     auto entities_res = buildVisibleEntities(request.actor_key, request.layer_key);
     if (entities_res.is_ok()) {
         view.visible_entities = std::move(entities_res.value());
+    }
+
+    auto inventories_res = buildVisibleInventories(request.actor_key);
+    if (inventories_res.is_ok()) {
+        view.inventories = std::move(inventories_res.value());
     }
 
     return Result<ClientRuntimeView>::ok(std::move(view));
@@ -104,16 +117,16 @@ Result<std::vector<WorldCellPatchDto>> ClientRuntimeProjectionBridge::buildVisib
     }
 
     const auto& snapshot = snap_res.value();
-    std::vector<std::string> visible_cell_ids;
+    std::vector<std::string> known_cell_ids;
 
     for (const auto& [cell_id, cell] : snapshot.cells) {
         auto visibility = grid->getCellVisibility(actor_key, cell_id);
-        if (visibility == WorldCellVisibility::Visible) {
-            visible_cell_ids.push_back(cell_id);
+        if (visibility != WorldCellVisibility::Unknown) {
+            known_cell_ids.push_back(cell_id);
         }
     }
 
-    auto patches = projection_adapter_.buildCellPatches(visible_cell_ids, actor_key, runtime_);
+    auto patches = projection_adapter_.buildCellPatches(known_cell_ids, actor_key, runtime_);
     if (patches.is_ok()) {
         return Result<std::vector<WorldCellPatchDto>>::ok(std::move(patches.value()));
     }
@@ -146,11 +159,50 @@ Result<std::vector<WorldEntityPatchDto>> ClientRuntimeProjectionBridge::buildVis
         }
     }
 
+    std::vector<WorldEntityPatchDto> result;
     auto patches = projection_adapter_.buildEntityPatches(visible_entity_ids, actor_key, runtime_);
     if (patches.is_ok()) {
-        return Result<std::vector<WorldEntityPatchDto>>::ok(std::move(patches.value()));
+        result = std::move(patches.value());
     }
-    return Result<std::vector<WorldEntityPatchDto>>::ok(std::vector<WorldEntityPatchDto>{});
+
+    for (const auto& [node_id, node] : snapshot.resource_nodes) {
+        if (node.coord.layer_key.empty()) continue;
+        if (node.remaining_charges <= 0 || node.node_state_str == "Depleted") continue;
+        auto visibility = grid->getCellVisibility(actor_key, node.coord.cellId());
+        if (visibility != WorldCellVisibility::Visible) continue;
+
+        WorldEntityPatchDto patch;
+        patch.entity_id = node.node_id;
+        patch.op = PatchOp::Update;
+        patch.fields["entity_key"] = node.resource_key;
+        patch.fields["display_name_key"] = "object." + node.resource_key + ".name";
+        patch.fields["x"] = std::to_string(node.coord.x);
+        patch.fields["y"] = std::to_string(node.coord.y);
+        patch.fields["layer_key"] = node.coord.layer_key;
+        patch.fields["resource_node"] = "true";
+        patch.fields["remaining_charges"] = std::to_string(node.remaining_charges);
+        result.push_back(std::move(patch));
+    }
+
+    return Result<std::vector<WorldEntityPatchDto>>::ok(std::move(result));
+}
+
+Result<std::vector<InventoryPatchDto>> ClientRuntimeProjectionBridge::buildVisibleInventories(
+    const std::string& actor_key) const {
+
+    if (!inventory_runtime_) {
+        return Result<std::vector<InventoryPatchDto>>::ok(std::vector<InventoryPatchDto>{});
+    }
+
+    auto inventory_res = inventory_runtime_->findActorInventory(actor_key);
+    if (inventory_res.is_error() || inventory_res.value() == nullptr) {
+        return Result<std::vector<InventoryPatchDto>>::ok(std::vector<InventoryPatchDto>{});
+    }
+
+    return inventory_projection_adapter_.buildInventoryPatches(
+        std::vector<std::string>{inventory_res.value()->inventory_id},
+        actor_key,
+        *inventory_runtime_);
 }
 
 } // namespace pathfinder::client_runtime_bridge

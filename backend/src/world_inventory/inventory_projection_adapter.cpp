@@ -41,6 +41,13 @@ std::string buildEntriesJson(const std::vector<InventoryItemEntry>& entries) {
         json << "\"entity_key\":\"" << jsonEscape(entry.entity_key) << "\",";
         json << "\"stack_key\":\"" << jsonEscape(entry.stack_key) << "\",";
         json << "\"quantity\":" << entry.quantity << ",";
+        json << "\"numeric_states\":{";
+        size_t numeric_index = 0;
+        for (const auto& [key, value] : entry.numeric_states) {
+            if (numeric_index++ > 0) json << ",";
+            json << "\"" << jsonEscape(key) << "\":" << value;
+        }
+        json << "},";
         json << "\"location_kind\":\"" << toString(InventoryLocationKind::InInventory) << "\"";
         json << "}";
     }
@@ -81,6 +88,20 @@ Result<std::vector<InventoryPatchDto>> InventoryProjectionAdapter::buildInventor
         patch.fields["capacity_slots"] = std::to_string(inv->capacity_slots);
         patch.fields["used_slots"] = std::to_string(inv->used_slots);
         patch.fields["entry_count"] = std::to_string(static_cast<int>(inv->entries.size()));
+        for (size_t index = 0; index < inv->entries.size(); ++index) {
+            const auto& entry = inv->entries[index];
+            const std::string prefix = "entry_" + std::to_string(index) + "_";
+            patch.fields[prefix + "entry_id"] = entry.entry_id;
+            patch.fields[prefix + "entity_id"] = entry.entity_id;
+            patch.fields[prefix + "entity_key"] = entry.entity_key;
+            patch.fields[prefix + "stack_key"] = entry.stack_key;
+            patch.fields[prefix + "quantity"] = std::to_string(entry.quantity);
+            patch.fields[prefix + "numeric_count"] = std::to_string(static_cast<int>(entry.numeric_states.size()));
+            for (const auto& [key, value] : entry.numeric_states) {
+                patch.fields[prefix + "numeric_" + key] = std::to_string(value);
+            }
+            patch.fields[prefix + "location_kind"] = toString(InventoryLocationKind::InInventory);
+        }
         patch.fields["entries_json"] = buildEntriesJson(inv->entries);
 
         patches.push_back(std::move(patch));

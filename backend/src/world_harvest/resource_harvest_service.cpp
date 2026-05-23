@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <cmath>
 #include <sstream>
+#include <functional>
 
 namespace pathfinder::world_harvest {
 
@@ -35,6 +36,27 @@ static bool isAdjacentOrSame(const WorldCellCoord& a, const WorldCellCoord& b) {
     int dx = std::abs(a.x - b.x);
     int dy = std::abs(a.y - b.y);
     return dx <= 1 && dy <= 1 && a.layer_key == b.layer_key;
+}
+
+static WorldCellCoord chooseHarvestOutputCoord(
+    const world_runtime::IWorldRuntime& runtime,
+    const WorldCellCoord& origin,
+    const std::string& harvest_id,
+    size_t output_index) {
+    (void)harvest_id;
+    const std::vector<std::pair<int, int>> offsets = {
+        {0, 0}, {0, 1}, {-1, 0}, {1, 0}, {0, -1}, {-1, 1}, {1, 1}, {-1, -1}, {1, -1}
+    };
+    const size_t start = offsets.empty() ? 0 : std::min(output_index, offsets.size() - 1);
+    for (size_t step = 0; step < offsets.size(); ++step) {
+        const auto& [dx, dy] = offsets[(start + step) % offsets.size()];
+        WorldCellCoord candidate{origin.x + dx, origin.y + dy, origin.layer_key};
+        auto cell_res = runtime.findCell(candidate);
+        if (cell_res.is_error()) continue;
+        if (cell_res.value()->blocks_movement) continue;
+        return candidate;
+    }
+    return origin;
 }
 
 // ---------------------------------------------------------------------------
@@ -155,31 +177,36 @@ Result<ResourceHarvestDraft> ResourceHarvestService::validate(
         }
     }
 
+    std::string selected_tool_inventory_id;
+    std::string selected_tool_entity_id;
+    std::string selected_tool_entry_id;
+
     // 9. Required tool check
     if (!node->required_tool_key.empty()) {
-        InventoryOwnerRef owner;
-        owner.owner_kind = InventoryOwnerKind::Actor;
-        owner.owner_key = request.actor_key;
-        auto items_res = inventory_runtime_.queryItems(owner, node->required_tool_key);
-        if (items_res.is_error()) {
+        auto inv_res = inventory_runtime_.findActorInventory(request.actor_key);
+        if (inv_res.is_error() || inv_res.value() == nullptr) {
             return Result<ResourceHarvestDraft>::fail(
                 makeError(ErrorCode::precondition_missing_tool,
                           toString(ResourceHarvestFailureKind::ToolMissing),
-                          "required tool query failed"));
+                          "required tool inventory missing"));
         }
-        auto items = items_res.value();
-        bool has_tool = false;
-        for (const auto& it : items) {
-            if (it.entity_key == node->required_tool_key && it.quantity > 0) {
-                has_tool = true;
-                break;
-            }
+
+        const auto* inv = inv_res.value();
+        for (const auto& entry : inv->entries) {
+            if (entry.entity_key != node->required_tool_key || entry.quantity <= 0) continue;
+            auto durability_it = entry.numeric_states.find("durability");
+            if (durability_it != entry.numeric_states.end() && durability_it->second <= 0.0) continue;
+            selected_tool_inventory_id = inv->inventory_id;
+            selected_tool_entity_id = entry.entity_id;
+            selected_tool_entry_id = entry.entry_id;
+            break;
         }
-        if (!has_tool) {
+
+        if (selected_tool_entity_id.empty()) {
             return Result<ResourceHarvestDraft>::fail(
                 makeError(ErrorCode::precondition_missing_tool,
                           toString(ResourceHarvestFailureKind::ToolMissing),
-                          "required tool missing"));
+                          "required tool missing or worn out"));
         }
     }
 
@@ -202,7 +229,7 @@ Result<ResourceHarvestDraft> ResourceHarvestService::validate(
         draft.entity_id = makeOutputEntityId(request.harvest_id, entity_key, i);
         draft.entity_key = entity_key;
         draft.display_name_key = object ? object->display_key : entity_key + "_name";
-        draft.coord = node->coord;
+        draft.coord = chooseHarvestOutputCoord(world_runtime_, actor->coord, request.harvest_id, i);
         draft.quantity = 1;
         draft.stackable = true;
         draft.stack_key = entity_key + ":harvested";
@@ -221,6 +248,9 @@ Result<ResourceHarvestDraft> ResourceHarvestService::validate(
     draft.request = request;
     draft.node_before = *node;
     draft.output_drafts = std::move(outputs);
+    draft.tool_inventory_id = std::move(selected_tool_inventory_id);
+    draft.tool_entity_id = std::move(selected_tool_entity_id);
+    draft.tool_entry_id = std::move(selected_tool_entry_id);
     draft.charges_to_consume = 1;
     draft.will_deplete = (node->remaining_charges <= 1);
     draft.changed_cell_ids.push_back(node->coord.cellId());
@@ -281,6 +311,7 @@ ResourceHarvestResult ResourceHarvestService::apply(const ResourceHarvestDraft& 
         }
 
         result.changed_entity_ids.push_back(output.entity_id);
+        result.output_drafts.push_back(output);
     }
 
     // 2. Consume charge and update node
@@ -300,6 +331,42 @@ ResourceHarvestResult ResourceHarvestService::apply(const ResourceHarvestDraft& 
 
     result.changed_resource_node_ids.push_back(updated_node.node_id);
     result.changed_cell_ids.push_back(updated_node.coord.cellId());
+    result.has_node_after = true;
+    result.node_after = updated_node;
+
+    if (!draft.tool_inventory_id.empty() && !draft.tool_entity_id.empty()) {
+        auto inv_res = inventory_runtime_.findInventory(draft.tool_inventory_id);
+        if (inv_res.is_error()) {
+            result.failure_kind = ResourceHarvestFailureKind::RuntimeConflict;
+            result.ok = false;
+            return result;
+        }
+        const auto* inv = inv_res.value();
+        for (const auto& entry : inv->entries) {
+            if (entry.entity_id != draft.tool_entity_id) continue;
+            auto durability_it = entry.numeric_states.find("durability");
+            if (durability_it == entry.numeric_states.end()) break;
+            const double next_durability = std::max(0.0, durability_it->second - 1.0);
+            auto update_tool_res = inventory_runtime_.updateItemNumericState(
+                draft.tool_inventory_id, draft.tool_entity_id, "durability", next_durability);
+            if (update_tool_res.is_error()) {
+                result.failure_kind = ResourceHarvestFailureKind::RuntimeConflict;
+                result.ok = false;
+                return result;
+            }
+            world_command::WorldStateDeltaDto tool_delta;
+            tool_delta.delta_id = draft.request.harvest_id + "_tool_durability";
+            tool_delta.delta_kind = "ToolDurabilityChanged";
+            tool_delta.target_ref = draft.tool_entity_id;
+            tool_delta.op = world_command::PatchOp::Update;
+            tool_delta.fields = {
+                { "entity_key", entry.entity_key },
+                { "durability", std::to_string(next_durability) }
+            };
+            result.state_deltas.push_back(std::move(tool_delta));
+            break;
+        }
+    }
 
     // 3. Build events
     {

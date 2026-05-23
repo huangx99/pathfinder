@@ -1,4 +1,5 @@
 #include "pathfinder/world_runtime/world_grid_runtime.h"
+#include <algorithm>
 #include <cassert>
 #include <iostream>
 
@@ -202,7 +203,11 @@ void run_visibility_update_tests() {
     assert(cell_res2.is_ok());
     assert(!cell_res2.value()->blocks_movement);
 
-    runtime.moveActor("player", step2);
+    auto move2_res = runtime.moveActor("player", step2);
+    assert(move2_res.is_ok());
+    assert(std::find(move2_res.value().changed_cell_ids.begin(),
+        move2_res.value().changed_cell_ids.end(),
+        "surface:0:0") != move2_res.value().changed_cell_ids.end());
 
     // Now origin (0,0) should be Discovered (distance=2 > vision_radius=1)
     assert(runtime.getCellVisibility("player", "surface:0:0") == WorldCellVisibility::Discovered);

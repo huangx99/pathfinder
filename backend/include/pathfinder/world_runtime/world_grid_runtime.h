@@ -32,6 +32,13 @@ public:
     // P57: Setup player actor and exploration without generating terrain.
     // Used by client_server when WorldGenerationService handles terrain.
     foundation::Result<void> setupPlayerActor(const WorldRuntimeConfig& config);
+    foundation::Result<void> spawnActor(
+        const std::string& actor_key,
+        const std::string& entity_key,
+        const std::string& display_name_key,
+        const WorldCellCoord& coord,
+        int vision_radius,
+        bool is_player_controlled = false);
     foundation::Result<MoveActorResult> moveActor(const std::string& actor_key, const WorldCellCoord& target) override;
     foundation::Result<InspectWorldResult> inspect(const std::string& actor_key, const world_command::WorldCommandTargetDto& target) const override;
     foundation::Result<AdvanceWorldTimeResult> advanceWorldTime(uint64_t tick_delta) override;

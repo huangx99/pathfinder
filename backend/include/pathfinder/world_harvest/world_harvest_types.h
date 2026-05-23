@@ -82,6 +82,9 @@ struct ResourceHarvestDraft {
     ResourceHarvestRequest request;
     world_runtime::WorldResourceNodeRuntime node_before;
     std::vector<ResourceHarvestOutputDraft> output_drafts;
+    std::string tool_inventory_id;
+    std::string tool_entity_id;
+    std::string tool_entry_id;
     int charges_to_consume = 1;
     bool will_deplete = false;
     std::vector<std::string> changed_cell_ids;
@@ -93,6 +96,9 @@ struct ResourceHarvestResult {
     std::vector<std::string> changed_cell_ids;
     std::vector<std::string> changed_entity_ids;
     std::vector<std::string> changed_resource_node_ids;
+    std::vector<ResourceHarvestOutputDraft> output_drafts;
+    bool has_node_after = false;
+    world_runtime::WorldResourceNodeRuntime node_after;
     std::vector<world_command::WorldStateDeltaDto> state_deltas;
     std::vector<world_command::WorldEventDto> events;
 };

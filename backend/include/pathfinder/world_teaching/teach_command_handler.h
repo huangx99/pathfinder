@@ -4,6 +4,7 @@
 #include "pathfinder/world_command/world_command_types.h"
 #include "pathfinder/knowledge/knowledge_repository.h"
 #include "pathfinder/world_teaching/iworld_actor_query_port.h"
+#include "pathfinder/content/content_registry.h"
 #include <memory>
 
 namespace pathfinder::world_teaching {
@@ -19,7 +20,8 @@ class TeachCommandHandler : public world_command::IWorldCommandHandler {
 public:
     TeachCommandHandler(
         pathfinder::knowledge::KnowledgeRepository& repository,
-        std::unique_ptr<IWorldActorQueryPort> actor_query_port);
+        std::unique_ptr<IWorldActorQueryPort> actor_query_port,
+        const pathfinder::content::ContentRegistry* content_registry = nullptr);
 
     world_command::WorldCommandKind kind() const override;
 
@@ -30,10 +32,12 @@ public:
 private:
     pathfinder::knowledge::KnowledgeRepository& repository_;
     std::unique_ptr<IWorldActorQueryPort> actor_query_port_;
+    const pathfinder::content::ContentRegistry* content_registry_{nullptr};
 };
 
 std::shared_ptr<world_command::IWorldCommandHandler> createTeachCommandHandler(
     pathfinder::knowledge::KnowledgeRepository& repository,
-    std::unique_ptr<IWorldActorQueryPort> actor_query_port);
+    std::unique_ptr<IWorldActorQueryPort> actor_query_port,
+        const pathfinder::content::ContentRegistry* content_registry = nullptr);
 
 } // namespace pathfinder::world_teaching

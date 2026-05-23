@@ -35,6 +35,16 @@ static std::shared_ptr<ContentRegistry> makeTestContentRegistry(
     fire_obj.display_key = "entity.camp_fire";
     draft.addObject(std::move(fire_obj));
 
+    ObjectDefinitionContent loose_stone_obj;
+    loose_stone_obj.key = ObjectDefinitionKey("loose_stone");
+    loose_stone_obj.display_key = "entity.loose_stone";
+    draft.addObject(std::move(loose_stone_obj));
+
+    ObjectDefinitionContent axe_obj;
+    axe_obj.key = ObjectDefinitionKey("axe");
+    axe_obj.display_key = "entity.axe";
+    draft.addObject(std::move(axe_obj));
+
     draft.addReaction(reaction);
     return ContentRegistry::build(draft);
 }
@@ -59,6 +69,27 @@ static ReactionDefinitionContent makeTorchReaction(int wood_min = 1, int wood_co
     return reaction;
 }
 
+static ReactionDefinitionContent makeAxeReaction() {
+    ReactionDefinitionContent reaction;
+    reaction.key = ReactionDefinitionKey("loose_stone_plus_wood_make_axe");
+    reaction.inputs = {
+        ReactionInputDto{"loose_stone", "", 1, 0},
+        ReactionInputDto{"wood", "", 1, 0}
+    };
+    reaction.action_key = "craft";
+    reaction.effect_key = "make_axe";
+    reaction.outputs = {
+        ReactionOutputDto{"axe", 1}
+    };
+    reaction.consume = {
+        ReactionConsumeDto{"loose_stone", "", -1},
+        ReactionConsumeDto{"wood", "", -1}
+    };
+    reaction.summary_key = "reaction.make_axe.summary";
+    reaction.knowledge_templates = {"knowledge_make_axe"};
+    return reaction;
+}
+
 static void addProcessedWoodToInventory(WorldInventoryRuntime& inv, const std::string& actor_key, int quantity) {
     InventoryTransferRequest req;
     req.transfer_id = "setup_wood";
@@ -68,6 +99,17 @@ static void addProcessedWoodToInventory(WorldInventoryRuntime& inv, const std::s
     req.quantity = quantity;
     req.parameters["stack_key"] = "wood:processed";
     req.parameters["state_keys"] = "processed";
+    auto res = inv.transfer(req);
+    assert(res.is_ok() && res.value().ok);
+}
+
+static void addItemToInventory(WorldInventoryRuntime& inv, const std::string& actor_key, const std::string& entity_key, int quantity) {
+    InventoryTransferRequest req;
+    req.transfer_id = "setup_" + entity_key;
+    req.transfer_kind = InventoryTransferKind::SpawnToInventory;
+    req.actor_key = actor_key;
+    req.entity_key = entity_key;
+    req.quantity = quantity;
     auto res = inv.transfer(req);
     assert(res.is_ok() && res.value().ok);
 }
@@ -161,6 +203,57 @@ void run_world_reaction_apply_craft_torch_to_inventory_tests() {
     assert(result.value().experiences[0].effect_key == "make_torch");
 
     std::cout << "world_reaction_apply_craft_torch_to_inventory: passed" << std::endl;
+}
+
+// ---------------------------------------------------------------------------
+// Apply craft axe to inventory
+// ---------------------------------------------------------------------------
+
+void run_world_reaction_apply_craft_axe_to_inventory_tests() {
+    WorldRuntimeConfig config;
+    config.seed = 42;
+    config.region_size = 9;
+    config.initial_region_radius = 0;
+    config.default_vision_radius = 3;
+
+    WorldGridRuntime world_runtime;
+    world_runtime.initialize(config);
+    world_runtime.generateInitialWorld(config);
+
+    WorldInventoryRuntime inventory_runtime(world_runtime);
+    inventory_runtime.initialize();
+
+    auto registry = makeTestContentRegistry(makeAxeReaction());
+    WorldReactionService service(*registry, world_runtime, inventory_runtime, world_runtime);
+
+    addItemToInventory(inventory_runtime, "player", "loose_stone", 1);
+    addItemToInventory(inventory_runtime, "player", "wood", 1);
+
+    WorldReactionRequest req;
+    req.reaction_command_id = "cmd_axe";
+    req.actor_key = "player";
+    req.reaction_key = "loose_stone_plus_wood_make_axe";
+    req.action_kind = WorldReactionActionKind::Craft;
+    req.output_location_policy = WorldReactionOutputLocationPolicy::ActorInventory;
+
+    auto result = service.execute(req);
+    assert(result.is_ok());
+    assert(result.value().ok);
+
+    InventoryOwnerRef owner;
+    owner.owner_kind = InventoryOwnerKind::Actor;
+    owner.owner_key = "player";
+    assert(inventory_runtime.queryItems(owner, "loose_stone").value().empty());
+    assert(inventory_runtime.queryItems(owner, "wood").value().empty());
+    auto axes = inventory_runtime.queryItems(owner, "axe").value();
+    assert(axes.size() == 1);
+    assert(axes[0].quantity == 1);
+
+    assert(!result.value().experiences.empty());
+    assert(result.value().experiences[0].subject_entity_key == "axe");
+    assert(result.value().experiences[0].effect_key == "make_axe");
+
+    std::cout << "world_reaction_apply_craft_axe_to_inventory: passed" << std::endl;
 }
 
 // ---------------------------------------------------------------------------

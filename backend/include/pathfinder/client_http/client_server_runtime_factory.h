@@ -14,6 +14,10 @@
 #include "pathfinder/world_runtime/world_grid_runtime.h"
 #include "pathfinder/world_inventory/world_inventory_runtime.h"
 #include "pathfinder/world_harvest/resource_harvest_service.h"
+#include "pathfinder/world_reaction/world_reaction_service.h"
+#include "pathfinder/world_learning/world_knowledge_learning_service.h"
+#include "pathfinder/learning/learning_loop.h"
+#include "pathfinder/knowledge/knowledge_repository.h"
 #include "pathfinder/world_region_state/in_memory_world_region_state_store.h"
 #include "pathfinder/world_region_state/world_grid_runtime_apply_port.h"
 #include "pathfinder/world_region_state/world_region_lifecycle_service.h"
@@ -49,6 +53,10 @@ struct ClientServerRuntimeFactory {
     // ------------------------------------------------------------------------
     std::shared_ptr<pathfinder::world_inventory::WorldInventoryRuntime> inventory_runtime;
     std::shared_ptr<pathfinder::world_harvest::ResourceHarvestService> harvest_service;
+    std::shared_ptr<pathfinder::world_reaction::WorldReactionService> reaction_service;
+    std::shared_ptr<pathfinder::learning::LearningLoopService> learning_service;
+    std::shared_ptr<pathfinder::knowledge::KnowledgeRepository> knowledge_repository;
+    std::shared_ptr<pathfinder::world_learning::WorldKnowledgeLearningService> knowledge_learning_service;
 
     // ------------------------------------------------------------------------
     // 3. P58: Region ensure infrastructure

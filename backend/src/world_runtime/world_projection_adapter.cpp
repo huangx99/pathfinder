@@ -124,6 +124,15 @@ Result<std::vector<world_command::WorldEntityPatchDto>> WorldProjectionAdapter::
         patch.fields["location_kind"] = toString(entity->location_kind);
         patch.fields["visible"] = entity->visible_by_default ? "true" : "false";
         patch.fields["blocks_movement"] = entity->blocks_movement ? "true" : "false";
+        auto snap_res = runtime.snapshotForDebug();
+        if (snap_res.is_ok()) {
+            for (const auto& [actor_key, actor] : snap_res.value().actors) {
+                if (actor.entity_id == entity->entity_id) {
+                    patch.fields["actor_key"] = actor_key;
+                    break;
+                }
+            }
+        }
 
         std::string tags;
         for (const auto& tag : entity->tag_keys) {

@@ -25,13 +25,24 @@
     {
       "knowledge_key": "knowledge_make_torch",
       "subject_object_key": "wood",
-      "action_key": "use",
+      "action_key": "craft",
       "effect_key": "make_torch",
       "target_object_key": "camp_fire",
       "default_status": "hypothesis",
       "teachable": true,
       "usable_by_ai": true,
       "summary_key": "knowledge.make_torch"
+    },
+    {
+      "knowledge_key": "knowledge_make_axe",
+      "subject_object_key": "axe",
+      "action_key": "craft",
+      "effect_key": "make_axe",
+      "target_object_key": "",
+      "default_status": "hypothesis",
+      "teachable": true,
+      "usable_by_ai": true,
+      "summary_key": "knowledge.make_axe"
     }
   ]
 }

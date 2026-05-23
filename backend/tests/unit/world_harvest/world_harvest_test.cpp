@@ -5,6 +5,7 @@
 #include "pathfinder/world_inventory/world_inventory_runtime.h"
 #include <cassert>
 #include <iostream>
+#include <cmath>
 
 using namespace pathfinder::world_harvest;
 using namespace pathfinder::world_runtime;
@@ -59,8 +60,11 @@ static WorldResourceNodeRuntime makeNode(
     return node;
 }
 
-static void addToolToActor(const std::string& actor_key, const std::string& tool_key) {
-    // Spawn tool on map at actor coord, then pickup
+static void addToolToActorWithNumeric(
+    const std::string& actor_key,
+    const std::string& tool_key,
+    const std::map<std::string, double>& numeric_states) {
+    // Spawn tool on map at actor coord, then pickup through the inventory pipeline.
     auto actor_res = g_world_runtime->findActor(actor_key);
     assert(actor_res.is_ok());
     auto coord = actor_res.value()->coord;
@@ -68,7 +72,7 @@ static void addToolToActor(const std::string& actor_key, const std::string& tool
     std::string tool_entity_id = actor_key + "_" + tool_key;
     auto spawn_res = g_world_runtime->spawnEntityOnMap(
         tool_entity_id, tool_key, tool_key + "_name", coord,
-        1, tool_key + ":default", true, {}, {}, {});
+        1, tool_key + ":default", true, {}, numeric_states, {});
     assert(spawn_res.is_ok());
 
     InventoryTransferRequest req;
@@ -80,6 +84,10 @@ static void addToolToActor(const std::string& actor_key, const std::string& tool
     auto transfer_res = g_inventory_runtime->transfer(req);
     assert(transfer_res.is_ok());
     assert(transfer_res.value().ok);
+}
+
+static void addToolToActor(const std::string& actor_key, const std::string& tool_key) {
+    addToolToActorWithNumeric(actor_key, tool_key, {});
 }
 
 // ---------------------------------------------------------------------------
@@ -287,6 +295,48 @@ void run_world_harvest_validate_tool_present_tests() {
     assert(result.ok);
 
     std::cout << "world_harvest_validate_tool_present: passed" << std::endl;
+}
+
+void run_world_harvest_tool_durability_decrements_tests() {
+    setupTestEnv();
+    auto node = makeNode("node1", WorldCellCoord{0, 1, "surface"}, "chop", 3, "stone_axe", {"wood"});
+    g_world_runtime->upsertGeneratedResourceNode(node);
+    addToolToActorWithNumeric("player", "stone_axe", {{"durability", 2}, {"max_durability", 2}});
+
+    ResourceHarvestRequest req;
+    req.harvest_id = "h1";
+    req.actor_key = "player";
+    req.node_id = "node1";
+    req.harvest_kind = ResourceHarvestKind::Chop;
+
+    auto result = g_service->execute(req);
+    assert(result.ok);
+
+    InventoryOwnerRef owner{InventoryOwnerKind::Actor, "player"};
+    auto tools = g_inventory_runtime->queryItems(owner, "stone_axe").value();
+    assert(tools.size() == 1);
+    assert(tools[0].numeric_states.at("durability") == 1);
+
+    std::cout << "world_harvest_tool_durability_decrements: passed" << std::endl;
+}
+
+void run_world_harvest_worn_out_tool_rejected_tests() {
+    setupTestEnv();
+    auto node = makeNode("node1", WorldCellCoord{0, 1, "surface"}, "chop", 3, "stone_axe", {"wood"});
+    g_world_runtime->upsertGeneratedResourceNode(node);
+    addToolToActorWithNumeric("player", "stone_axe", {{"durability", 0}, {"max_durability", 2}});
+
+    ResourceHarvestRequest req;
+    req.harvest_id = "h1";
+    req.actor_key = "player";
+    req.node_id = "node1";
+    req.harvest_kind = ResourceHarvestKind::Chop;
+
+    auto result = g_service->execute(req);
+    assert(!result.ok);
+    assert(result.failure_kind == ResourceHarvestFailureKind::ToolMissing);
+
+    std::cout << "world_harvest_worn_out_tool_rejected: passed" << std::endl;
 }
 
 // ---------------------------------------------------------------------------
@@ -515,7 +565,11 @@ void run_world_harvest_output_cell_contains_entity_id_tests() {
     auto result = g_service->execute(req);
     assert(result.ok);
 
-    auto cell_res = g_world_runtime->findCell(WorldCellCoord{0, 1, "surface"});
+    auto entity_res = g_world_runtime->findEntity(result.changed_entity_ids[0]);
+    assert(entity_res.is_ok());
+    assert(entity_res.value()->coord.has_value());
+
+    auto cell_res = g_world_runtime->findCell(*entity_res.value()->coord);
     assert(cell_res.is_ok());
     const auto* cell = cell_res.value();
     bool found = false;
@@ -526,6 +580,10 @@ void run_world_harvest_output_cell_contains_entity_id_tests() {
         }
     }
     assert(found);
+
+    const auto& output_coord = *entity_res.value()->coord;
+    assert(std::abs(output_coord.x - node.coord.x) <= 1);
+    assert(std::abs(output_coord.y - node.coord.y) <= 1);
 
     std::cout << "world_harvest_output_cell_contains_entity_id: passed" << std::endl;
 }
@@ -544,6 +602,21 @@ void run_world_harvest_output_can_be_picked_up_by_p45_pickup_tests() {
     auto result = g_service->execute(req);
     assert(result.ok);
     std::string output_id = result.changed_entity_ids[0];
+    auto entity_res = g_world_runtime->findEntity(output_id);
+    assert(entity_res.is_ok());
+    assert(entity_res.value()->coord.has_value());
+    auto move_res = g_world_runtime->moveActor("player", node.coord);
+    assert(move_res.is_ok());
+    assert(move_res.value().moved);
+    const auto output_coord = *entity_res.value()->coord;
+    const int output_dx = std::abs(output_coord.x - node.coord.x);
+    const int output_dy = std::abs(output_coord.y - node.coord.y);
+    if (output_dx == 1 && output_dy == 1) {
+        WorldCellCoord pickup_coord{output_coord.x, node.coord.y, node.coord.layer_key};
+        auto bridge_move_res = g_world_runtime->moveActor("player", pickup_coord);
+        assert(bridge_move_res.is_ok());
+        assert(bridge_move_res.value().moved);
+    }
 
     // Pickup via P45
     InventoryTransferRequest pickup_req;

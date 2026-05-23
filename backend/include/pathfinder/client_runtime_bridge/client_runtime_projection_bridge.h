@@ -3,6 +3,8 @@
 #include "pathfinder/client_runtime_bridge/client_runtime_bridge_port.h"
 #include "pathfinder/world_runtime/iworld_runtime.h"
 #include "pathfinder/world_runtime/world_projection_adapter.h"
+#include "pathfinder/world_inventory/inventory_projection_adapter.h"
+#include "pathfinder/world_inventory/iworld_inventory.h"
 
 namespace pathfinder::client_runtime_bridge {
 
@@ -19,6 +21,11 @@ public:
         pathfinder::world_runtime::IWorldRuntime& runtime,
         ClientRuntimeBridgeMode mode = ClientRuntimeBridgeMode::RuntimeBacked);
 
+    ClientRuntimeProjectionBridge(
+        pathfinder::world_runtime::IWorldRuntime& runtime,
+        pathfinder::world_inventory::IInventoryRuntime* inventory_runtime,
+        ClientRuntimeBridgeMode mode = ClientRuntimeBridgeMode::RuntimeBacked);
+
     pathfinder::foundation::Result<ClientRuntimeView> buildRuntimeView(
         const ClientRuntimeViewRequest& request) const override;
 
@@ -31,7 +38,9 @@ public:
 
 private:
     pathfinder::world_runtime::IWorldRuntime& runtime_;
+    pathfinder::world_inventory::IInventoryRuntime* inventory_runtime_{nullptr};
     pathfinder::world_runtime::WorldProjectionAdapter projection_adapter_;
+    pathfinder::world_inventory::InventoryProjectionAdapter inventory_projection_adapter_;
     ClientRuntimeBridgeMode mode_;
 
     pathfinder::foundation::Result<std::vector<pathfinder::world_command::WorldCellPatchDto>> buildVisibleCells(
@@ -41,6 +50,9 @@ private:
     pathfinder::foundation::Result<std::vector<pathfinder::world_command::WorldEntityPatchDto>> buildVisibleEntities(
         const std::string& actor_key,
         const std::string& layer_key) const;
+
+    pathfinder::foundation::Result<std::vector<pathfinder::world_command::InventoryPatchDto>> buildVisibleInventories(
+        const std::string& actor_key) const;
 };
 
 } // namespace pathfinder::client_runtime_bridge

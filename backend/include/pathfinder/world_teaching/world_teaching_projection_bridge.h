@@ -3,6 +3,7 @@
 #include "pathfinder/world_teaching/world_teaching_types.h"
 #include "pathfinder/world_command/world_command_types.h"
 #include "pathfinder/knowledge/knowledge_claim.h"
+#include "pathfinder/content/content_registry.h"
 #include <vector>
 #include <string>
 
@@ -17,6 +18,8 @@ namespace pathfinder::world_teaching {
 
 class WorldTeachingProjectionBridge {
 public:
+    explicit WorldTeachingProjectionBridge(
+        const pathfinder::content::ContentRegistry* content_registry = nullptr);
     struct ProjectionResult {
         world_command::WorldProjectionPatchDto patch;
         std::vector<world_command::WorldEventDto> events;
@@ -34,6 +37,8 @@ public:
         uint64_t tick) const;
 
 private:
+    const pathfinder::content::ContentRegistry* content_registry_{nullptr};
+
     world_command::KnowledgePatchDto claimToPatch(
         const pathfinder::knowledge::KnowledgeClaim& claim,
         const std::string& recipient_actor_key) const;

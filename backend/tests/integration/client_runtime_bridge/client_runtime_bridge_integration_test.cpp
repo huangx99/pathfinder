@@ -1,13 +1,18 @@
 #include <cassert>
 #include <iostream>
+#include <functional>
+#include <map>
+#include <vector>
 #include "pathfinder/client_http/client_server_runtime_factory.h"
 #include "pathfinder/client_protocol/client_protocol_harness.h"
 #include "pathfinder/world_command/world_command_types.h"
+#include "pathfinder/world_inventory/world_inventory_types.h"
 
 using namespace pathfinder::client_http;
 using namespace pathfinder::client_protocol;
 using namespace pathfinder::world_command;
 using namespace pathfinder::foundation;
+using namespace pathfinder::world_inventory;
 
 // ---------------------------------------------------------------------------
 // Helper: create a fully wired factory with runtime-backed bridge.
@@ -19,6 +24,99 @@ struct RuntimeBackedFixture {
     RuntimeBackedFixture()
         : harness(factory.session_gateway, factory.command_gateway, factory.codec) {}
 };
+
+static std::string joinStringsForTest(const std::vector<std::string>& values) {
+    std::string out;
+    for (size_t i = 0; i < values.size(); ++i) {
+        if (i > 0) out += ",";
+        out += values[i];
+    }
+    return out;
+}
+
+static std::string numericStatesForTest(const std::map<std::string, double>& values) {
+    std::string out;
+    for (const auto& [key, value] : values) {
+        if (!out.empty()) out += ",";
+        out += key + "=" + std::to_string(value);
+    }
+    return out;
+}
+
+static void addContentParams(RuntimeBackedFixture& f,
+                             InventoryTransferRequest& req,
+                             const std::string& object_key,
+                             const std::string& stack_suffix = "test") {
+    req.parameters["stack_key"] = object_key + ":" + stack_suffix;
+    req.parameters["stackable"] = "true";
+    const auto* object = f.factory.content_registry->findObject(object_key);
+    if (!object) return;
+    req.parameters["display_name_key"] = object->display_key;
+    req.parameters["tag_keys"] = joinStringsForTest(object->safe_tags);
+    req.parameters["numeric_states"] = numericStatesForTest(object->default_numeric);
+}
+
+static void spawnInventoryItem(RuntimeBackedFixture& f,
+                               const std::string& actor_key,
+                               const std::string& object_key,
+                               int quantity,
+                               const std::string& transfer_id) {
+    InventoryTransferRequest req;
+    req.transfer_id = transfer_id;
+    req.transfer_kind = InventoryTransferKind::SpawnToInventory;
+    req.actor_key = actor_key;
+    req.entity_key = object_key;
+    req.quantity = quantity;
+    addContentParams(f, req, object_key, transfer_id);
+    auto res = f.factory.inventory_runtime->transfer(req);
+    assert(res.is_ok());
+    assert(res.value().ok);
+}
+
+static void spawnMapItem(RuntimeBackedFixture& f,
+                         const std::string& entity_id,
+                         const std::string& object_key,
+                         const pathfinder::world_runtime::WorldCellCoord& coord,
+                         int quantity = 1) {
+    const auto* object = f.factory.content_registry->findObject(object_key);
+    assert(object != nullptr);
+    auto res = f.factory.world_runtime->spawnEntityOnMap(
+        entity_id,
+        object_key,
+        object->display_key,
+        coord,
+        quantity,
+        object_key + ":" + entity_id,
+        true,
+        {},
+        object->default_numeric,
+        object->safe_tags);
+    assert(res.is_ok());
+}
+
+static int inventoryQuantity(RuntimeBackedFixture& f,
+                             const std::string& actor_key,
+                             const std::string& object_key) {
+    InventoryOwnerRef owner{InventoryOwnerKind::Actor, actor_key};
+    auto items = f.factory.inventory_runtime->queryItems(owner, object_key);
+    assert(items.is_ok());
+    int total = 0;
+    for (const auto& item : items.value()) total += item.quantity;
+    return total;
+}
+
+static const WorldCommandOptionDto* findOption(
+    const std::vector<WorldCommandOptionDto>& options,
+    const std::function<bool(const WorldCommandOptionDto&)>& predicate) {
+    for (const auto& option : options) {
+        if (predicate(option)) return &option;
+    }
+    return nullptr;
+}
+
+static bool entityExists(RuntimeBackedFixture& f, const std::string& entity_id) {
+    return f.factory.world_runtime->findEntity(entity_id).is_ok();
+}
 
 // ---------------------------------------------------------------------------
 // Bootstrap returns non-empty visible_cells
@@ -444,6 +542,164 @@ void run_negative_cross_region_move_tests() {
     std::cout << "client_runtime_bridge_negative_cross_region_move_tests: all passed" << std::endl;
 }
 
+
+// ---------------------------------------------------------------------------
+// NPC work order: player learns a recipe, teaches NPC, NPC gathers map inputs,
+// crafts through Command/Reaction, and delivers the output to the player.
+// ---------------------------------------------------------------------------
+void run_npc_order_crafts_axe_after_teaching_tests() {
+    RuntimeBackedFixture f;
+
+    auto boot = f.harness.fakeBootstrap("client_1", "session_npc_axe", "player");
+    assert(boot.is_ok());
+    uint64_t version = boot.value().projection_version;
+
+    std::vector<WorldCommandOptionDto> commands = boot.value().available_commands;
+    for (int attempt = 0; attempt < 3; ++attempt) {
+        spawnInventoryItem(f, "player", "loose_stone", 1, "player_stone_for_axe_learning_" + std::to_string(attempt));
+        spawnInventoryItem(f, "player", "wood", 1, "player_wood_for_axe_learning_" + std::to_string(attempt));
+
+        auto refresh = f.harness.fakeRefresh("session_npc_axe", "client_1", version);
+        assert(refresh.is_ok());
+        version = refresh.value().projection_version;
+        commands = refresh.value().available_commands;
+
+        const auto* craft_axe = findOption(commands, [](const auto& option) {
+            return option.command_kind == WorldCommandKind::Craft &&
+                   option.target.recipe_key == "loose_stone_plus_wood_make_axe" &&
+                   option.label_text.find("原料") != std::string::npos &&
+                   option.label_text.find("碎石") != std::string::npos &&
+                   option.label_text.find("木头") != std::string::npos;
+        });
+        assert(craft_axe != nullptr);
+
+        auto craft = f.harness.fakeSubmitOption("session_npc_axe", "client_1", static_cast<uint64_t>(attempt + 1), version, craft_axe->option_id);
+        assert(craft.is_ok());
+        assert(craft.value().result.result_kind == WorldCommandResultKind::Succeeded);
+        version = craft.value().new_projection_version;
+        commands = craft.value().available_commands;
+    }
+    const int player_axe_after_learning = inventoryQuantity(f, "player", "axe");
+    assert(player_axe_after_learning >= 3);
+
+    const auto* teach_axe = findOption(commands, [](const auto& option) {
+        return option.command_kind == WorldCommandKind::Teach &&
+               option.target.target_actor_key == "companion" &&
+               option.label_text.find("斧头") != std::string::npos;
+    });
+    assert(teach_axe != nullptr);
+
+    auto teach = f.harness.fakeSubmitOption("session_npc_axe", "client_1", 4, version, teach_axe->option_id);
+    assert(teach.is_ok());
+    assert(teach.value().result.result_kind == WorldCommandResultKind::Succeeded);
+    version = teach.value().new_projection_version;
+
+    spawnMapItem(f, "npc_test_stone_for_axe", "loose_stone", {1, 1, "surface"});
+    spawnMapItem(f, "npc_test_wood_for_axe", "wood", {2, 1, "surface"});
+
+    auto order_refresh = f.harness.fakeRefresh("session_npc_axe", "client_1", version);
+    assert(order_refresh.is_ok());
+    version = order_refresh.value().projection_version;
+
+    const auto* order_axe = findOption(order_refresh.value().available_commands, [](const auto& option) {
+        return option.command_kind == WorldCommandKind::Use &&
+               option.command_key == "order_actor_craft" &&
+               option.target.target_actor_key == "companion" &&
+               option.target.recipe_key == "loose_stone_plus_wood_make_axe" &&
+               option.label_text.find("原料") != std::string::npos;
+    });
+    assert(order_axe != nullptr);
+
+    auto order = f.harness.fakeSubmitOption("session_npc_axe", "client_1", 5, version, order_axe->option_id);
+    assert(order.is_ok());
+    assert(order.value().result.result_kind == WorldCommandResultKind::Succeeded);
+    assert(inventoryQuantity(f, "player", "axe") > player_axe_after_learning);
+
+    std::cout << "client_runtime_bridge_npc_order_crafts_axe_after_teaching_tests: all passed" << std::endl;
+}
+
+// ---------------------------------------------------------------------------
+// NPC work order: taught torch knowledge lets NPC craft a fire tool and counter
+// a nearby predator through backend command handling, not frontend rules.
+// ---------------------------------------------------------------------------
+void run_npc_order_torch_counters_threat_after_teaching_tests() {
+    RuntimeBackedFixture f;
+
+    auto boot = f.harness.fakeBootstrap("client_1", "session_npc_torch", "player");
+    assert(boot.is_ok());
+    uint64_t version = boot.value().projection_version;
+
+    spawnMapItem(f, "npc_test_learning_camp_fire", "camp_fire", {0, 1, "surface"});
+
+    std::vector<WorldCommandOptionDto> commands = boot.value().available_commands;
+    for (int attempt = 0; attempt < 3; ++attempt) {
+        spawnInventoryItem(f, "player", "wood", 1, "player_wood_for_torch_learning_" + std::to_string(attempt));
+
+        auto refresh = f.harness.fakeRefresh("session_npc_torch", "client_1", version);
+        assert(refresh.is_ok());
+        version = refresh.value().projection_version;
+        commands = refresh.value().available_commands;
+
+        const auto* craft_torch = findOption(commands, [](const auto& option) {
+            return option.command_kind == WorldCommandKind::Craft &&
+                   option.target.recipe_key == "wood_plus_fire_make_torch" &&
+                   option.label_text.find("原料") != std::string::npos &&
+                   option.label_text.find("篝火") != std::string::npos;
+        });
+        assert(craft_torch != nullptr);
+
+        auto craft = f.harness.fakeSubmitOption("session_npc_torch", "client_1", static_cast<uint64_t>(attempt + 1), version, craft_torch->option_id);
+        assert(craft.is_ok());
+        assert(craft.value().result.result_kind == WorldCommandResultKind::Succeeded);
+        version = craft.value().new_projection_version;
+        commands = craft.value().available_commands;
+    }
+
+    const auto* teach_torch = findOption(commands, [](const auto& option) {
+        return option.command_kind == WorldCommandKind::Teach &&
+               option.target.target_actor_key == "companion" &&
+               option.label_text.find("火把") != std::string::npos;
+    });
+    assert(teach_torch != nullptr);
+
+    auto teach = f.harness.fakeSubmitOption("session_npc_torch", "client_1", 4, version, teach_torch->option_id);
+    assert(teach.is_ok());
+    assert(teach.value().result.result_kind == WorldCommandResultKind::Succeeded);
+    version = teach.value().new_projection_version;
+
+    spawnMapItem(f, "npc_test_wood_for_torch", "wood", {1, 1, "surface"});
+    assert(entityExists(f, "scenario_beast_shadow"));
+
+    auto order_refresh = f.harness.fakeRefresh("session_npc_torch", "client_1", version);
+    assert(order_refresh.is_ok());
+    version = order_refresh.value().projection_version;
+
+    const auto* order_torch = findOption(order_refresh.value().available_commands, [](const auto& option) {
+        return option.command_kind == WorldCommandKind::Use &&
+               option.command_key == "order_actor_craft" &&
+               option.target.target_actor_key == "companion" &&
+               option.target.recipe_key == "wood_plus_fire_make_torch";
+    });
+    assert(order_torch != nullptr);
+
+    auto order = f.harness.fakeSubmitOption("session_npc_torch", "client_1", 5, version, order_torch->option_id);
+    assert(order.is_ok());
+    assert(order.value().result.result_kind == WorldCommandResultKind::Succeeded);
+    assert(inventoryQuantity(f, "player", "torch") >= 1);
+    assert(!entityExists(f, "scenario_beast_shadow"));
+
+    bool has_counter_event = false;
+    for (const auto& event : order.value().event_feed) {
+        if (event.event_kind == "NpcCounteredThreat") {
+            has_counter_event = true;
+            break;
+        }
+    }
+    assert(has_counter_event);
+
+    std::cout << "client_runtime_bridge_npc_order_torch_counters_threat_after_teaching_tests: all passed" << std::endl;
+}
+
 // ---------------------------------------------------------------------------
 // main
 // ---------------------------------------------------------------------------
@@ -463,6 +719,8 @@ int main(int argc, char* argv[]) {
         run_refresh_after_move_tests();
         run_cross_region_move_tests();
         run_negative_cross_region_move_tests();
+        run_npc_order_crafts_axe_after_teaching_tests();
+        run_npc_order_torch_counters_threat_after_teaching_tests();
         return 0;
     }
 
@@ -481,6 +739,8 @@ int main(int argc, char* argv[]) {
     else if (test_name == "refresh_after_move") run_refresh_after_move_tests();
     else if (test_name == "cross_region_move") run_cross_region_move_tests();
     else if (test_name == "negative_cross_region_move") run_negative_cross_region_move_tests();
+    else if (test_name == "npc_order_crafts_axe_after_teaching") run_npc_order_crafts_axe_after_teaching_tests();
+    else if (test_name == "npc_order_torch_counters_threat_after_teaching") run_npc_order_torch_counters_threat_after_teaching_tests();
     else {
         std::cerr << "Unknown test: " << test_name << std::endl;
         return 1;

@@ -15,7 +15,7 @@ WorldKnowledgeLearningService::WorldKnowledgeLearningService(
       feedback_builder_(),
       loop_bridge_(learning_service, options),
       store_port_(knowledge_repository),
-      projection_bridge_() {}
+      projection_bridge_(&content_registry) {}
 
 pathfinder::foundation::Result<WorldKnowledgeLearningResult>
 WorldKnowledgeLearningService::learnFromCommandResult(
@@ -264,11 +264,26 @@ WorldKnowledgeLearningService::processExperience(
         single_result.drafts.push_back(draft);
         single_result.learning_results.push_back(loop_res.loop_result);
 
-        std::vector<pathfinder::knowledge::KnowledgeClaim> new_claims;
-        auto contains_claim = [](const std::vector<pathfinder::knowledge::KnowledgeClaim>& claims,
-                                 const pathfinder::foundation::KnowledgeId& id) {
-            return std::any_of(claims.begin(), claims.end(),
+        std::vector<pathfinder::knowledge::KnowledgeClaim> changed_claims;
+        auto find_claim = [](const std::vector<pathfinder::knowledge::KnowledgeClaim>& claims,
+                             const pathfinder::foundation::KnowledgeId& id) -> const pathfinder::knowledge::KnowledgeClaim* {
+            auto it = std::find_if(claims.begin(), claims.end(),
                 [&](const auto& claim) { return claim.knowledge_id.value() == id.value(); });
+            return it == claims.end() ? nullptr : &(*it);
+        };
+        auto contains_changed_claim = [&](const pathfinder::foundation::KnowledgeId& id) {
+            return find_claim(changed_claims, id) != nullptr;
+        };
+        auto materially_changed = [&](const pathfinder::knowledge::KnowledgeClaim& claim) {
+            const auto* existing = find_claim(request.existing_actor_claims, claim.knowledge_id);
+            if (!existing) return true;
+            return existing->status != claim.status ||
+                   existing->confidence.support_count != claim.confidence.support_count ||
+                   existing->confidence.source_summary_count != claim.confidence.source_summary_count ||
+                   existing->projection_flags.usable_for_action != claim.projection_flags.usable_for_action ||
+                   existing->projection_flags.usable_for_teaching != claim.projection_flags.usable_for_teaching ||
+                   existing->teaching_profile.teachable != claim.teaching_profile.teachable ||
+                   existing->reason_keys != claim.reason_keys;
         };
 
         pathfinder::learning::LearningLoopApplier applier;
@@ -276,9 +291,8 @@ WorldKnowledgeLearningService::processExperience(
             request.existing_actor_claims, loop_res.loop_result);
         if (apply_res.is_ok()) {
             for (const auto& claim : apply_res.value()) {
-                if (!contains_claim(request.existing_actor_claims, claim.knowledge_id) &&
-                    !contains_claim(new_claims, claim.knowledge_id)) {
-                    new_claims.push_back(claim);
+                if (materially_changed(claim) && !contains_changed_claim(claim.knowledge_id)) {
+                    changed_claims.push_back(claim);
                 }
             }
         }
@@ -286,13 +300,13 @@ WorldKnowledgeLearningService::processExperience(
         if (loop_res.loop_result.knowledge_formation_result.has_value()) {
             const auto& kf = loop_res.loop_result.knowledge_formation_result.value();
             if (kf.claim.has_value() &&
-                !contains_claim(request.existing_actor_claims, kf.claim->knowledge_id) &&
-                !contains_claim(new_claims, kf.claim->knowledge_id)) {
-                new_claims.push_back(kf.claim.value());
+                materially_changed(kf.claim.value()) &&
+                !contains_changed_claim(kf.claim->knowledge_id)) {
+                changed_claims.push_back(kf.claim.value());
             }
         }
 
-        for (const auto& claim : new_claims) {
+        for (const auto& claim : changed_claims) {
             auto store_res = store_port_.putClaim(claim);
             if (!store_res.is_ok()) {
                 single_result.ok = false;
@@ -306,7 +320,7 @@ WorldKnowledgeLearningService::processExperience(
                 makeDelta(claim, toString(WorldKnowledgeLearningDecision::Learned)));
         }
 
-        if (!new_claims.empty() && single_result.failure_kind != WorldLearningFailureKind::StoreFailed) {
+        if (!changed_claims.empty() && single_result.failure_kind != WorldLearningFailureKind::StoreFailed) {
             single_result.ok = true;
             single_result.decision = WorldKnowledgeLearningDecision::Learned;
         }

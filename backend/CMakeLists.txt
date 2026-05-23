@@ -918,6 +918,7 @@ target_link_libraries(pathfinder_world_teaching PUBLIC
     pathfinder_memory
     pathfinder_cognition
     pathfinder_condition
+    pathfinder_content
 )
 
 # World Agent Execution library (P51)
@@ -1044,6 +1045,7 @@ target_link_libraries(pathfinder_client_runtime_bridge PUBLIC
     pathfinder_world_region_state
     pathfinder_world_harvest
     pathfinder_world_inventory
+    pathfinder_world_reaction
 )
 
 # World Map Interaction library (P60)
@@ -1119,6 +1121,9 @@ target_link_libraries(pathfinder_client_http PUBLIC
     pathfinder_world_generation
     pathfinder_world_map_interaction
     pathfinder_world_inventory_command
+    pathfinder_world_reaction
+    pathfinder_world_learning
+    pathfinder_world_teaching
     pathfinder_content
 )
 
