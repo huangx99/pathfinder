@@ -384,6 +384,116 @@ void run_content_loader_tests() {
         std::cout << "loader_test_12_strict_errors_skip_registry: passed" << std::endl;
     }
 
+    // Test 13: Worldgen JSON parsing preserves object references
+    {
+        std::string worldgen_json = R"({
+            "worldgen_profiles": [
+                {
+                    "profile_key": "first_world",
+                    "region_size": 16,
+                    "default_layer": "surface",
+                    "terrain_generation_mode": "NoiseField",
+                    "resource_rules": [
+                        {
+                            "resource_key": "berry_bush",
+                            "allowed_terrain_tags": ["plain"],
+                            "density": 0.1,
+                            "required_action_key": "gather",
+                            "output_object_keys": ["red_berry"],
+                            "charges": 3
+                        }
+                    ],
+                    "ground_item_rules": [
+                        {
+                            "object_key": "loose_stone",
+                            "allowed_terrain_tags": ["plain"],
+                            "density": 0.2,
+                            "quantity": 1,
+                            "stack_key": "loose_stone:default",
+                            "tag_keys": ["test_tag"]
+                        }
+                    ],
+                    "drop_rules": [
+                        {
+                            "drop_rule_key": "stone_drop",
+                            "source_object_key": "loose_stone",
+                            "output_object_keys": ["stone_flake"]
+                        }
+                    ]
+                }
+            ]
+        })";
+
+        auto result = JsonContentParser::parseWorldgenProfiles(worldgen_json);
+        assert(result.is_ok());
+        const auto& file_dto = result.value();
+        assert(file_dto.worldgen_profiles.size() == 1);
+        assert(file_dto.worldgen_profiles[0].profile_key == "first_world");
+        assert(file_dto.worldgen_profiles[0].resource_rules.size() == 1);
+        assert(file_dto.worldgen_profiles[0].resource_rules[0].output_object_keys[0] == "red_berry");
+        assert(file_dto.worldgen_profiles[0].ground_item_rules.size() == 1);
+        assert(file_dto.worldgen_profiles[0].ground_item_rules[0].object_key == "loose_stone");
+        assert(file_dto.worldgen_profiles[0].drop_rules.size() == 1);
+        assert(file_dto.worldgen_profiles[0].drop_rules[0].output_object_keys[0] == "stone_flake");
+
+        std::cout << "loader_test_13_worldgen_parse: passed" << std::endl;
+    }
+
+    // Test 14: Strict mode rejects worldgen rules that reference unknown objects
+    {
+        const std::filesystem::path root = std::filesystem::temp_directory_path() / "pathfinder_content_loader_worldgen_strict_test";
+        const std::filesystem::path core = root / "core";
+        std::filesystem::remove_all(root);
+        std::filesystem::create_directories(core / "objects");
+        std::filesystem::create_directories(core / "worldgen");
+
+        std::ofstream(core / "manifest.json") << R"({
+            "package_key": "core",
+            "display_name": "test",
+            "content_version": "0.1.0",
+            "schema_version": "content_schema_1",
+            "locale_default": "zh_cn",
+            "files": [
+                {"path": "objects/basic.json", "category": "objects", "required": true},
+                {"path": "worldgen/basic.json", "category": "worldgen", "required": true}
+            ]
+        })";
+        std::ofstream(core / "objects" / "basic.json") << R"({
+            "objects": [
+                {"object_key": "red_berry", "display_key": "object.red_berry.name", "description_key": "object.red_berry.desc", "kind": "food"}
+            ]
+        })";
+        std::ofstream(core / "worldgen" / "basic.json") << R"({
+            "worldgen_profiles": [
+                {
+                    "profile_key": "first_world",
+                    "region_size": 16,
+                    "default_layer": "surface",
+                    "resource_rules": [
+                        {"resource_key": "bad_node", "density": 0.1, "output_object_keys": ["missing_item"], "charges": 1}
+                    ],
+                    "ground_item_rules": [
+                        {"object_key": "missing_ground_item", "density": 0.1, "quantity": 1}
+                    ]
+                }
+            ]
+        })";
+
+        ContentLoadOptions options;
+        options.root_path = root.string();
+        options.enabled_package_keys = {"core"};
+        options.load_mode = ContentLoadMode::StrictContentRequired;
+
+        JsonContentLoader loader;
+        auto result = loader.load(options);
+        assert(result.is_ok());
+        assert(result.value().validation_report.hasErrors());
+        assert(!result.value().registry);
+
+        std::filesystem::remove_all(root);
+        std::cout << "loader_test_14_worldgen_unknown_object_strict_error: passed" << std::endl;
+    }
+
     std::cout << "content_loader_tests: all passed" << std::endl;
 }
 

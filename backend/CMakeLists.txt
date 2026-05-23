@@ -818,6 +818,7 @@ target_link_libraries(pathfinder_world_generation PUBLIC
     pathfinder_world_command
     pathfinder_world_runtime
     pathfinder_world_inventory
+    pathfinder_content
 )
 
 # World Command Runtime library (P44 runtime-aware handlers, depends on both)
@@ -869,6 +870,7 @@ target_link_libraries(pathfinder_world_harvest PUBLIC
     pathfinder_world_runtime
     pathfinder_world_inventory
     pathfinder_world_command
+    pathfinder_content
 )
 
 # World Reaction library (P48)
@@ -1117,6 +1119,7 @@ target_link_libraries(pathfinder_client_http PUBLIC
     pathfinder_world_generation
     pathfinder_world_map_interaction
     pathfinder_world_inventory_command
+    pathfinder_content
 )
 
 # Client Server executable (P54)

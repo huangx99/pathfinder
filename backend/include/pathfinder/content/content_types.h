@@ -4,6 +4,7 @@
 #include "pathfinder/foundation/result.h"
 #include "pathfinder/config/validation.h"
 #include <string>
+#include <cstdint>
 #include <vector>
 #include <optional>
 #include <map>
@@ -26,6 +27,7 @@ enum class ContentFileCategory {
     Knowledge,
     Scenarios,
     Locales,
+    Worldgen,
     Tests
 };
 
@@ -42,7 +44,8 @@ enum class ContentDefinitionKind {
     Threat,
     KnowledgeTemplate,
     Scenario,
-    Locale
+    Locale,
+    WorldgenProfile
 };
 
 std::string toString(ContentDefinitionKind kind);
@@ -442,6 +445,113 @@ struct ScenarioDefinitionDto {
 using LocaleMap = std::map<std::string, std::string>;
 
 // ============================================================
+// World generation DTOs
+// ============================================================
+
+struct WorldgenTerrainWeightDto {
+    std::string terrain_key;
+    int weight = 0;
+};
+
+struct WorldgenNoiseChannelDto {
+    std::string channel;
+    std::string algorithm;
+    double scale = 24.0;
+    int octaves = 3;
+    double persistence = 0.5;
+    double lacunarity = 2.0;
+    double bias = 0.0;
+    double weight = 1.0;
+    uint64_t salt = 0;
+};
+
+struct WorldgenTerrainThresholdRuleDto {
+    std::string terrain_key;
+    double min_elevation = -1.0;
+    double max_elevation = 1.0;
+    double min_moisture = -1.0;
+    double max_moisture = 1.0;
+    double min_roughness = -1.0;
+    double max_roughness = 1.0;
+    int priority = 0;
+    std::vector<std::string> tag_keys;
+};
+
+struct WorldgenConnectivityPolicyDto {
+    bool enabled = true;
+    int spawn_safe_radius = 3;
+    double min_walkable_ratio = 0.72;
+    double max_blocked_ratio_in_spawn_radius = 0.10;
+    int min_reachable_cells_from_spawn = 80;
+    bool carve_cardinal_corridors = true;
+    int corridor_half_width = 1;
+    std::vector<std::string> repair_preferred_terrain_keys;
+};
+
+struct WorldgenResourceRuleDto {
+    std::string resource_key;
+    std::vector<std::string> allowed_terrain_tags;
+    double density = 0.0;
+    int min_distance_from_spawn = 0;
+    int max_distance_from_spawn = -1;
+    std::vector<std::string> tag_keys;
+    std::string node_kind;
+    std::string required_action_key;
+    std::string required_tool_key;
+    std::vector<std::string> output_object_keys;
+    int charges = 1;
+};
+
+struct WorldgenGroundItemRuleDto {
+    std::string object_key;
+    std::vector<std::string> allowed_terrain_tags;
+    double density = 0.0;
+    int min_distance_from_spawn = 0;
+    int max_distance_from_spawn = -1;
+    int quantity = 0;
+    bool stackable = true;
+    std::string stack_key;
+    std::vector<std::string> tag_keys;
+    std::vector<std::string> state_keys;
+    std::map<std::string, double> numeric_states;
+};
+
+struct WorldgenSpawnSafetyDto {
+    int safe_radius = 2;
+    int basic_food_min_count = 1;
+    int basic_material_min_count = 2;
+    int tool_hint_min_count = 1;
+    int immediate_threat_max_count = 0;
+    std::vector<std::string> guaranteed_resource_keys;
+    std::vector<std::string> forbidden_danger_keys;
+};
+
+struct WorldgenDropRuleDto {
+    std::string drop_rule_key;
+    std::string source_object_key;
+    std::vector<std::string> output_object_keys;
+};
+
+struct WorldgenProfileDefinitionDto {
+    std::string profile_key;
+    int region_size = 16;
+    std::string default_layer = "surface";
+    std::string terrain_generation_mode = "NoiseField";
+    std::vector<WorldgenTerrainWeightDto> terrain_weights;
+    std::vector<WorldgenNoiseChannelDto> noise_channels;
+    std::vector<WorldgenTerrainThresholdRuleDto> terrain_threshold_rules;
+    WorldgenConnectivityPolicyDto connectivity_policy;
+    std::vector<WorldgenResourceRuleDto> resource_rules;
+    std::vector<WorldgenGroundItemRuleDto> ground_item_rules;
+    std::vector<WorldgenDropRuleDto> drop_rules;
+    WorldgenSpawnSafetyDto spawn_safety;
+};
+
+struct WorldgenProfileDefinitionFileDto {
+    std::vector<WorldgenProfileDefinitionDto> worldgen_profiles;
+};
+
+// ============================================================
 // Content file entry (runtime representation)
 // ============================================================
 
@@ -643,6 +753,23 @@ struct ScenarioDefinitionContent {
     pathfinder::foundation::Result<void> validateBasic() const;
 };
 
+struct WorldgenProfileDefinitionContent {
+    std::string profile_key;
+    int region_size = 16;
+    std::string default_layer = "surface";
+    std::string terrain_generation_mode = "NoiseField";
+    std::vector<WorldgenTerrainWeightDto> terrain_weights;
+    std::vector<WorldgenNoiseChannelDto> noise_channels;
+    std::vector<WorldgenTerrainThresholdRuleDto> terrain_threshold_rules;
+    WorldgenConnectivityPolicyDto connectivity_policy;
+    std::vector<WorldgenResourceRuleDto> resource_rules;
+    std::vector<WorldgenGroundItemRuleDto> ground_item_rules;
+    std::vector<WorldgenDropRuleDto> drop_rules;
+    WorldgenSpawnSafetyDto spawn_safety;
+
+    pathfinder::foundation::Result<void> validateBasic() const;
+};
+
 // ============================================================
 // ContentDraftRegistry - temporary collection during loading
 // ============================================================
@@ -658,6 +785,7 @@ public:
     void addThreat(ThreatDefinitionContent threat);
     void addKnowledgeTemplate(KnowledgeTemplateContent knowledge);
     void addScenario(ScenarioDefinitionContent scenario);
+    void addWorldgenProfile(WorldgenProfileDefinitionContent profile);
     void addLocale(const std::string& locale_key, LocaleMap locales);
 
     const std::vector<ObjectDefinitionContent>& objects() const { return objects_; }
@@ -669,6 +797,7 @@ public:
     const std::vector<ThreatDefinitionContent>& threats() const { return threats_; }
     const std::vector<KnowledgeTemplateContent>& knowledge_templates() const { return knowledge_templates_; }
     const std::vector<ScenarioDefinitionContent>& scenarios() const { return scenarios_; }
+    const std::vector<WorldgenProfileDefinitionContent>& worldgen_profiles() const { return worldgen_profiles_; }
     const std::map<std::string, LocaleMap>& locales() const { return locales_; }
 
     void clear();
@@ -683,6 +812,7 @@ private:
     std::vector<ThreatDefinitionContent> threats_;
     std::vector<KnowledgeTemplateContent> knowledge_templates_;
     std::vector<ScenarioDefinitionContent> scenarios_;
+    std::vector<WorldgenProfileDefinitionContent> worldgen_profiles_;
     std::map<std::string, LocaleMap> locales_;
 };
 

@@ -3,12 +3,80 @@
 #include "pathfinder/world_generation/resource_distribution_generator.h"
 #include "pathfinder/world_generation/spawn_safety_planner.h"
 #include "pathfinder/foundation/error.h"
+#include "pathfinder/content/content_registry.h"
+#include <algorithm>
 
 namespace pathfinder::world_generation {
 
 using pathfinder::foundation::Result;
 using pathfinder::foundation::ErrorCode;
 using pathfinder::foundation::makeError;
+
+
+namespace {
+
+TerrainGenerationMode terrainGenerationModeFromContentString(const std::string& value) {
+    if (value == "WeightedRandom" || value == "weighted_random") return TerrainGenerationMode::WeightedRandom;
+    if (value == "NoiseField" || value == "noise_field") return TerrainGenerationMode::NoiseField;
+    if (value == "TestOnly" || value == "test_only") return TerrainGenerationMode::TestOnly;
+    return TerrainGenerationMode::Unknown;
+}
+
+NoiseChannelKind noiseChannelKindFromContentString(const std::string& value) {
+    if (value == "Elevation" || value == "elevation") return NoiseChannelKind::Elevation;
+    if (value == "Moisture" || value == "moisture") return NoiseChannelKind::Moisture;
+    if (value == "Temperature" || value == "temperature") return NoiseChannelKind::Temperature;
+    if (value == "Roughness" || value == "roughness") return NoiseChannelKind::Roughness;
+    if (value == "ResourceRichness" || value == "resource_richness") return NoiseChannelKind::ResourceRichness;
+    if (value == "DangerPressure" || value == "danger_pressure") return NoiseChannelKind::DangerPressure;
+    if (value == "TestOnly" || value == "test_only") return NoiseChannelKind::TestOnly;
+    return NoiseChannelKind::Unknown;
+}
+
+NoiseAlgorithmKind noiseAlgorithmKindFromContentString(const std::string& value) {
+    if (value == "ValueNoise2D" || value == "value_noise_2d") return NoiseAlgorithmKind::ValueNoise2D;
+    if (value == "Perlin2D" || value == "perlin_2d") return NoiseAlgorithmKind::Perlin2D;
+    if (value == "FractalPerlin2D" || value == "fractal_perlin_2d") return NoiseAlgorithmKind::FractalPerlin2D;
+    if (value == "TestOnly" || value == "test_only") return NoiseAlgorithmKind::TestOnly;
+    return NoiseAlgorithmKind::Unknown;
+}
+
+ResourceNodeKind resourceNodeKindFromContentString(const std::string& value) {
+    if (value == "Plant" || value == "plant") return ResourceNodeKind::Plant;
+    if (value == "Tree" || value == "tree") return ResourceNodeKind::Tree;
+    if (value == "Stone" || value == "stone") return ResourceNodeKind::Stone;
+    if (value == "Ore" || value == "ore") return ResourceNodeKind::Ore;
+    if (value == "Soil" || value == "soil") return ResourceNodeKind::Soil;
+    if (value == "Water" || value == "water") return ResourceNodeKind::Water;
+    if (value == "Corpse" || value == "corpse") return ResourceNodeKind::Corpse;
+    if (value == "Nest" || value == "nest") return ResourceNodeKind::Nest;
+    if (value == "Relic" || value == "relic") return ResourceNodeKind::Relic;
+    return ResourceNodeKind::Unknown;
+}
+
+std::vector<std::string> mergeTags(
+    const std::vector<std::string>& base,
+    const std::vector<std::string>& extra) {
+    std::vector<std::string> result = base;
+    for (const auto& tag : extra) {
+        if (std::find(result.begin(), result.end(), tag) == result.end()) {
+            result.push_back(tag);
+        }
+    }
+    return result;
+}
+
+std::map<std::string, double> mergeNumericStates(
+    const std::map<std::string, double>& base,
+    const std::map<std::string, double>& overrides) {
+    auto result = base;
+    for (const auto& [key, value] : overrides) {
+        result[key] = value;
+    }
+    return result;
+}
+
+} // namespace
 
 // ---------------------------------------------------------------------------
 // Built-in profiles
@@ -71,57 +139,8 @@ static WorldgenProfile buildFirstWorldProfile() {
     profile.connectivity_policy.corridor_half_width = 1;
     profile.connectivity_policy.repair_preferred_terrain_keys = {"plain"};
 
-    profile.resource_rules = {
-        {
-            "berry_bush",
-            {"plain", "forest_edge"},
-            0.08,
-            1, 6,
-            {"food_basic"},
-            ResourceNodeKind::Plant,
-            "gather", "",
-            {"red_berry"},
-            3
-        },
-        {
-            "young_tree",
-            {"forest", "plain"},
-            0.06,
-            1, 8,
-            {"wood_basic"},
-            ResourceNodeKind::Tree,
-            "chop", "",
-            {"wood"},
-            2
-        },
-        {
-            "loose_stone_node",
-            {"stone_field", "plain"},
-            0.05,
-            1, 8,
-            {"stone_basic"},
-            ResourceNodeKind::Stone,
-            "gather", "",
-            {"stone_flake"},
-            2
-        }
-    };
-
-    profile.ground_item_rules = {
-        {
-            "loose_stone",
-            "entity.loose_stone",
-            {"stone_field", "plain"},
-            0.02,
-            0, -1,
-            1,
-            true,
-            "loose_stone:default",
-            {},
-            {},
-            {}
-        }
-    };
+    profile.resource_rules.clear();
+    profile.ground_item_rules.clear();
 
     profile.spawn_safety.safe_radius = 2;
     profile.spawn_safety.basic_food_min_count = 1;
@@ -148,6 +167,115 @@ void WorldGenerationService::registerBuiltinProfiles() {
 
 void WorldGenerationService::registerProfile(const WorldgenProfile& profile) {
     profiles_[profile.profile_key] = profile;
+}
+
+
+Result<void> WorldGenerationService::registerContentProfiles(const pathfinder::content::ContentRegistry& registry) {
+    for (const auto* content_profile : registry.allWorldgenProfiles()) {
+        if (!content_profile) continue;
+
+        WorldgenProfile profile;
+        profile.profile_key = content_profile->profile_key;
+        profile.region_size = content_profile->region_size;
+        profile.default_layer = content_profile->default_layer.empty() ? "surface" : content_profile->default_layer;
+        profile.terrain_generation_mode = terrainGenerationModeFromContentString(content_profile->terrain_generation_mode);
+
+        for (const auto& weight : content_profile->terrain_weights) {
+            profile.terrain_weights.push_back(TerrainWeight{weight.terrain_key, weight.weight});
+        }
+        for (const auto& channel : content_profile->noise_channels) {
+            profile.noise_channels.push_back(NoiseChannelConfig{
+                noiseChannelKindFromContentString(channel.channel),
+                noiseAlgorithmKindFromContentString(channel.algorithm),
+                channel.scale,
+                channel.octaves,
+                channel.persistence,
+                channel.lacunarity,
+                channel.bias,
+                channel.weight,
+                channel.salt
+            });
+        }
+        for (const auto& rule : content_profile->terrain_threshold_rules) {
+            profile.terrain_threshold_rules.push_back(TerrainThresholdRule{
+                rule.terrain_key,
+                rule.min_elevation,
+                rule.max_elevation,
+                rule.min_moisture,
+                rule.max_moisture,
+                rule.min_roughness,
+                rule.max_roughness,
+                rule.priority,
+                rule.tag_keys
+            });
+        }
+
+        profile.connectivity_policy.enabled = content_profile->connectivity_policy.enabled;
+        profile.connectivity_policy.spawn_safe_radius = content_profile->connectivity_policy.spawn_safe_radius;
+        profile.connectivity_policy.min_walkable_ratio = content_profile->connectivity_policy.min_walkable_ratio;
+        profile.connectivity_policy.max_blocked_ratio_in_spawn_radius = content_profile->connectivity_policy.max_blocked_ratio_in_spawn_radius;
+        profile.connectivity_policy.min_reachable_cells_from_spawn = content_profile->connectivity_policy.min_reachable_cells_from_spawn;
+        profile.connectivity_policy.carve_cardinal_corridors = content_profile->connectivity_policy.carve_cardinal_corridors;
+        profile.connectivity_policy.corridor_half_width = content_profile->connectivity_policy.corridor_half_width;
+        profile.connectivity_policy.repair_preferred_terrain_keys = content_profile->connectivity_policy.repair_preferred_terrain_keys;
+
+        for (const auto& rule : content_profile->resource_rules) {
+            if (!rule.required_tool_key.empty() && !registry.findObject(rule.required_tool_key)) {
+                return Result<void>::fail(makeError(ErrorCode::id_not_found, "worldgen_required_tool_missing", rule.required_tool_key));
+            }
+            for (const auto& output_key : rule.output_object_keys) {
+                if (!registry.findObject(output_key)) {
+                    return Result<void>::fail(makeError(ErrorCode::id_not_found, "worldgen_output_object_missing", output_key));
+                }
+            }
+            profile.resource_rules.push_back(ResourceDistributionRule{
+                rule.resource_key,
+                rule.allowed_terrain_tags,
+                rule.density,
+                rule.min_distance_from_spawn,
+                rule.max_distance_from_spawn,
+                rule.tag_keys,
+                resourceNodeKindFromContentString(rule.node_kind),
+                rule.required_action_key,
+                rule.required_tool_key,
+                rule.output_object_keys,
+                rule.charges
+            });
+        }
+
+        for (const auto& rule : content_profile->ground_item_rules) {
+            const auto* object = registry.findObject(rule.object_key);
+            if (!object) {
+                return Result<void>::fail(makeError(ErrorCode::id_not_found, "worldgen_ground_object_missing", rule.object_key));
+            }
+            GroundItemPlacementRule ground_rule;
+            ground_rule.entity_key = rule.object_key;
+            ground_rule.display_name_key = object->display_key;
+            ground_rule.allowed_terrain_tags = rule.allowed_terrain_tags;
+            ground_rule.density = rule.density;
+            ground_rule.min_distance_from_spawn = rule.min_distance_from_spawn;
+            ground_rule.max_distance_from_spawn = rule.max_distance_from_spawn;
+            ground_rule.quantity = rule.quantity > 0 ? rule.quantity : std::max(1, object->default_quantity);
+            ground_rule.stackable = rule.stackable;
+            ground_rule.stack_key = rule.stack_key.empty() ? rule.object_key + ":default" : rule.stack_key;
+            ground_rule.tags = mergeTags(object->safe_tags, rule.tag_keys);
+            ground_rule.state_keys = rule.state_keys;
+            ground_rule.numeric_states = mergeNumericStates(object->default_numeric, rule.numeric_states);
+            profile.ground_item_rules.push_back(std::move(ground_rule));
+        }
+
+        profile.spawn_safety.safe_radius = content_profile->spawn_safety.safe_radius;
+        profile.spawn_safety.basic_food_min_count = content_profile->spawn_safety.basic_food_min_count;
+        profile.spawn_safety.basic_material_min_count = content_profile->spawn_safety.basic_material_min_count;
+        profile.spawn_safety.tool_hint_min_count = content_profile->spawn_safety.tool_hint_min_count;
+        profile.spawn_safety.immediate_threat_max_count = content_profile->spawn_safety.immediate_threat_max_count;
+        profile.spawn_safety.guaranteed_resource_keys = content_profile->spawn_safety.guaranteed_resource_keys;
+        profile.spawn_safety.forbidden_danger_keys = content_profile->spawn_safety.forbidden_danger_keys;
+
+        registerProfile(profile);
+    }
+
+    return Result<void>::ok();
 }
 
 const WorldgenProfile* WorldGenerationService::findProfile(const std::string& profile_key) const {

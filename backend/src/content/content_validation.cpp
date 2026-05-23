@@ -66,6 +66,7 @@ ConfigValidationReport ContentStructuralValidator::validate(const ContentDraftRe
     checkDuplicateKeys(draft.threats(), [](const auto& item) { return item.key.value(); }, "threat", "$.threats[*].threat_key", report);
     checkDuplicateKeys(draft.knowledge_templates(), [](const auto& item) { return item.key.value(); }, "knowledge template", "$.knowledge_templates[*].knowledge_key", report);
     checkDuplicateKeys(draft.scenarios(), [](const auto& item) { return item.key.value(); }, "scenario", "$.scenario_key", report);
+    checkDuplicateKeys(draft.worldgen_profiles(), [](const auto& item) { return item.profile_key; }, "worldgen profile", "$.worldgen_profiles[*].profile_key", report);
 
     for (const auto& obj : draft.objects()) {
         validateObject(obj, report);
@@ -90,6 +91,9 @@ ConfigValidationReport ContentStructuralValidator::validate(const ContentDraftRe
     }
     for (const auto& scenario : draft.scenarios()) {
         validateScenario(scenario, report);
+    }
+    for (const auto& profile : draft.worldgen_profiles()) {
+        validateWorldgenProfile(profile, report);
     }
 
     return report;
@@ -178,6 +182,53 @@ void ContentStructuralValidator::validateScenario(const ScenarioDefinitionConten
     }
 }
 
+void ContentStructuralValidator::validateWorldgenProfile(const WorldgenProfileDefinitionContent& profile, ConfigValidationReport& report) const {
+    if (profile.profile_key.empty() || !isValidKey(profile.profile_key)) {
+        report.addIssue({ConfigValidationSeverity::Error, ErrorCode::id_invalid_format,
+            "worldgen profile has invalid key", "", "$.worldgen_profiles[*].profile_key"});
+    }
+    if (profile.region_size <= 0) {
+        report.addIssue({ConfigValidationSeverity::Error, ErrorCode::validation_failed,
+            "worldgen profile region_size must be positive: " + profile.profile_key, "", "$.worldgen_profiles[*].region_size"});
+    }
+    if (profile.default_layer.empty()) {
+        report.addIssue({ConfigValidationSeverity::Error, ErrorCode::validation_failed,
+            "worldgen profile default_layer is empty: " + profile.profile_key, "", "$.worldgen_profiles[*].default_layer"});
+    }
+    for (const auto& rule : profile.resource_rules) {
+        if (rule.resource_key.empty() || !isValidKey(rule.resource_key)) {
+            report.addIssue({ConfigValidationSeverity::Error, ErrorCode::id_invalid_format,
+                "worldgen resource rule has invalid resource_key in profile: " + profile.profile_key, "", "$.worldgen_profiles[*].resource_rules[*].resource_key"});
+        }
+        if (rule.density < 0.0) {
+            report.addIssue({ConfigValidationSeverity::Error, ErrorCode::validation_failed,
+                "worldgen resource rule density must be >= 0: " + rule.resource_key, "", "$.worldgen_profiles[*].resource_rules[*].density"});
+        }
+        if (rule.charges <= 0) {
+            report.addIssue({ConfigValidationSeverity::Error, ErrorCode::validation_failed,
+                "worldgen resource rule charges must be positive: " + rule.resource_key, "", "$.worldgen_profiles[*].resource_rules[*].charges"});
+        }
+        if (rule.output_object_keys.empty()) {
+            report.addIssue({ConfigValidationSeverity::Error, ErrorCode::validation_failed,
+                "worldgen resource rule has no output_object_keys: " + rule.resource_key, "", "$.worldgen_profiles[*].resource_rules[*].output_object_keys"});
+        }
+    }
+    for (const auto& rule : profile.ground_item_rules) {
+        if (rule.object_key.empty() || !isValidKey(rule.object_key)) {
+            report.addIssue({ConfigValidationSeverity::Error, ErrorCode::id_invalid_format,
+                "worldgen ground item rule has invalid object_key in profile: " + profile.profile_key, "", "$.worldgen_profiles[*].ground_item_rules[*].object_key"});
+        }
+        if (rule.density < 0.0) {
+            report.addIssue({ConfigValidationSeverity::Error, ErrorCode::validation_failed,
+                "worldgen ground item density must be >= 0: " + rule.object_key, "", "$.worldgen_profiles[*].ground_item_rules[*].density"});
+        }
+        if (rule.quantity < 0) {
+            report.addIssue({ConfigValidationSeverity::Error, ErrorCode::validation_failed,
+                "worldgen ground item quantity must be >= 0: " + rule.object_key, "", "$.worldgen_profiles[*].ground_item_rules[*].quantity"});
+        }
+    }
+}
+
 // ============================================================
 // ContentReferenceValidator
 // ============================================================
@@ -190,6 +241,7 @@ ConfigValidationReport ContentReferenceValidator::validate(const ContentDraftReg
     validateThreatReferences(draft, report);
     validateScenarioReferences(draft, report);
     validateKnowledgeReferences(draft, report);
+    validateWorldgenReferences(draft, report);
     return report;
 }
 
@@ -379,6 +431,51 @@ void ContentReferenceValidator::validateKnowledgeReferences(const ContentDraftRe
             report.addIssue({ConfigValidationSeverity::Error, ErrorCode::id_not_found,
                 "knowledge template effect references unknown: " + kt.effect_key + " in " + kt.key.value(),
                 "", "$.knowledge_templates[*].effect_key"});
+        }
+    }
+}
+
+void ContentReferenceValidator::validateWorldgenReferences(const ContentDraftRegistry& draft, ConfigValidationReport& report) const {
+    std::set<std::string> object_keys;
+    for (const auto& obj : draft.objects()) object_keys.insert(obj.key.value());
+
+    for (const auto& profile : draft.worldgen_profiles()) {
+        for (const auto& rule : profile.resource_rules) {
+            if (!rule.required_tool_key.empty() && !object_keys.count(rule.required_tool_key)) {
+                report.addIssue({ConfigValidationSeverity::Error, ErrorCode::id_not_found,
+                    "worldgen resource rule references unknown required tool: " + rule.required_tool_key + " in " + profile.profile_key,
+                    "", "$.worldgen_profiles[*].resource_rules[*].required_tool_key"});
+            }
+            for (const auto& object_key : rule.output_object_keys) {
+                if (!object_keys.count(object_key)) {
+                    report.addIssue({ConfigValidationSeverity::Error, ErrorCode::id_not_found,
+                        "worldgen resource rule output references unknown object: " + object_key + " in " + profile.profile_key,
+                        "", "$.worldgen_profiles[*].resource_rules[*].output_object_keys[*]"});
+                }
+            }
+        }
+
+        for (const auto& rule : profile.ground_item_rules) {
+            if (!object_keys.count(rule.object_key)) {
+                report.addIssue({ConfigValidationSeverity::Error, ErrorCode::id_not_found,
+                    "worldgen ground item references unknown object: " + rule.object_key + " in " + profile.profile_key,
+                    "", "$.worldgen_profiles[*].ground_item_rules[*].object_key"});
+            }
+        }
+
+        for (const auto& rule : profile.drop_rules) {
+            if (!rule.source_object_key.empty() && !object_keys.count(rule.source_object_key)) {
+                report.addIssue({ConfigValidationSeverity::Error, ErrorCode::id_not_found,
+                    "worldgen drop rule source references unknown object: " + rule.source_object_key + " in " + profile.profile_key,
+                    "", "$.worldgen_profiles[*].drop_rules[*].source_object_key"});
+            }
+            for (const auto& object_key : rule.output_object_keys) {
+                if (!object_keys.count(object_key)) {
+                    report.addIssue({ConfigValidationSeverity::Error, ErrorCode::id_not_found,
+                        "worldgen drop rule output references unknown object: " + object_key + " in " + profile.profile_key,
+                        "", "$.worldgen_profiles[*].drop_rules[*].output_object_keys[*]"});
+                }
+            }
         }
     }
 }

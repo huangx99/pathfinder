@@ -22,6 +22,7 @@
 #include "pathfinder/world_map_interaction/region_lifecycle_trigger_service.h"
 #include "pathfinder/world_map_interaction/client_map_selection_service.h"
 #include "pathfinder/world_map_interaction/client_map_projection_adapter.h"
+#include "pathfinder/content/content_registry.h"
 #include "pathfinder/world_command/world_command_registry.h"
 #include "pathfinder/world_command/world_command_dispatcher.h"
 #include "pathfinder/world_command/world_command_pipeline.h"
@@ -40,6 +41,7 @@ struct ClientServerRuntimeFactory {
     // 1. Core runtime
     // ------------------------------------------------------------------------
     std::shared_ptr<pathfinder::world_runtime::WorldGridRuntime> world_runtime;
+    std::shared_ptr<const pathfinder::content::ContentRegistry> content_registry;
 
     // ------------------------------------------------------------------------
     // 2. P60: Inventory and harvest infrastructure

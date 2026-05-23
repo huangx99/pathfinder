@@ -8,6 +8,7 @@
 #include "pathfinder/world_generation/terrain_noise_sampler.h"
 #include "pathfinder/world_runtime/world_grid_runtime.h"
 #include "pathfinder/world_inventory/world_inventory_runtime.h"
+#include "pathfinder/content/content_registry.h"
 #include <cassert>
 #include <iostream>
 #include <set>
@@ -17,6 +18,100 @@
 using namespace pathfinder::world_generation;
 using namespace pathfinder::world_runtime;
 using namespace pathfinder::world_inventory;
+
+namespace {
+
+pathfinder::content::ObjectDefinitionContent makeTestObject(
+    const std::string& object_key,
+    const std::string& display_key,
+    const std::vector<std::string>& tags,
+    int quantity = 1) {
+    pathfinder::content::ObjectDefinitionContent object;
+    object.key = pathfinder::content::ObjectDefinitionKey(object_key);
+    object.display_key = display_key;
+    object.description_key = display_key + ".desc";
+    object.kind = "material";
+    object.safe_tags = tags;
+    object.default_quantity = quantity;
+    return object;
+}
+
+std::shared_ptr<pathfinder::content::ContentRegistry> makeContentBackedWorldgenRegistry() {
+    pathfinder::content::ContentDraftRegistry draft;
+    draft.addObject(makeTestObject("red_berry", "object.red_berry.name", {"food", "food_basic"}));
+    draft.addObject(makeTestObject("wood", "object.wood.name", {"material", "wood", "wood_basic"}));
+    draft.addObject(makeTestObject("stone_flake", "object.stone_flake.name", {"material", "stone", "stone_basic"}));
+    draft.addObject(makeTestObject("loose_stone", "object.loose_stone.name", {"material", "stone", "ground_item", "stone_basic"}));
+
+    pathfinder::content::WorldgenProfileDefinitionContent profile;
+    profile.profile_key = "first_world";
+    profile.region_size = 16;
+    profile.default_layer = "surface";
+    profile.terrain_generation_mode = "WeightedRandom";
+    profile.terrain_weights.push_back({"plain", 100});
+
+    pathfinder::content::WorldgenResourceRuleDto food;
+    food.resource_key = "berry_bush";
+    food.allowed_terrain_tags = {"plain"};
+    food.density = 0.02;
+    food.tag_keys = {"food_basic"};
+    food.node_kind = "Plant";
+    food.required_action_key = "gather";
+    food.output_object_keys = {"red_berry"};
+    food.charges = 3;
+    profile.resource_rules.push_back(food);
+
+    pathfinder::content::WorldgenResourceRuleDto wood;
+    wood.resource_key = "young_tree";
+    wood.allowed_terrain_tags = {"plain"};
+    wood.density = 0.02;
+    wood.tag_keys = {"wood_basic"};
+    wood.node_kind = "Tree";
+    wood.required_action_key = "chop";
+    wood.output_object_keys = {"wood"};
+    wood.charges = 2;
+    profile.resource_rules.push_back(wood);
+
+    pathfinder::content::WorldgenResourceRuleDto stone;
+    stone.resource_key = "loose_stone_node";
+    stone.allowed_terrain_tags = {"plain"};
+    stone.density = 0.02;
+    stone.tag_keys = {"stone_basic"};
+    stone.node_kind = "Stone";
+    stone.required_action_key = "gather";
+    stone.output_object_keys = {"stone_flake"};
+    stone.charges = 2;
+    profile.resource_rules.push_back(stone);
+
+    pathfinder::content::WorldgenGroundItemRuleDto ground;
+    ground.object_key = "loose_stone";
+    ground.allowed_terrain_tags = {"plain"};
+    ground.density = 0.02;
+    ground.quantity = 1;
+    ground.stackable = true;
+    ground.stack_key = "loose_stone:default";
+    ground.tag_keys = {"stone_basic"};
+    profile.ground_item_rules.push_back(ground);
+
+    profile.spawn_safety.safe_radius = 2;
+    profile.spawn_safety.basic_food_min_count = 1;
+    profile.spawn_safety.basic_material_min_count = 2;
+    profile.spawn_safety.tool_hint_min_count = 0;
+    profile.spawn_safety.immediate_threat_max_count = 0;
+    draft.addWorldgenProfile(std::move(profile));
+
+    return pathfinder::content::ContentRegistry::build(draft);
+}
+
+WorldGenerationService makeContentBackedWorldGenerationService() {
+    WorldGenerationService service;
+    auto registry = makeContentBackedWorldgenRegistry();
+    auto result = service.registerContentProfiles(*registry);
+    assert(result.is_ok());
+    return service;
+}
+
+} // namespace
 
 // ---------------------------------------------------------------------------
 // Determinism tests
@@ -263,7 +358,7 @@ void run_world_generation_resource_node_id_is_stable_tests() {
 // ---------------------------------------------------------------------------
 
 void run_world_generation_spawn_safety_has_basic_food_tests() {
-    WorldGenerationService service;
+    auto service = makeContentBackedWorldGenerationService();
 
     WorldGenerationRequest request;
     request.world_id = "test_food";
@@ -293,7 +388,7 @@ void run_world_generation_spawn_safety_has_basic_food_tests() {
 }
 
 void run_world_generation_spawn_safety_has_basic_materials_tests() {
-    WorldGenerationService service;
+    auto service = makeContentBackedWorldGenerationService();
 
     WorldGenerationRequest request;
     request.world_id = "test_materials";
@@ -351,7 +446,7 @@ void run_world_generation_spawn_safety_blocks_immediate_active_threat_tests() {
 // ---------------------------------------------------------------------------
 
 void run_world_generation_ground_items_are_on_map_only_tests() {
-    WorldGenerationService service;
+    auto service = makeContentBackedWorldGenerationService();
 
     WorldGenerationRequest request;
     request.world_id = "test_ownership";
@@ -373,7 +468,7 @@ void run_world_generation_ground_items_are_on_map_only_tests() {
 }
 
 void run_world_generation_ground_items_have_quantity_stack_key_tests() {
-    WorldGenerationService service;
+    auto service = makeContentBackedWorldGenerationService();
 
     WorldGenerationRequest request;
     request.world_id = "test_stack";
@@ -615,7 +710,7 @@ void run_world_generation_resource_nodes_in_runtime_tests() {
     WorldInventoryRuntime inventory_runtime(world_runtime);
     inventory_runtime.initialize();
 
-    WorldGenerationService service;
+    auto service = makeContentBackedWorldGenerationService();
     WorldGenerationRequest request;
     request.world_id = "resource_runtime";
     request.world_seed = 42;
@@ -739,7 +834,7 @@ void run_world_generation_repeated_apply_blocked_tests() {
 // ---------------------------------------------------------------------------
 
 void run_world_generation_spawn_safety_uses_tags_not_fixed_keys_tests() {
-    WorldGenerationService service;
+    auto service = makeContentBackedWorldGenerationService();
 
     WorldGenerationRequest request;
     request.world_id = "tag_test";
@@ -818,7 +913,7 @@ void run_world_generation_spawn_entity_missing_cell_fails_tests() {
 // ---------------------------------------------------------------------------
 
 void run_world_generation_ground_items_non_empty_for_first_world_tests() {
-    WorldGenerationService service;
+    auto service = makeContentBackedWorldGenerationService();
 
     WorldGenerationRequest request;
     request.world_id = "test_nonempty";
@@ -885,7 +980,7 @@ void run_world_generation_resource_nodes_applied_to_existing_cells_tests() {
     WorldInventoryRuntime inventory_runtime(world_runtime);
     inventory_runtime.initialize();
 
-    WorldGenerationService service;
+    auto service = makeContentBackedWorldGenerationService();
     WorldGenerationRequest request;
     request.world_id = "test_nodes";
     request.world_seed = 42;

@@ -5773,10 +5773,12 @@ add_test(
     COMMAND bash -c "! grep -rni 'h5_playable::\\|h5_dialog::\\|H5Playable\\|H5Dialog' ${CMAKE_CURRENT_SOURCE_DIR}/../include/pathfinder/client_http/ ${CMAKE_CURRENT_SOURCE_DIR}/../src/client_http/ ${CMAKE_CURRENT_SOURCE_DIR}/unit/client_http/ ${CMAKE_CURRENT_SOURCE_DIR}/integration/client_http/"
 )
 
-# Architecture guard: client_http must not read content JSON
+# Architecture guard: HTTP transport/frontend files must not read content rules.
+# ClientServerRuntimeFactory is the backend composition root and may wire a ContentRegistry
+# into world generation/harvest services; it still must not expose raw content JSON.
 add_test(
     NAME architecture_client_http_no_content_json_read
-    COMMAND bash -c "! grep -rni 'content/core\\|recipes\\|reaction_rules\\|knowledge_templates\\|ContentRegistry' --exclude=client_static_file_service.cpp ${CMAKE_CURRENT_SOURCE_DIR}/../include/pathfinder/client_http/ ${CMAKE_CURRENT_SOURCE_DIR}/../src/client_http/"
+    COMMAND bash -c "! grep -rni 'content/core\|recipes\|reaction_rules\|knowledge_templates' --exclude=client_static_file_service.cpp --exclude=client_server_runtime_factory.cpp --exclude=client_server_runtime_factory.h ${CMAKE_CURRENT_SOURCE_DIR}/../include/pathfinder/client_http/ ${CMAKE_CURRENT_SOURCE_DIR}/../src/client_http/"
 )
 
 # Architecture guard: client_http must not directly modify runtime arrays

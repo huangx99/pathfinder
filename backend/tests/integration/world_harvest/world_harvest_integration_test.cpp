@@ -5,14 +5,47 @@
 #include "pathfinder/world_command/world_command_types.h"
 #include "pathfinder/world_generation/world_generation_service.h"
 #include "pathfinder/world_generation/world_generation_applier.h"
+#include "pathfinder/content/json_content_loader.h"
 #include <cassert>
 #include <iostream>
+#include <filesystem>
 
 using namespace pathfinder::world_harvest;
 using namespace pathfinder::world_runtime;
 using namespace pathfinder::world_inventory;
 using namespace pathfinder::world_command;
 using namespace pathfinder::world_generation;
+
+namespace {
+
+std::filesystem::path findRepoContentRoot() {
+    auto current = std::filesystem::current_path();
+    for (int i = 0; i < 8; ++i) {
+        auto content_root = current / "content";
+        if (std::filesystem::exists(content_root / "core" / "manifest.json")) {
+            return content_root;
+        }
+        if (!current.has_parent_path() || current == current.parent_path()) break;
+        current = current.parent_path();
+    }
+    return std::filesystem::path("content");
+}
+
+std::shared_ptr<const pathfinder::content::ContentRegistry> loadCoreContentRegistryForHarvestTest() {
+    pathfinder::content::ContentLoadOptions options;
+    options.root_path = findRepoContentRoot().string();
+    options.enabled_package_keys = {"core"};
+    options.load_mode = pathfinder::content::ContentLoadMode::StrictContentRequired;
+
+    pathfinder::content::JsonContentLoader loader;
+    auto load_result = loader.load(options);
+    assert(load_result.is_ok());
+    assert(!load_result.value().validation_report.hasErrors());
+    assert(load_result.value().registry);
+    return load_result.value().registry;
+}
+
+} // namespace
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -366,7 +399,10 @@ void run_world_generation_then_gather_berry_bush_tests() {
     WorldInventoryRuntime inventory_runtime(world_runtime);
     inventory_runtime.initialize();
 
+    auto content_registry = loadCoreContentRegistryForHarvestTest();
     WorldGenerationService gen_service;
+    auto register_result = gen_service.registerContentProfiles(*content_registry);
+    assert(register_result.is_ok());
     WorldGenerationRequest gen_request;
     gen_request.world_id = "e2e_world";
     gen_request.world_seed = 42;
@@ -414,6 +450,7 @@ void run_world_generation_then_gather_berry_bush_tests() {
     }
 
     ResourceHarvestService harvest_service(world_runtime, world_runtime, inventory_runtime);
+    harvest_service.setContentRegistry(content_registry);
     ResourceHarvestRequest req;
     req.harvest_id = "harvest1";
     req.actor_key = "player";
@@ -423,6 +460,11 @@ void run_world_generation_then_gather_berry_bush_tests() {
     auto harvest_result = harvest_service.execute(req);
     assert(harvest_result.ok);
     assert(!harvest_result.changed_entity_ids.empty());
+    auto output_entity_res = world_runtime.findEntity(harvest_result.changed_entity_ids.front());
+    assert(output_entity_res.is_ok());
+    const auto* output_object = content_registry->findObject(output_entity_res.value()->entity_key);
+    assert(output_object != nullptr);
+    assert(output_entity_res.value()->display_name_key == output_object->display_key);
 
     auto node_after = world_runtime.findResourceNode(target_node->node_id).value();
     assert(node_after->remaining_charges == target_node->remaining_charges - 1);
@@ -444,7 +486,10 @@ void run_world_generation_then_chop_tree_with_tool_tests() {
     WorldInventoryRuntime inventory_runtime(world_runtime);
     inventory_runtime.initialize();
 
+    auto content_registry = loadCoreContentRegistryForHarvestTest();
     WorldGenerationService gen_service;
+    auto register_result = gen_service.registerContentProfiles(*content_registry);
+    assert(register_result.is_ok());
     WorldGenerationRequest gen_request;
     gen_request.world_id = "e2e_world";
     gen_request.world_seed = 42;
@@ -505,6 +550,7 @@ void run_world_generation_then_chop_tree_with_tool_tests() {
     }
 
     ResourceHarvestService harvest_service(world_runtime, world_runtime, inventory_runtime);
+    harvest_service.setContentRegistry(content_registry);
     ResourceHarvestRequest req;
     req.harvest_id = "harvest1";
     req.actor_key = "player";
@@ -514,6 +560,11 @@ void run_world_generation_then_chop_tree_with_tool_tests() {
     auto harvest_result = harvest_service.execute(req);
     assert(harvest_result.ok);
     assert(!harvest_result.changed_entity_ids.empty());
+    auto output_entity_res = world_runtime.findEntity(harvest_result.changed_entity_ids.front());
+    assert(output_entity_res.is_ok());
+    const auto* output_object = content_registry->findObject(output_entity_res.value()->entity_key);
+    assert(output_object != nullptr);
+    assert(output_entity_res.value()->display_name_key == output_object->display_key);
 
     auto node_after = world_runtime.findResourceNode(target_node_id).value();
     assert(node_after->remaining_charges == target_node_charges - 1);
@@ -535,7 +586,10 @@ void run_world_generation_then_gather_loose_stone_tests() {
     WorldInventoryRuntime inventory_runtime(world_runtime);
     inventory_runtime.initialize();
 
+    auto content_registry = loadCoreContentRegistryForHarvestTest();
     WorldGenerationService gen_service;
+    auto register_result = gen_service.registerContentProfiles(*content_registry);
+    assert(register_result.is_ok());
     WorldGenerationRequest gen_request;
     gen_request.world_id = "e2e_world";
     gen_request.world_seed = 42;
@@ -595,6 +649,7 @@ void run_world_generation_then_gather_loose_stone_tests() {
     }
 
     ResourceHarvestService harvest_service(world_runtime, world_runtime, inventory_runtime);
+    harvest_service.setContentRegistry(content_registry);
     ResourceHarvestRequest req;
     req.harvest_id = "harvest1";
     req.actor_key = "player";
@@ -605,6 +660,11 @@ void run_world_generation_then_gather_loose_stone_tests() {
     auto harvest_result = harvest_service.execute(req);
     assert(harvest_result.ok);
     assert(!harvest_result.changed_entity_ids.empty());
+    auto output_entity_res = world_runtime.findEntity(harvest_result.changed_entity_ids.front());
+    assert(output_entity_res.is_ok());
+    const auto* output_object = content_registry->findObject(output_entity_res.value()->entity_key);
+    assert(output_object != nullptr);
+    assert(output_entity_res.value()->display_name_key == output_object->display_key);
 
     std::cout << "world_generation_then_gather_loose_stone: passed" << std::endl;
 }

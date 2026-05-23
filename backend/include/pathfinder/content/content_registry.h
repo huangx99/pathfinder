@@ -61,6 +61,10 @@ public:
     const ScenarioDefinitionContent* findScenario(const std::string& key) const;
     std::vector<const ScenarioDefinitionContent*> allScenarios() const;
 
+    // Worldgen profile queries
+    const WorldgenProfileDefinitionContent* findWorldgenProfile(const std::string& key) const;
+    std::vector<const WorldgenProfileDefinitionContent*> allWorldgenProfiles() const;
+
     // Locale queries
     const LocaleMap* findLocale(const std::string& locale_key) const;
     std::string translate(const std::string& locale_key, const std::string& key) const;
@@ -91,6 +95,7 @@ private:
     std::unordered_map<std::string, ThreatDefinitionContent> threats_;
     std::unordered_map<std::string, KnowledgeTemplateContent> knowledge_templates_;
     std::unordered_map<std::string, ScenarioDefinitionContent> scenarios_;
+    std::unordered_map<std::string, WorldgenProfileDefinitionContent> worldgen_profiles_;
     std::map<std::string, LocaleMap> locales_;
 };
 

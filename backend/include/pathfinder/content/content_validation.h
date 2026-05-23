@@ -25,6 +25,7 @@ private:
     void validateThreat(const ThreatDefinitionContent& threat, pathfinder::config::ConfigValidationReport& report) const;
     void validateKnowledgeTemplate(const KnowledgeTemplateContent& kt, pathfinder::config::ConfigValidationReport& report) const;
     void validateScenario(const ScenarioDefinitionContent& scenario, pathfinder::config::ConfigValidationReport& report) const;
+    void validateWorldgenProfile(const WorldgenProfileDefinitionContent& profile, pathfinder::config::ConfigValidationReport& report) const;
 
     static bool isValidKey(const std::string& key);
     static bool isValidOperationOp(const std::string& op);
@@ -45,6 +46,7 @@ private:
     void validateThreatReferences(const ContentDraftRegistry& draft, pathfinder::config::ConfigValidationReport& report) const;
     void validateScenarioReferences(const ContentDraftRegistry& draft, pathfinder::config::ConfigValidationReport& report) const;
     void validateKnowledgeReferences(const ContentDraftRegistry& draft, pathfinder::config::ConfigValidationReport& report) const;
+    void validateWorldgenReferences(const ContentDraftRegistry& draft, pathfinder::config::ConfigValidationReport& report) const;
 };
 
 } // namespace pathfinder::content

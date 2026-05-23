@@ -14,8 +14,11 @@
 #include "pathfinder/world_map_interaction/region_lifecycle_trigger_service.h"
 #include "pathfinder/world_map_interaction/client_map_selection_service.h"
 #include "pathfinder/foundation/error.h"
+#include "pathfinder/content/json_content_loader.h"
 #include <iostream>
+#include <filesystem>
 #include <mutex>
+#include <stdexcept>
 
 namespace pathfinder::client_http {
 
@@ -90,6 +93,20 @@ std::mutex& resetMutex() {
     return mutex;
 }
 
+std::filesystem::path findContentRoot() {
+    auto current = std::filesystem::current_path();
+    for (int i = 0; i < 8; ++i) {
+        auto content_root = current / "content";
+        if (std::filesystem::exists(content_root / "core" / "manifest.json")) {
+            return content_root;
+        }
+        if (!current.has_parent_path() || current == current.parent_path()) break;
+        current = current.parent_path();
+    }
+    return std::filesystem::path("content");
+}
+
+
 } // namespace
 
 ClientServerRuntimeFactory::ClientServerRuntimeFactory()
@@ -105,8 +122,28 @@ ClientServerRuntimeFactory::ClientServerRuntimeFactory()
     , pipeline(dispatcher)
     , command_gateway(session_gateway, pipeline, patch_contract, available_command_adapter) {
 
-    // P58: Create world generation service and ensure service.
+    // P58/P62: Create world generation service and load content-backed profiles.
     worldgen_service = std::make_shared<world_generation::WorldGenerationService>();
+
+    {
+        pathfinder::content::JsonContentLoader loader;
+        pathfinder::content::ContentLoadOptions options;
+        options.root_path = findContentRoot().string();
+        options.enabled_package_keys = {"core"};
+        options.load_mode = pathfinder::content::ContentLoadMode::StrictContentRequired;
+        auto content_load = loader.load(options);
+        if (content_load.is_ok() && content_load.value().registry) {
+            content_registry = content_load.value().registry;
+            harvest_service->setContentRegistry(content_registry);
+            auto register_res = worldgen_service->registerContentProfiles(*content_registry);
+            if (register_res.is_error()) {
+                throw std::runtime_error("[P62] Failed to register content worldgen profiles");
+            }
+        } else {
+            throw std::runtime_error("[P62] Failed to load required core content registry");
+        }
+    }
+
     ensure_service = std::make_shared<world_generation::WorldRegionEnsureService>(
         *worldgen_service, *world_runtime, *world_runtime);
     ensure_adapter = std::make_shared<client_runtime_bridge::ClientWorldRegionEnsureAdapter>(

@@ -564,6 +564,146 @@ pathfinder::foundation::Result<ScenarioDefinitionDto> JsonContentParser::parseSc
     }
 }
 
+
+// ============================================================
+// JsonContentParser - Worldgen parsing
+// ============================================================
+
+pathfinder::foundation::Result<WorldgenProfileDefinitionFileDto> JsonContentParser::parseWorldgenProfiles(const std::string& json_text) {
+    try {
+        nlohmann::json j = nlohmann::json::parse(json_text);
+        WorldgenProfileDefinitionFileDto file_dto;
+
+        if (j.contains("worldgen_profiles") && j["worldgen_profiles"].is_array()) {
+            for (const auto& profile_json : j["worldgen_profiles"]) {
+                WorldgenProfileDefinitionDto dto;
+                dto.profile_key = safeGetString(profile_json, "profile_key");
+                dto.region_size = safeGetInt(profile_json, "region_size", 16);
+                dto.default_layer = safeGetString(profile_json, "default_layer", "surface");
+                dto.terrain_generation_mode = safeGetString(profile_json, "terrain_generation_mode", "NoiseField");
+
+                if (profile_json.contains("terrain_weights") && profile_json["terrain_weights"].is_array()) {
+                    for (const auto& item : profile_json["terrain_weights"]) {
+                        WorldgenTerrainWeightDto weight;
+                        weight.terrain_key = safeGetString(item, "terrain_key");
+                        weight.weight = safeGetInt(item, "weight", 0);
+                        dto.terrain_weights.push_back(std::move(weight));
+                    }
+                }
+
+                if (profile_json.contains("noise_channels") && profile_json["noise_channels"].is_array()) {
+                    for (const auto& item : profile_json["noise_channels"]) {
+                        WorldgenNoiseChannelDto channel;
+                        channel.channel = safeGetString(item, "channel");
+                        channel.algorithm = safeGetString(item, "algorithm", "FractalPerlin2D");
+                        channel.scale = safeGetDouble(item, "scale", 24.0);
+                        channel.octaves = safeGetInt(item, "octaves", 3);
+                        channel.persistence = safeGetDouble(item, "persistence", 0.5);
+                        channel.lacunarity = safeGetDouble(item, "lacunarity", 2.0);
+                        channel.bias = safeGetDouble(item, "bias", 0.0);
+                        channel.weight = safeGetDouble(item, "weight", 1.0);
+                        channel.salt = static_cast<uint64_t>(safeGetInt(item, "salt", 0));
+                        dto.noise_channels.push_back(std::move(channel));
+                    }
+                }
+
+                if (profile_json.contains("terrain_threshold_rules") && profile_json["terrain_threshold_rules"].is_array()) {
+                    for (const auto& item : profile_json["terrain_threshold_rules"]) {
+                        WorldgenTerrainThresholdRuleDto rule;
+                        rule.terrain_key = safeGetString(item, "terrain_key");
+                        rule.min_elevation = safeGetDouble(item, "min_elevation", -1.0);
+                        rule.max_elevation = safeGetDouble(item, "max_elevation", 1.0);
+                        rule.min_moisture = safeGetDouble(item, "min_moisture", -1.0);
+                        rule.max_moisture = safeGetDouble(item, "max_moisture", 1.0);
+                        rule.min_roughness = safeGetDouble(item, "min_roughness", -1.0);
+                        rule.max_roughness = safeGetDouble(item, "max_roughness", 1.0);
+                        rule.priority = safeGetInt(item, "priority", 0);
+                        rule.tag_keys = safeGetStringArray(item, "tag_keys");
+                        dto.terrain_threshold_rules.push_back(std::move(rule));
+                    }
+                }
+
+                if (profile_json.contains("connectivity_policy") && profile_json["connectivity_policy"].is_object()) {
+                    const auto& item = profile_json["connectivity_policy"];
+                    dto.connectivity_policy.enabled = safeGetBool(item, "enabled", true);
+                    dto.connectivity_policy.spawn_safe_radius = safeGetInt(item, "spawn_safe_radius", 3);
+                    dto.connectivity_policy.min_walkable_ratio = safeGetDouble(item, "min_walkable_ratio", 0.72);
+                    dto.connectivity_policy.max_blocked_ratio_in_spawn_radius = safeGetDouble(item, "max_blocked_ratio_in_spawn_radius", 0.10);
+                    dto.connectivity_policy.min_reachable_cells_from_spawn = safeGetInt(item, "min_reachable_cells_from_spawn", 80);
+                    dto.connectivity_policy.carve_cardinal_corridors = safeGetBool(item, "carve_cardinal_corridors", true);
+                    dto.connectivity_policy.corridor_half_width = safeGetInt(item, "corridor_half_width", 1);
+                    dto.connectivity_policy.repair_preferred_terrain_keys = safeGetStringArray(item, "repair_preferred_terrain_keys");
+                }
+
+                if (profile_json.contains("resource_rules") && profile_json["resource_rules"].is_array()) {
+                    for (const auto& item : profile_json["resource_rules"]) {
+                        WorldgenResourceRuleDto rule;
+                        rule.resource_key = safeGetString(item, "resource_key");
+                        rule.allowed_terrain_tags = safeGetStringArray(item, "allowed_terrain_tags");
+                        rule.density = safeGetDouble(item, "density", 0.0);
+                        rule.min_distance_from_spawn = safeGetInt(item, "min_distance_from_spawn", 0);
+                        rule.max_distance_from_spawn = safeGetInt(item, "max_distance_from_spawn", -1);
+                        rule.tag_keys = safeGetStringArray(item, "tag_keys");
+                        rule.node_kind = safeGetString(item, "node_kind");
+                        rule.required_action_key = safeGetString(item, "required_action_key");
+                        rule.required_tool_key = safeGetString(item, "required_tool_key");
+                        rule.output_object_keys = safeGetStringArray(item, "output_object_keys");
+                        rule.charges = safeGetInt(item, "charges", 1);
+                        dto.resource_rules.push_back(std::move(rule));
+                    }
+                }
+
+                if (profile_json.contains("ground_item_rules") && profile_json["ground_item_rules"].is_array()) {
+                    for (const auto& item : profile_json["ground_item_rules"]) {
+                        WorldgenGroundItemRuleDto rule;
+                        rule.object_key = safeGetString(item, "object_key");
+                        rule.allowed_terrain_tags = safeGetStringArray(item, "allowed_terrain_tags");
+                        rule.density = safeGetDouble(item, "density", 0.0);
+                        rule.min_distance_from_spawn = safeGetInt(item, "min_distance_from_spawn", 0);
+                        rule.max_distance_from_spawn = safeGetInt(item, "max_distance_from_spawn", -1);
+                        rule.quantity = safeGetInt(item, "quantity", 0);
+                        rule.stackable = safeGetBool(item, "stackable", true);
+                        rule.stack_key = safeGetString(item, "stack_key");
+                        rule.tag_keys = safeGetStringArray(item, "tag_keys");
+                        rule.state_keys = safeGetStringArray(item, "state_keys");
+                        rule.numeric_states = safeGetStringDoubleMap(item, "numeric_states");
+                        dto.ground_item_rules.push_back(std::move(rule));
+                    }
+                }
+
+                if (profile_json.contains("drop_rules") && profile_json["drop_rules"].is_array()) {
+                    for (const auto& item : profile_json["drop_rules"]) {
+                        WorldgenDropRuleDto rule;
+                        rule.drop_rule_key = safeGetString(item, "drop_rule_key");
+                        rule.source_object_key = safeGetString(item, "source_object_key");
+                        rule.output_object_keys = safeGetStringArray(item, "output_object_keys");
+                        dto.drop_rules.push_back(std::move(rule));
+                    }
+                }
+
+                if (profile_json.contains("spawn_safety") && profile_json["spawn_safety"].is_object()) {
+                    const auto& item = profile_json["spawn_safety"];
+                    dto.spawn_safety.safe_radius = safeGetInt(item, "safe_radius", 2);
+                    dto.spawn_safety.basic_food_min_count = safeGetInt(item, "basic_food_min_count", 1);
+                    dto.spawn_safety.basic_material_min_count = safeGetInt(item, "basic_material_min_count", 2);
+                    dto.spawn_safety.tool_hint_min_count = safeGetInt(item, "tool_hint_min_count", 1);
+                    dto.spawn_safety.immediate_threat_max_count = safeGetInt(item, "immediate_threat_max_count", 0);
+                    dto.spawn_safety.guaranteed_resource_keys = safeGetStringArray(item, "guaranteed_resource_keys");
+                    dto.spawn_safety.forbidden_danger_keys = safeGetStringArray(item, "forbidden_danger_keys");
+                }
+
+                file_dto.worldgen_profiles.push_back(std::move(dto));
+            }
+        }
+
+        return pathfinder::foundation::Result<WorldgenProfileDefinitionFileDto>::ok(std::move(file_dto));
+    } catch (const nlohmann::json::parse_error& e) {
+        return pathfinder::foundation::Result<WorldgenProfileDefinitionFileDto>::fail(
+            pathfinder::foundation::makeError(ErrorCode::validation_config_invalid,
+                std::string("JSON parse error in worldgen profiles: ") + e.what()));
+    }
+}
+
 // ============================================================
 // JsonContentParser - Locale parsing
 // ============================================================
@@ -737,6 +877,26 @@ void JsonContentLoader::convertToContent(const ScenarioDefinitionDto& dto, Conte
     draft.addScenario(std::move(content));
 }
 
+
+void JsonContentLoader::convertToContent(const WorldgenProfileDefinitionFileDto& dto, ContentDraftRegistry& draft) const {
+    for (const auto& profile_dto : dto.worldgen_profiles) {
+        WorldgenProfileDefinitionContent content;
+        content.profile_key = profile_dto.profile_key;
+        content.region_size = profile_dto.region_size;
+        content.default_layer = profile_dto.default_layer;
+        content.terrain_generation_mode = profile_dto.terrain_generation_mode;
+        content.terrain_weights = profile_dto.terrain_weights;
+        content.noise_channels = profile_dto.noise_channels;
+        content.terrain_threshold_rules = profile_dto.terrain_threshold_rules;
+        content.connectivity_policy = profile_dto.connectivity_policy;
+        content.resource_rules = profile_dto.resource_rules;
+        content.ground_item_rules = profile_dto.ground_item_rules;
+        content.drop_rules = profile_dto.drop_rules;
+        content.spawn_safety = profile_dto.spawn_safety;
+        draft.addWorldgenProfile(std::move(content));
+    }
+}
+
 void JsonContentLoader::convertToContent(const LocaleMap& dto, const std::string& locale_key, ContentDraftRegistry& draft) const {
     draft.addLocale(locale_key, dto);
 }
@@ -885,6 +1045,16 @@ pathfinder::foundation::Result<void> JsonContentLoader::loadPackageFiles(
                 if (result.is_error()) {
                     report.addIssue({ConfigValidationSeverity::Error, ErrorCode::validation_config_invalid,
                         "failed to parse scenario: " + file_entry.path, file_entry.path});
+                } else {
+                    convertToContent(result.value(), draft);
+                }
+                break;
+            }
+            case ContentFileCategory::Worldgen: {
+                auto result = JsonContentParser::parseWorldgenProfiles(content);
+                if (result.is_error()) {
+                    report.addIssue({ConfigValidationSeverity::Error, ErrorCode::validation_config_invalid,
+                        "failed to parse worldgen profiles: " + file_entry.path, file_entry.path});
                 } else {
                     convertToContent(result.value(), draft);
                 }

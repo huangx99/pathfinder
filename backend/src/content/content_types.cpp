@@ -20,6 +20,7 @@ std::string toString(ContentFileCategory category) {
         case ContentFileCategory::Knowledge: return "knowledge";
         case ContentFileCategory::Scenarios: return "scenarios";
         case ContentFileCategory::Locales: return "locales";
+        case ContentFileCategory::Worldgen: return "worldgen";
         case ContentFileCategory::Tests: return "tests";
     }
     return "unknown";
@@ -36,6 +37,7 @@ pathfinder::foundation::Result<ContentFileCategory> contentFileCategoryFromStrin
     if (value == "knowledge") return pathfinder::foundation::Result<ContentFileCategory>::ok(ContentFileCategory::Knowledge);
     if (value == "scenarios") return pathfinder::foundation::Result<ContentFileCategory>::ok(ContentFileCategory::Scenarios);
     if (value == "locales") return pathfinder::foundation::Result<ContentFileCategory>::ok(ContentFileCategory::Locales);
+    if (value == "worldgen") return pathfinder::foundation::Result<ContentFileCategory>::ok(ContentFileCategory::Worldgen);
     if (value == "tests") return pathfinder::foundation::Result<ContentFileCategory>::ok(ContentFileCategory::Tests);
     return pathfinder::foundation::Result<ContentFileCategory>::fail(
         pathfinder::foundation::makeError(
@@ -60,6 +62,7 @@ std::string toString(ContentDefinitionKind kind) {
         case ContentDefinitionKind::KnowledgeTemplate: return "knowledge_template";
         case ContentDefinitionKind::Scenario: return "scenario";
         case ContentDefinitionKind::Locale: return "locale";
+        case ContentDefinitionKind::WorldgenProfile: return "worldgen_profile";
     }
     return "unknown";
 }
@@ -75,6 +78,7 @@ pathfinder::foundation::Result<ContentDefinitionKind> contentDefinitionKindFromS
     if (value == "knowledge_template") return pathfinder::foundation::Result<ContentDefinitionKind>::ok(ContentDefinitionKind::KnowledgeTemplate);
     if (value == "scenario") return pathfinder::foundation::Result<ContentDefinitionKind>::ok(ContentDefinitionKind::Scenario);
     if (value == "locale") return pathfinder::foundation::Result<ContentDefinitionKind>::ok(ContentDefinitionKind::Locale);
+    if (value == "worldgen_profile") return pathfinder::foundation::Result<ContentDefinitionKind>::ok(ContentDefinitionKind::WorldgenProfile);
     return pathfinder::foundation::Result<ContentDefinitionKind>::fail(
         pathfinder::foundation::makeError(
             pathfinder::foundation::ErrorCode::validation_enum_unknown,
@@ -255,6 +259,22 @@ pathfinder::foundation::Result<void> ScenarioDefinitionContent::validateBasic() 
     return pathfinder::foundation::Result<void>::ok();
 }
 
+pathfinder::foundation::Result<void> WorldgenProfileDefinitionContent::validateBasic() const {
+    if (profile_key.empty()) {
+        return pathfinder::foundation::Result<void>::fail(
+            pathfinder::foundation::makeError(pathfinder::foundation::ErrorCode::validation_failed, "worldgen profile key is empty"));
+    }
+    if (region_size <= 0) {
+        return pathfinder::foundation::Result<void>::fail(
+            pathfinder::foundation::makeError(pathfinder::foundation::ErrorCode::validation_failed, "worldgen profile region_size must be positive"));
+    }
+    if (default_layer.empty()) {
+        return pathfinder::foundation::Result<void>::fail(
+            pathfinder::foundation::makeError(pathfinder::foundation::ErrorCode::validation_failed, "worldgen profile default_layer is empty"));
+    }
+    return pathfinder::foundation::Result<void>::ok();
+}
+
 // ============================================================
 // ContentDraftRegistry
 // ============================================================
@@ -268,6 +288,7 @@ void ContentDraftRegistry::addAgent(AgentTemplateContent agent) { agents_.push_b
 void ContentDraftRegistry::addThreat(ThreatDefinitionContent threat) { threats_.push_back(std::move(threat)); }
 void ContentDraftRegistry::addKnowledgeTemplate(KnowledgeTemplateContent knowledge) { knowledge_templates_.push_back(std::move(knowledge)); }
 void ContentDraftRegistry::addScenario(ScenarioDefinitionContent scenario) { scenarios_.push_back(std::move(scenario)); }
+void ContentDraftRegistry::addWorldgenProfile(WorldgenProfileDefinitionContent profile) { worldgen_profiles_.push_back(std::move(profile)); }
 void ContentDraftRegistry::addLocale(const std::string& locale_key, LocaleMap locales) { locales_[locale_key] = std::move(locales); }
 
 void ContentDraftRegistry::clear() {
@@ -280,6 +301,7 @@ void ContentDraftRegistry::clear() {
     threats_.clear();
     knowledge_templates_.clear();
     scenarios_.clear();
+    worldgen_profiles_.clear();
     locales_.clear();
 }
 

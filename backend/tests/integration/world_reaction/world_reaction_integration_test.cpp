@@ -363,7 +363,8 @@ void run_world_command_craft_drop_on_map_projection_patch_tests() {
     auto& patch = result.projection_patch_override.value();
     bool found_torch = false;
     for (const auto& entity_patch : patch.changed_entities) {
-        if (entity_patch.fields.at("entity_key") == "torch") {
+        auto entity_key_it = entity_patch.fields.find("entity_key");
+        if (entity_key_it != entity_patch.fields.end() && entity_key_it->second == "torch") {
             found_torch = true;
             break;
         }

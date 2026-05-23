@@ -4,13 +4,52 @@
 #include "pathfinder/world_runtime/world_grid_runtime.h"
 #include "pathfinder/world_inventory/world_inventory_runtime.h"
 #include "pathfinder/world_command/world_command_types.h"
+#include "pathfinder/content/json_content_loader.h"
 #include <cassert>
 #include <iostream>
+#include <filesystem>
 
 using namespace pathfinder::world_generation;
 using namespace pathfinder::world_runtime;
 using namespace pathfinder::world_inventory;
 using namespace pathfinder::world_command;
+
+namespace {
+
+std::filesystem::path findRepoContentRoot() {
+    auto current = std::filesystem::current_path();
+    for (int i = 0; i < 8; ++i) {
+        auto content_root = current / "content";
+        if (std::filesystem::exists(content_root / "core" / "manifest.json")) {
+            return content_root;
+        }
+        if (!current.has_parent_path() || current == current.parent_path()) break;
+        current = current.parent_path();
+    }
+    return std::filesystem::path("content");
+}
+
+std::shared_ptr<const pathfinder::content::ContentRegistry> loadCoreContentRegistryForWorldgenTest() {
+    pathfinder::content::ContentLoadOptions options;
+    options.root_path = findRepoContentRoot().string();
+    options.enabled_package_keys = {"core"};
+    options.load_mode = pathfinder::content::ContentLoadMode::StrictContentRequired;
+
+    pathfinder::content::JsonContentLoader loader;
+    auto load_result = loader.load(options);
+    assert(load_result.is_ok());
+    assert(!load_result.value().validation_report.hasErrors());
+    assert(load_result.value().registry);
+    return load_result.value().registry;
+}
+
+void registerCoreWorldgenProfiles(WorldGenerationService& service) {
+    auto registry = loadCoreContentRegistryForWorldgenTest();
+    auto result = service.registerContentProfiles(*registry);
+    assert(result.is_ok());
+}
+
+} // namespace
 
 // ---------------------------------------------------------------------------
 // Integration: Generate + Apply to WorldGridRuntime
@@ -129,6 +168,7 @@ void run_world_generation_command_handler_invalid_seed_tests() {
     world_runtime.initialize(config);
 
     auto service = std::make_shared<WorldGenerationService>();
+    registerCoreWorldgenProfiles(*service);
     auto handler = createGenerateWorldCommandHandler(service, world_runtime, world_runtime);
 
     WorldCommandDto command;
@@ -162,6 +202,7 @@ void run_world_generation_command_handler_region_xy_tests() {
     world_runtime.initialize(config);
 
     auto service = std::make_shared<WorldGenerationService>();
+    registerCoreWorldgenProfiles(*service);
     auto handler = createGenerateWorldCommandHandler(service, world_runtime, world_runtime);
 
     WorldCommandDto command;
@@ -219,6 +260,7 @@ void run_world_generation_command_handler_integration_tests() {
     inventory_runtime.initialize();
 
     auto service = std::make_shared<WorldGenerationService>();
+    registerCoreWorldgenProfiles(*service);
     auto handler = createGenerateWorldCommandHandler(service, world_runtime, world_runtime);
 
     WorldCommandDto command;

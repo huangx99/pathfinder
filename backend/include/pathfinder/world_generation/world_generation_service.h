@@ -4,6 +4,8 @@
 #include <memory>
 #include <set>
 
+namespace pathfinder::content { class ContentRegistry; }
+
 namespace pathfinder::world_generation {
 
 // ---------------------------------------------------------------------------
@@ -17,8 +19,9 @@ public:
     // Main generation entry point
     WorldGenerationResult generate(const WorldGenerationRequest& request);
 
-    // Load or define a profile (P46: built-in minimal profiles)
+    // Load or define a profile. Content-backed profiles override terrain-only fallbacks.
     void registerProfile(const WorldgenProfile& profile);
+    pathfinder::foundation::Result<void> registerContentProfiles(const pathfinder::content::ContentRegistry& registry);
     const WorldgenProfile* findProfile(const std::string& profile_key) const;
 
     // Check if a region was already generated (stub for P46, expanded in P54)

@@ -202,6 +202,24 @@
       }
     },
     {
+      "object_key": "loose_stone",
+      "display_key": "object.loose_stone.name",
+      "description_key": "object.loose_stone.desc",
+      "kind": "material",
+      "visibility": "runtime_visible",
+      "safe_tags": ["material", "stone", "ground_item"],
+      "allowed_actions": ["inspect", "pickup", "use"],
+      "initial_state": {
+        "quantity": 1,
+        "numeric": {},
+        "tags": []
+      },
+      "projection": {
+        "safe_trait_keys": ["石质材料", "可拾取"],
+        "unknown_use_text_key": "object.common.unknown_use"
+      }
+    },
+    {
       "object_key": "beast_shadow",
       "display_key": "object.beast_shadow.name",
       "description_key": "object.beast_shadow.desc",

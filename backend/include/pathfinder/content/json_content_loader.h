@@ -45,6 +45,9 @@ public:
     // Parse scenario JSON string
     static pathfinder::foundation::Result<ScenarioDefinitionDto> parseScenario(const std::string& json_text);
 
+    // Parse world generation profiles JSON string
+    static pathfinder::foundation::Result<WorldgenProfileDefinitionFileDto> parseWorldgenProfiles(const std::string& json_text);
+
     // Parse locale JSON string
     static pathfinder::foundation::Result<LocaleMap> parseLocale(const std::string& json_text);
 
@@ -96,6 +99,7 @@ private:
     void convertToContent(const ThreatDefinitionFileDto& dto, ContentDraftRegistry& draft) const;
     void convertToContent(const KnowledgeTemplateFileDto& dto, ContentDraftRegistry& draft) const;
     void convertToContent(const ScenarioDefinitionDto& dto, ContentDraftRegistry& draft) const;
+    void convertToContent(const WorldgenProfileDefinitionFileDto& dto, ContentDraftRegistry& draft) const;
     void convertToContent(const LocaleMap& dto, const std::string& locale_key, ContentDraftRegistry& draft) const;
 
     // Read a file from disk safely

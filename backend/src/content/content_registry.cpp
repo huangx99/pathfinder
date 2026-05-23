@@ -34,6 +34,9 @@ std::shared_ptr<ContentRegistry> ContentRegistry::build(const ContentDraftRegist
     for (const auto& scenario : draft.scenarios()) {
         registry->scenarios_[scenario.key.value()] = scenario;
     }
+    for (const auto& profile : draft.worldgen_profiles()) {
+        registry->worldgen_profiles_[profile.profile_key] = profile;
+    }
     for (const auto& [locale_key, locale_map] : draft.locales()) {
         registry->locales_[locale_key] = locale_map;
     }
@@ -179,6 +182,17 @@ const ScenarioDefinitionContent* ContentRegistry::findScenario(const std::string
 std::vector<const ScenarioDefinitionContent*> ContentRegistry::allScenarios() const {
     std::vector<const ScenarioDefinitionContent*> result;
     for (const auto& [k, v] : scenarios_) result.push_back(&v);
+    return result;
+}
+
+const WorldgenProfileDefinitionContent* ContentRegistry::findWorldgenProfile(const std::string& key) const {
+    auto it = worldgen_profiles_.find(key);
+    return (it != worldgen_profiles_.end()) ? &it->second : nullptr;
+}
+
+std::vector<const WorldgenProfileDefinitionContent*> ContentRegistry::allWorldgenProfiles() const {
+    std::vector<const WorldgenProfileDefinitionContent*> result;
+    for (const auto& [k, v] : worldgen_profiles_) result.push_back(&v);
     return result;
 }
 

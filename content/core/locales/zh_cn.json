@@ -71,5 +71,7 @@
   "reaction.make_torch.summary": "你用加工过的木头和篝火制作了一根火把。",
   "agent.beast_shadow.name": "野兽暗影",
   "agent.companion.name": "同伴",
-  "knowledge_make_torch": "加工过的木头可以在篝火上点燃，做成火把。"
+  "knowledge_make_torch": "加工过的木头可以在篝火上点燃，做成火把。",
+  "object.loose_stone.name": "碎石",
+  "object.loose_stone.desc": "一块散落在地面的碎石，可以拾取，也许能作为材料。"
 }

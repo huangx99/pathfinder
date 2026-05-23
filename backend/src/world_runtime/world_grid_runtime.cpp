@@ -151,29 +151,10 @@ Result<void> WorldGridRuntime::generateInitialWorld(const WorldRuntimeConfig& co
                         cell.movement_cost = 99;
                     }
 
-                    // Sparse entities for inspect only (no gameplay logic)
-                    int entity_roll = (world_x * 123456 + world_y * 789012 + static_cast<int>(config.seed)) % 100;
-                    if (entity_roll < 0) entity_roll += 100;
-                    if (entity_roll < 5 && !cell.blocks_movement) {
-                        WorldEntityInstance entity;
-                        if (entity_roll < 3) {
-                            entity.entity_key = "unknown_bush";
-                            entity.display_name_key = "entity.unknown_bush";
-                        } else {
-                            entity.entity_key = "loose_stone";
-                            entity.display_name_key = "entity.loose_stone";
-                        }
-                        entity.entity_id = makeStableEntityId(entity.entity_key, coord);
-                        entity.coord = coord;
-                        entity.location_kind = WorldEntityLocationKind::OnMap;
-                        entity.blocks_movement = false;
-                        entity.visible_by_default = true;
-                        entity.quantity = 1;
-                        entity.stackable = true;
-                        entity.stack_key = entity.entity_key + ":default";
-                        cell.entity_ids.push_back(entity.entity_id);
-                        entities_[entity.entity_id] = std::move(entity);
-                    }
+                    // P62: content objects are instantiated by WorldGenerationService
+                    // from ContentRegistry-backed worldgen rules. This legacy runtime
+                    // initializer must not create inspect-only hardcoded entities.
+
 
                     cells_[cell.cell_id] = std::move(cell);
                 }

@@ -27,6 +27,18 @@ public:
         world_runtime.initialize(config);
         world_runtime.generateInitialWorld(config);
 
+        auto player_res = world_runtime.findActor("player");
+        assert(player_res.is_ok());
+        auto near_spawn = world_runtime.spawnEntityOnMap(
+            "test_item_surface_0_0", "test_item", "entity.test_item",
+            player_res.value()->coord, 1, "test_item:default", true, {}, {}, {});
+        assert(near_spawn.is_ok());
+        auto far_spawn = world_runtime.spawnEntityOnMap(
+            "test_item_surface_3_0", "test_item", "entity.test_item",
+            WorldCellCoord{3, 0, player_res.value()->coord.layer_key}, 1,
+            "test_item:default", true, {}, {}, {});
+        assert(far_spawn.is_ok());
+
         inventory_runtime = std::make_unique<WorldInventoryRuntime>(world_runtime);
         inventory_runtime->initialize();
     }
@@ -914,14 +926,14 @@ void run_pickup_merge_consistency_tests() {
 
     // Add a second item at (0,0) with same entity_key but same default state
     WorldEntityInstance item2;
-    item2.entity_id = "unknown_bush_surface_0_0_second";
-    item2.entity_key = "unknown_bush";
-    item2.display_name_key = "entity.unknown_bush";
+    item2.entity_id = "test_item_surface_0_0_second";
+    item2.entity_key = "test_item";
+    item2.display_name_key = "entity.test_item";
     item2.coord = WorldCellCoord{0, 0, "surface"};
     item2.location_kind = WorldEntityLocationKind::OnMap;
     item2.quantity = 1;
     item2.stackable = true;
-    item2.stack_key = "unknown_bush:default";
+    item2.stack_key = "test_item:default";
 
     auto spawn_res = f.world_runtime.spawnEntityOnMap(
         item2.entity_id, item2.entity_key, item2.display_name_key,
@@ -959,7 +971,7 @@ void run_pickup_merge_consistency_tests() {
     int bush_count = 0;
     int total_quantity = 0;
     for (const auto& e : inv_res.value()->entries) {
-        if (e.entity_key == "unknown_bush") {
+        if (e.entity_key == "test_item") {
             bush_count++;
             total_quantity += e.quantity;
         }

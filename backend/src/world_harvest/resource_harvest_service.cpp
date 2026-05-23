@@ -1,8 +1,10 @@
 #include "pathfinder/world_harvest/resource_harvest_service.h"
+#include "pathfinder/content/content_registry.h"
 
 #include "pathfinder/foundation/result.h"
 #include "pathfinder/foundation/error.h"
 
+#include <algorithm>
 #include <cmath>
 #include <sstream>
 
@@ -47,6 +49,10 @@ ResourceHarvestService::ResourceHarvestService(
     , location_port_(location_port)
     , inventory_runtime_(inventory_runtime)
 {
+}
+
+void ResourceHarvestService::setContentRegistry(std::shared_ptr<const pathfinder::content::ContentRegistry> registry) {
+    content_registry_ = std::move(registry);
 }
 
 // ---------------------------------------------------------------------------
@@ -177,20 +183,35 @@ Result<ResourceHarvestDraft> ResourceHarvestService::validate(
         }
     }
 
-    // 10. Build output drafts
+    // 10. Build output drafts from object definitions when ContentRegistry is wired.
     std::vector<ResourceHarvestOutputDraft> outputs;
     for (size_t i = 0; i < node->output_entity_keys.size(); ++i) {
         const auto& entity_key = node->output_entity_keys[i];
+        const pathfinder::content::ObjectDefinitionContent* object = nullptr;
+        if (content_registry_) {
+            object = content_registry_->findObject(entity_key);
+            if (!object) {
+                return Result<ResourceHarvestDraft>::fail(
+                    makeError(ErrorCode::id_not_found,
+                              toString(ResourceHarvestFailureKind::OutputInvalid),
+                              "harvest output object is not registered: " + entity_key));
+            }
+        }
+
         ResourceHarvestOutputDraft draft;
         draft.entity_id = makeOutputEntityId(request.harvest_id, entity_key, i);
         draft.entity_key = entity_key;
-        draft.display_name_key = entity_key + "_name";
+        draft.display_name_key = object ? object->display_key : entity_key + "_name";
         draft.coord = node->coord;
         draft.quantity = 1;
         draft.stackable = true;
         draft.stack_key = entity_key + ":harvested";
         draft.state_keys = { "harvested" };
-        draft.tag_keys = { "harvest_output" };
+        draft.numeric_states = object ? object->default_numeric : std::map<std::string, double>{};
+        draft.tag_keys = object ? object->safe_tags : std::vector<std::string>{};
+        if (std::find(draft.tag_keys.begin(), draft.tag_keys.end(), "harvest_output") == draft.tag_keys.end()) {
+            draft.tag_keys.push_back("harvest_output");
+        }
         outputs.push_back(draft);
     }
 
