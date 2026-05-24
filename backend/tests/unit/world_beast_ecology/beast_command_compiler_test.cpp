@@ -86,7 +86,26 @@ void run_world_beast_ecology_compiler_tests() {
     assert(cmd4.source == WorldCommandSource::BeastDecision);
     assert(cmd4.command_key == "flee");
 
-    // Wander without target_coord must fall back to Wait (no hardcoded origin)
+    // Wander with target_coord compiles to Move; without target_coord falls back to Wait.
+    BeastActionIntent wander_move_intent;
+    wander_move_intent.intent_id = "i_wander_move";
+    wander_move_intent.actor_key = "beast_1";
+    wander_move_intent.kind = BeastActionIntentKind::Wander;
+    wander_move_intent.target_coord = WorldCellCoord{3, -1, "surface"};
+    wander_move_intent.command_kind = WorldCommandKind::Move;
+    wander_move_intent.reason_kind = BeastDecisionReasonKind::NoValidAction;
+    wander_move_intent.risk_score = 0.0;
+
+    auto r5a = compiler.compile(wander_move_intent, "req_5a", "beast_1");
+    assert(r5a.is_ok());
+    auto cmd5a = r5a.value();
+    assert(cmd5a.source == WorldCommandSource::BeastDecision);
+    assert(cmd5a.command_kind == WorldCommandKind::Move);
+    assert(cmd5a.command_key == "move");
+    assert(cmd5a.target.target_kind == WorldCommandTargetKind::Coordinate);
+    assert(cmd5a.target.target_coord.has_value());
+    assert(cmd5a.target.target_coord->x == 3);
+
     BeastActionIntent wander_intent;
     wander_intent.intent_id = "i_wander";
     wander_intent.actor_key = "beast_1";

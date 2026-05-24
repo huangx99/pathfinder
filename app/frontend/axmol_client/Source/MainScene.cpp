@@ -20,6 +20,7 @@ constexpr float kMaxZoom = 2.0F;
 constexpr double kDoubleClickSeconds = 0.32;
 constexpr float kPathStepSeconds = 0.16F;
 constexpr float kPlayerMoveTweenSeconds = 0.14F;
+constexpr float kWorldAutoTickSeconds = 0.10F;
 constexpr int kEntityMoveActionTag = 6101;
 constexpr int kRenderMarginTiles = 4;
 constexpr float kInventorySlotSize = 42.0F;
@@ -336,6 +337,7 @@ void MainScene::update(float delta) {
     if (!command_pending_ && !player_move_animating_) {
         executeNextPathStep(delta);
     }
+    updateWorldAutoTick(delta);
 }
 
 void MainScene::bootstrapLocalRuntime() {
@@ -525,6 +527,32 @@ void MainScene::renderEntities() {
             state.coord = {entity.x, entity.y};
             state.has_coord = true;
             addAt(entity_layer_, state.node, worldToLocal({entity.x, entity.y}), 10);
+
+            if (entity.max_health > 0) {
+                auto* hp = DrawNode::create();
+                const float width = 28.0F;
+                const float height = 4.0F;
+                const float ratio = std::clamp(static_cast<float>(entity.health) / static_cast<float>(std::max(1, entity.max_health)), 0.0F, 1.0F);
+                const auto fill = ratio > 0.45F
+                    ? Color(34 / 255.0F, 197 / 255.0F, 94 / 255.0F, 0.95F)
+                    : Color(248 / 255.0F, 113 / 255.0F, 113 / 255.0F, 0.95F);
+                hp->drawSolidRect(Vec2(-width * 0.5F, kTileSize * 0.46F), Vec2(width * 0.5F, kTileSize * 0.46F + height), Color(30 / 255.0F, 41 / 255.0F, 59 / 255.0F, 0.9F));
+                hp->drawSolidRect(Vec2(-width * 0.5F, kTileSize * 0.46F), Vec2(-width * 0.5F + width * ratio, kTileSize * 0.46F + height), fill);
+                state.node->addChild(hp, 30);
+            }
+
+            if (!entity.actor_key.empty() && entity.actor_key != "player") {
+                auto status_it = local_runtime_->snapshot().actor_work_status.find(entity.actor_key);
+                if (status_it != local_runtime_->snapshot().actor_work_status.end() && !status_it->second.empty()) {
+                    auto* label = createUiLabel(11.0F, Vec2(92.0F, 18.0F));
+                    label->setAnchorPoint(Vec2(0.5F, 0.5F));
+                    label->setAlignment(TextHAlignment::CENTER, TextVAlignment::CENTER);
+                    label->setTextColor(Color32(248, 250, 252, 255));
+                    label->setString(status_it->second);
+                    label->setPosition(Vec2(0.0F, kTileSize * 0.62F));
+                    state.node->addChild(label, 31);
+                }
+            }
             it = entity_nodes_.emplace(render_key, state).first;
             created = true;
         }
@@ -647,7 +675,9 @@ void MainScene::renderInventoryBar() {
     inventory_layer_->addChild(more, 2);
 
     if (!local_runtime_) return;
-    const auto& items = local_runtime_->snapshot().inventory_items;
+
+    const auto& snapshot = local_runtime_->snapshot();
+    const auto& items = snapshot.inventory_items;
     normalizeHotbarSlots(items);
     for (int slot = 0; slot < kHotbarItemSlots; ++slot) {
         const int item_index = itemIndexForHotbarSlot(slot, items);
@@ -937,11 +967,26 @@ void MainScene::renderContextPanel() {
     const auto origin = Director::getInstance()->getVisibleOrigin();
     const bool adjacent = isAdjacentToPlayer(selected_coord_);
     const auto actions = actionsForEntity(entity->entity_id);
+    const bool is_npc = !entity->actor_key.empty() && entity->actor_key != "player";
+    const auto& snapshot = local_runtime_->snapshot();
+    std::vector<pf::client::LocalInventoryItemView> npc_items;
+    if (is_npc) {
+        auto inv_it = snapshot.actor_inventory_items.find(entity->actor_key);
+        if (inv_it != snapshot.actor_inventory_items.end()) npc_items = inv_it->second;
+    }
+    std::vector<pf::client::LocalKnowledgeView> npc_knowledge;
+    if (is_npc) {
+        for (const auto& item : snapshot.knowledge_items) {
+            if (item.actor_key == entity->actor_key) npc_knowledge.push_back(item);
+        }
+    }
 
-    const float panel_width = 260.0F;
+    const float panel_width = is_npc ? 340.0F : 260.0F;
     const float row_height = 34.0F;
     const float header_height = 54.0F;
-    const int rows = std::max(1, static_cast<int>(actions.size()));
+    const int action_rows = std::max(1, static_cast<int>(actions.size()));
+    const int npc_rows = is_npc ? (2 + std::max(1, std::min<int>(3, npc_items.size())) + std::max(1, std::min<int>(4, npc_knowledge.size()))) : 0;
+    const int rows = action_rows + npc_rows;
     const float panel_height = header_height + static_cast<float>(rows) * row_height + 14.0F;
     const auto target_screen = world_origin_ + camera_offset_ + worldToLocal(selected_coord_) * zoom_;
     float panel_x = target_screen.x + 28.0F;
@@ -980,9 +1025,9 @@ void MainScene::renderContextPanel() {
         empty->setAlignment(TextHAlignment::CENTER, TextVAlignment::CENTER);
         empty->setTextColor(Color32(203, 213, 225, 255));
         empty->setString(adjacent ? "暂无可用操作" : "先靠近目标再操作");
-        empty->setPosition(Vec2(panel_x + panel_width * 0.5F, panel_y + 22.0F));
+        empty->setPosition(Vec2(panel_x + panel_width * 0.5F, panel_y + panel_height - header_height - row_height * 0.5F));
         context_panel_layer_->addChild(empty, 1);
-        return;
+        if (!is_npc) return;
     }
 
     for (size_t index = 0; index < actions.size(); ++index) {
@@ -1002,11 +1047,74 @@ void MainScene::renderContextPanel() {
 
         action_hit_boxes_.push_back(ActionHitBox{Rect(row_x, row_y + 3.0F, row_w, row_height - 6.0F), actions[index]});
     }
+
+    if (is_npc) {
+        float cursor_y = panel_y + panel_height - header_height - static_cast<float>(action_rows) * row_height - 8.0F;
+        auto add_section_title = [&](const std::string& text) {
+            auto* label = createUiLabel(13.0F, Vec2(panel_width - 24.0F, 22.0F));
+            label->setAnchorPoint(Vec2(0.0F, 1.0F));
+            label->setTextColor(Color32(125, 211, 252, 255));
+            label->setString(text);
+            label->setPosition(Vec2(panel_x + 12.0F, cursor_y));
+            context_panel_layer_->addChild(label, 2);
+            cursor_y -= row_height;
+        };
+        auto add_info_row = [&](const std::string& text) {
+            const float row_x = panel_x + 10.0F;
+            const float row_w = panel_width - 20.0F;
+            panel->drawSolidRect(Vec2(row_x, cursor_y - row_height + 5.0F), Vec2(row_x + row_w, cursor_y - 2.0F), Color(30 / 255.0F, 41 / 255.0F, 59 / 255.0F, 0.58F));
+            auto* label = createUiLabel(12.0F, Vec2(row_w - 16.0F, row_height - 6.0F));
+            label->setAnchorPoint(Vec2(0.0F, 0.5F));
+            label->setAlignment(TextHAlignment::LEFT, TextVAlignment::CENTER);
+            label->setTextColor(Color32(226, 232, 240, 255));
+            label->setString(text);
+            label->setPosition(Vec2(row_x + 8.0F, cursor_y - row_height * 0.5F));
+            context_panel_layer_->addChild(label, 2);
+            cursor_y -= row_height;
+        };
+
+        add_section_title("NPC背包");
+        if (npc_items.empty()) {
+            add_info_row("空");
+        } else {
+            for (int i = 0; i < std::min<int>(3, npc_items.size()); ++i) {
+                const auto& item = npc_items[static_cast<size_t>(i)];
+                add_info_row(item.display_name + " ×" + std::to_string(item.quantity));
+            }
+        }
+
+        add_section_title("NPC知识");
+        if (npc_knowledge.empty()) {
+            add_info_row("还没有知识");
+        } else {
+            for (int i = 0; i < std::min<int>(4, npc_knowledge.size()); ++i) {
+                add_info_row(pf::client_ui::formatKnowledgeLine(npc_knowledge[static_cast<size_t>(i)]));
+            }
+        }
+    }
 }
 
 void MainScene::updateHud() {
-    if (status_label_) status_label_->setVisible(false);
-    if (selection_label_) selection_label_->setVisible(false);
+    if (status_label_) {
+        std::string text = status_text_;
+        if (local_runtime_) {
+            for (const auto& entity : local_runtime_->snapshot().entities) {
+                if (entity.entity_key == "player" && entity.max_health > 0) {
+                    text += "\n生命：" + std::to_string(entity.health) + "/" + std::to_string(entity.max_health);
+                    break;
+                }
+            }
+            if (!local_runtime_->snapshot().events.empty()) {
+                text += "\n事件：" + local_runtime_->snapshot().events.back();
+            }
+        }
+        status_label_->setString(text);
+        status_label_->setVisible(true);
+    }
+    if (selection_label_) {
+        selection_label_->setString("双击地块寻路；点击目标查看操作；世界会自动推进。");
+        selection_label_->setVisible(true);
+    }
     renderUi();
 }
 
@@ -1050,6 +1158,25 @@ void MainScene::executeNextPathStep(float delta) {
     submitOptionAndRender(*option, true);
 }
 
+void MainScene::updateWorldAutoTick(float delta) {
+    if (!local_runtime_ || command_pending_ || player_move_animating_) return;
+    if (!path_queue_.empty() || inventory_panel_open_ || dragging_ || mouse_down_) {
+        world_tick_accumulator_ = 0.0F;
+        return;
+    }
+
+    world_tick_accumulator_ += delta;
+    if (world_tick_accumulator_ < kWorldAutoTickSeconds) return;
+    world_tick_accumulator_ = 0.0F;
+
+    for (const auto& option : local_runtime_->snapshot().options) {
+        if (!option.enabled || option.command_kind != pathfinder::world_command::WorldCommandKind::Wait) continue;
+        pending_auto_tick_ = true;
+        submitOptionAndRender(option, false);
+        return;
+    }
+}
+
 void MainScene::pollPendingCommand() {
     if (!command_pending_ || !pending_command_.valid()) return;
     using namespace std::chrono_literals;
@@ -1064,7 +1191,9 @@ void MainScene::submitOptionAndRender(const pf::client::LocalCommandOptionView& 
     pending_option_ = option;
     pending_consumes_path_step_ = consumes_path_step;
     command_pending_ = true;
-    status_text_ = "正在执行: " + (option.label_text.empty() ? option.command_key : option.label_text);
+    if (!pending_auto_tick_) {
+        status_text_ = "正在执行: " + (option.label_text.empty() ? option.command_key : option.label_text);
+    }
     updateHud();
     pending_command_ = std::async(std::launch::async, [this, option_id = option.option_id]() {
         return local_runtime_ && local_runtime_->submitOption(option_id);
@@ -1077,6 +1206,7 @@ void MainScene::finishSubmittedOption(bool ok) {
         path_queue_.clear();
         active_path_.clear();
         pending_consumes_path_step_ = false;
+        pending_auto_tick_ = false;
         renderWorld();
         return;
     }
@@ -1087,7 +1217,12 @@ void MainScene::finishSubmittedOption(bool ok) {
         path_step_accumulator_ = kPathStepSeconds;
     }
     pending_consumes_path_step_ = false;
-    status_text_ = "执行成功: " + (pending_option_.label_text.empty() ? pending_option_.command_key : pending_option_.label_text);
+    if (pending_auto_tick_) {
+        status_text_ = "世界自动推进";
+        pending_auto_tick_ = false;
+    } else {
+        status_text_ = "执行成功: " + (pending_option_.label_text.empty() ? pending_option_.command_key : pending_option_.label_text);
+    }
     renderWorld();
 }
 
@@ -1328,7 +1463,14 @@ std::string MainScene::entityRenderKey(const pf::client::LocalEntityView& entity
 }
 
 std::string MainScene::entityVisualKey(const pf::client::LocalEntityView& entity) const {
-    return entity.entity_key + "|" + entity.display_name_key;
+    std::string status;
+    if (local_runtime_ && !entity.actor_key.empty()) {
+        auto it = local_runtime_->snapshot().actor_work_status.find(entity.actor_key);
+        if (it != local_runtime_->snapshot().actor_work_status.end()) status = it->second;
+    }
+    return entity.entity_key + "|" + entity.display_name_key + "|hp:" +
+           std::to_string(entity.health) + "/" + std::to_string(entity.max_health) +
+           "|alive:" + (entity.alive ? "1" : "0") + "|work:" + status;
 }
 
 Vec2 MainScene::worldToLocal(const Coord& coord) const {

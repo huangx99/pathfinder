@@ -13,7 +13,7 @@ namespace pathfinder::client_protocol {
 class ClientAvailableCommandAdapter {
 public:
     // Compatibility constructor for protocol/unit tests only. Production wiring must
-    // inject a runtime option bridge through ClientServerRuntimeFactory.
+    // inject a runtime option bridge through ClientRuntimeHostFactory.
     ClientAvailableCommandAdapter();
     explicit ClientAvailableCommandAdapter(
         std::shared_ptr<pathfinder::client_runtime_bridge::IClientRuntimeBridgePort> option_bridge);

@@ -3,7 +3,7 @@
 #include "pathfinder/client_http/client_http_gateway.h"
 #include "pathfinder/client_http/client_http_router_impl.h"
 #include "pathfinder/client_http/client_http_server.h"
-#include "pathfinder/client_http/client_server_runtime_factory.h"
+#include "pathfinder/client_runtime_host/client_runtime_host_factory.h"
 #include <atomic>
 #include <csignal>
 #include <iostream>
@@ -31,7 +31,7 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    pathfinder::client_http::ClientServerRuntimeFactory runtime;
+    pathfinder::client_runtime_host::ClientRuntimeHostFactory runtime;
     pathfinder::client_http::ClientStaticFileService static_files(static_root);
     pathfinder::client_http::ClientHttpServer server(
         std::make_unique<pathfinder::client_http::ClientSocketHttpTransport>(),

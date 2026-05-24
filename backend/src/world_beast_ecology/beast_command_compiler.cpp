@@ -1,5 +1,6 @@
 #include "pathfinder/world_beast_ecology/beast_command_compiler.h"
 #include "pathfinder/foundation/error.h"
+#include <algorithm>
 
 namespace pathfinder::world_beast_ecology {
 
@@ -47,13 +48,23 @@ Result<WorldCommandDto> BeastCommandCompiler::compile(
                 target.target_kind = WorldCommandTargetKind::Actor;
                 target.target_actor_key = intent.target_ref;
             }
+            if (intent.kind == BeastActionIntentKind::Attack) {
+                command.parameters["damage"] = std::to_string(std::max(1, intent.attack_damage));
+            }
             break;
         case BeastActionIntentKind::Wander:
-            // P52: without a target_coord, Wander cannot safely compile to Move.
-            // Fall back to Wait to avoid hardcoding a destination.
-            command.command_kind = pathfinder::world_command::WorldCommandKind::Wait;
-            command.command_key = toString(pathfinder::world_command::WorldCommandKind::Wait);
-            target.target_kind = WorldCommandTargetKind::None;
+            if (intent.target_coord.has_value()) {
+                target.target_kind = WorldCommandTargetKind::Coordinate;
+                target.target_coord = pathfinder::world_command::WorldCoordinateDto{
+                    intent.target_coord.value().x,
+                    intent.target_coord.value().y,
+                    intent.target_coord.value().layer_key
+                };
+            } else {
+                command.command_kind = pathfinder::world_command::WorldCommandKind::Wait;
+                command.command_key = toString(pathfinder::world_command::WorldCommandKind::Wait);
+                target.target_kind = WorldCommandTargetKind::None;
+            }
             break;
         default:
             target.target_kind = WorldCommandTargetKind::None;

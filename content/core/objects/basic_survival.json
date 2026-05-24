@@ -370,7 +370,11 @@
       ],
       "initial_state": {
         "quantity": 1,
-        "numeric": {},
+        "numeric": {
+          "health": 3,
+          "max_health": 3,
+          "attack_damage": 1
+        },
         "tags": []
       },
       "projection": {

@@ -107,6 +107,7 @@ Result<BeastTickResult> BeastEcologyCoordinator::tick(const BeastTickRequest& re
     // 6. Decision policy
     BeastDecisionPolicy::PolicyContext policy_context;
     policy_context.actor_key = request.actor_key;
+    policy_context.actor_coord = actor.coord;
     policy_context.profile = profile;
     policy_context.perceptions = perceptions;
     policy_context.learned_claims = claims;

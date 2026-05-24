@@ -1096,6 +1096,40 @@ target_link_libraries(pathfinder_client_protocol PUBLIC
     pathfinder_world_map_interaction
 )
 
+# World Modules library (P64)
+add_library(pathfinder_world_modules STATIC
+    src/world_modules/core/world_module_utils.cpp
+    src/world_modules/core/world_module_context.cpp
+    src/world_modules/core/world_use_command_router.cpp
+    src/world_modules/knowledge/actor_knowledge_inspect_module.cpp
+    src/world_modules/bootstrap/default_playable_world_bootstrap.cpp
+    src/world_modules/core/default_world_modules.cpp
+    src/world_beast_ecology/beast_runtime_module.cpp
+    src/world_modules/follow/world_follow_module.cpp
+    src/world_modules/npc_work/world_npc_work_module.cpp
+)
+
+target_include_directories(pathfinder_world_modules PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(pathfinder_world_modules PUBLIC
+    pathfinder_foundation
+    pathfinder_client_protocol
+    pathfinder_content
+    pathfinder_knowledge
+    pathfinder_world_command
+    pathfinder_world_runtime
+    pathfinder_world_command_runtime
+    pathfinder_world_generation
+    pathfinder_world_inventory
+    pathfinder_world_inventory_command
+    pathfinder_world_harvest
+    pathfinder_world_reaction
+    pathfinder_world_teaching
+    pathfinder_world_beast_ecology
+)
+
 # Client HTTP library (P54)
 add_library(pathfinder_client_http STATIC
     src/client_http/client_http_types.cpp
@@ -1104,7 +1138,6 @@ add_library(pathfinder_client_http STATIC
     src/client_http/client_http_router_impl.cpp
     src/client_http/client_socket_http_transport.cpp
     src/client_http/client_http_server.cpp
-    src/client_http/client_server_runtime_factory.cpp
 )
 
 target_include_directories(pathfinder_client_http PUBLIC
@@ -1116,6 +1149,23 @@ target_link_libraries(pathfinder_client_http PUBLIC
     pathfinder_foundation
     pathfinder_client_protocol
     pathfinder_world_command
+)
+
+# Client Runtime Host library (P64)
+add_library(pathfinder_client_runtime_host STATIC
+    src/client_runtime_host/client_runtime_host_factory.cpp
+)
+
+target_include_directories(pathfinder_client_runtime_host PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/nlohmann
+)
+
+target_link_libraries(pathfinder_client_runtime_host PUBLIC
+    pathfinder_foundation
+    pathfinder_client_protocol
+    pathfinder_client_http
+    pathfinder_world_command
     pathfinder_world_runtime
     pathfinder_world_command_runtime
     pathfinder_world_generation
@@ -1124,6 +1174,8 @@ target_link_libraries(pathfinder_client_http PUBLIC
     pathfinder_world_reaction
     pathfinder_world_learning
     pathfinder_world_teaching
+    pathfinder_world_beast_ecology
+    pathfinder_world_modules
     pathfinder_content
 )
 
@@ -1137,6 +1189,7 @@ set_target_properties(pathfinder_client_server_exe PROPERTIES
 )
 
 target_link_libraries(pathfinder_client_server_exe PRIVATE
+    pathfinder_client_runtime_host
     pathfinder_client_http
     pathfinder_client_protocol
     pathfinder_world_command

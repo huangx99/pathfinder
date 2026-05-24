@@ -134,6 +134,15 @@ Result<std::vector<world_command::WorldEntityPatchDto>> WorldProjectionAdapter::
             }
         }
 
+        for (const auto& [key, value] : entity->numeric_states) {
+            patch.fields["numeric_" + key] = std::to_string(value);
+            if (key == "health" || key == "max_health") {
+                patch.fields[key] = std::to_string(static_cast<int>(value));
+            } else if (key == "alive") {
+                patch.fields[key] = value > 0.0 ? "true" : "false";
+            }
+        }
+
         std::string tags;
         for (const auto& tag : entity->tag_keys) {
             if (!tags.empty()) tags += ",";

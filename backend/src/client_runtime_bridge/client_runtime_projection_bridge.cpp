@@ -154,7 +154,7 @@ Result<std::vector<WorldEntityPatchDto>> ClientRuntimeProjectionBridge::buildVis
     for (const auto& [entity_id, entity] : snapshot.entities) {
         if (!entity.coord) continue;
         auto visibility = grid->getCellVisibility(actor_key, entity.coord->cellId());
-        if (visibility == WorldCellVisibility::Visible) {
+        if (visibility != WorldCellVisibility::Unknown) {
             visible_entity_ids.push_back(entity_id);
         }
     }
@@ -169,7 +169,7 @@ Result<std::vector<WorldEntityPatchDto>> ClientRuntimeProjectionBridge::buildVis
         if (node.coord.layer_key.empty()) continue;
         if (node.remaining_charges <= 0 || node.node_state_str == "Depleted") continue;
         auto visibility = grid->getCellVisibility(actor_key, node.coord.cellId());
-        if (visibility != WorldCellVisibility::Visible) continue;
+        if (visibility == WorldCellVisibility::Unknown) continue;
 
         WorldEntityPatchDto patch;
         patch.entity_id = node.node_id;
@@ -194,13 +194,36 @@ Result<std::vector<InventoryPatchDto>> ClientRuntimeProjectionBridge::buildVisib
         return Result<std::vector<InventoryPatchDto>>::ok(std::vector<InventoryPatchDto>{});
     }
 
-    auto inventory_res = inventory_runtime_->findActorInventory(actor_key);
-    if (inventory_res.is_error() || inventory_res.value() == nullptr) {
+    std::vector<std::string> inventory_ids;
+    auto add_actor_inventory = [&](const std::string& owner_actor_key) {
+        if (owner_actor_key.empty()) return;
+        auto inventory_res = inventory_runtime_->findActorInventory(owner_actor_key);
+        if (inventory_res.is_error() || inventory_res.value() == nullptr) return;
+        const auto& id = inventory_res.value()->inventory_id;
+        if (std::find(inventory_ids.begin(), inventory_ids.end(), id) == inventory_ids.end()) {
+            inventory_ids.push_back(id);
+        }
+    };
+
+    add_actor_inventory(actor_key);
+
+    const WorldGridRuntime* grid = dynamic_cast<const WorldGridRuntime*>(&runtime_);
+    auto snap_res = runtime_.snapshotForDebug();
+    if (grid && snap_res.is_ok()) {
+        for (const auto& [candidate_actor_key, candidate_actor] : snap_res.value().actors) {
+            if (candidate_actor_key == actor_key) continue;
+            const auto visibility = grid->getCellVisibility(actor_key, candidate_actor.coord.cellId());
+            if (visibility == WorldCellVisibility::Unknown) continue;
+            add_actor_inventory(candidate_actor_key);
+        }
+    }
+
+    if (inventory_ids.empty()) {
         return Result<std::vector<InventoryPatchDto>>::ok(std::vector<InventoryPatchDto>{});
     }
 
     return inventory_projection_adapter_.buildInventoryPatches(
-        std::vector<std::string>{inventory_res.value()->inventory_id},
+        inventory_ids,
         actor_key,
         *inventory_runtime_);
 }

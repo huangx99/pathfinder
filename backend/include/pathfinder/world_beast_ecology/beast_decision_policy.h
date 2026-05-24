@@ -9,6 +9,7 @@ class BeastDecisionPolicy {
 public:
     struct PolicyContext {
         std::string actor_key;
+        std::optional<pathfinder::world_runtime::WorldCellCoord> actor_coord;
         BeastAgentProfile profile;
         std::vector<BeastPerceptionItem> perceptions;
         std::vector<pathfinder::knowledge::KnowledgeClaim> learned_claims;

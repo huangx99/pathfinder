@@ -165,4 +165,31 @@ std::shared_ptr<IWorldCommandHandler> createWaitCommandHandler(IWorldRuntime& ru
     return std::make_shared<WaitCommandHandlerRuntime>(runtime);
 }
 
+
+// ---------------------------------------------------------------------------
+// Attack
+// ---------------------------------------------------------------------------
+class AttackCommandHandlerRuntime : public IWorldCommandHandler {
+public:
+    explicit AttackCommandHandlerRuntime(IWorldRuntime& runtime)
+        : bridge_(runtime) {}
+
+    WorldCommandKind kind() const override {
+        return WorldCommandKind::Attack;
+    }
+
+    pathfinder::foundation::Result<WorldCommandExecutionResult> execute(
+        WorldCommandContext& context,
+        const WorldCommandDto& command) const override {
+        return bridge_.handleAttack(context, command);
+    }
+
+private:
+    mutable WorldCommandRuntimeBridge bridge_;
+};
+
+std::shared_ptr<IWorldCommandHandler> createAttackCommandHandler(IWorldRuntime& runtime) {
+    return std::make_shared<AttackCommandHandlerRuntime>(runtime);
+}
+
 } // namespace pathfinder::world_runtime

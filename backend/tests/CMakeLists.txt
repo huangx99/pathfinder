@@ -5777,11 +5777,11 @@ add_test(
 )
 
 # Architecture guard: HTTP transport/frontend files must not read content rules.
-# ClientServerRuntimeFactory is the backend composition root and may wire a ContentRegistry
+# ClientRuntimeHostFactory is the backend composition root and may wire a ContentRegistry
 # into world generation/harvest services; it still must not expose raw content JSON.
 add_test(
     NAME architecture_client_http_no_content_json_read
-    COMMAND bash -c "! grep -rni 'content/core\|recipes\|reaction_rules\|knowledge_templates' --exclude=client_static_file_service.cpp --exclude=client_server_runtime_factory.cpp --exclude=client_server_runtime_factory.h ${CMAKE_CURRENT_SOURCE_DIR}/../include/pathfinder/client_http/ ${CMAKE_CURRENT_SOURCE_DIR}/../src/client_http/"
+    COMMAND bash -c "! grep -rni 'content/core\|recipes\|reaction_rules\|knowledge_templates' --exclude=client_static_file_service.cpp --exclude=client_runtime_host_factory.cpp --exclude=client_runtime_host_factory.h ${CMAKE_CURRENT_SOURCE_DIR}/../include/pathfinder/client_http/ ${CMAKE_CURRENT_SOURCE_DIR}/../src/client_http/"
 )
 
 # Architecture guard: client_http must not directly modify runtime arrays
@@ -5805,7 +5805,7 @@ add_test(
 # Architecture guard: client_http must not generate frontend rules
 add_test(
     NAME architecture_client_http_no_frontend_rule_generation
-    COMMAND bash -c "! grep -rni 'generateWorld\\|createWorld\\|spawnEntity\\|spawnActor' --exclude=client_server_runtime_factory.cpp ${CMAKE_CURRENT_SOURCE_DIR}/../include/pathfinder/client_http/ ${CMAKE_CURRENT_SOURCE_DIR}/../src/client_http/"
+    COMMAND bash -c "! grep -rni 'generateWorld\\|createWorld\\|spawnEntity\\|spawnActor' --exclude=client_runtime_host_factory.cpp ${CMAKE_CURRENT_SOURCE_DIR}/../include/pathfinder/client_http/ ${CMAKE_CURRENT_SOURCE_DIR}/../src/client_http/"
 )
 
 # Architecture guard: client_http transport boundary
@@ -5848,6 +5848,7 @@ add_executable(pathfinder_tests_client_runtime_bridge_integration
 
 target_link_libraries(pathfinder_tests_client_runtime_bridge_integration PRIVATE
     pathfinder_client_runtime_bridge
+    pathfinder_client_runtime_host
     pathfinder_client_http
     pathfinder_client_protocol
     pathfinder_world_runtime
@@ -5874,17 +5875,18 @@ add_test(NAME client_runtime_bridge_npc_order_crafts_axe_after_teaching COMMAND 
 add_test(NAME client_runtime_bridge_npc_order_torch_counters_threat_after_teaching COMMAND pathfinder_tests_client_runtime_bridge_integration npc_order_torch_counters_threat_after_teaching)
 add_test(NAME client_runtime_bridge_pickup_options_exclude_predator COMMAND pathfinder_tests_client_runtime_bridge_integration pickup_options_exclude_predator)
 add_test(NAME client_runtime_bridge_npc_follow_command_moves_companion COMMAND pathfinder_tests_client_runtime_bridge_integration npc_follow_command_moves_companion)
+add_test(NAME client_runtime_bridge_wildlife_actor_chases_and_attacks COMMAND pathfinder_tests_client_runtime_bridge_integration wildlife_actor_chases_and_attacks)
 
 # Architecture guard: P56 production factory must use runtime-backed bridge
 add_test(
     NAME architecture_client_runtime_bridge_no_production_stub
-    COMMAND bash -c "grep -rn 'RuntimeBacked' ${CMAKE_CURRENT_SOURCE_DIR}/../src/client_http/client_server_runtime_factory.cpp"
+    COMMAND bash -c "grep -rn 'RuntimeBacked' ${CMAKE_CURRENT_SOURCE_DIR}/../src/client_runtime_host/client_runtime_host_factory.cpp"
 )
 
-# Architecture guard: client_http factory must not be stub mode
+# Architecture guard: client_runtime host factory must not be stub mode
 add_test(
     NAME architecture_client_server_factory_runtime_backed
-    COMMAND bash -c "! grep -rni 'StubForProtocolTest\|Disabled.*mode' ${CMAKE_CURRENT_SOURCE_DIR}/../src/client_http/client_server_runtime_factory.cpp"
+    COMMAND bash -c "! grep -rni 'StubForProtocolTest\|Disabled.*mode' ${CMAKE_CURRENT_SOURCE_DIR}/../src/client_runtime_host/client_runtime_host_factory.cpp"
 )
 
 # Architecture guard: client_projection_adapter.cpp production path must not return empty success
@@ -5971,6 +5973,7 @@ add_executable(pathfinder_tests_p60
 )
 
 target_link_libraries(pathfinder_tests_p60 PRIVATE
+    pathfinder_client_runtime_host
     pathfinder_world_map_interaction
     pathfinder_world_region_state
     pathfinder_world_runtime

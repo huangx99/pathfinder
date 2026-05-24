@@ -38,8 +38,15 @@ public:
         const std::string& display_name_key,
         const WorldCellCoord& coord,
         int vision_radius,
-        bool is_player_controlled = false);
+        bool is_player_controlled = false,
+        const std::vector<std::string>& tag_keys = {},
+        const std::map<std::string, double>& numeric_states = {},
+        const std::string& entity_id_override = "");
     foundation::Result<MoveActorResult> moveActor(const std::string& actor_key, const WorldCellCoord& target) override;
+    foundation::Result<ActorHealthChangeResult> applyActorHealthDelta(
+        const std::string& actor_key,
+        int delta,
+        const std::vector<std::string>& reason_keys) override;
     foundation::Result<InspectWorldResult> inspect(const std::string& actor_key, const world_command::WorldCommandTargetDto& target) const override;
     foundation::Result<AdvanceWorldTimeResult> advanceWorldTime(uint64_t tick_delta) override;
 

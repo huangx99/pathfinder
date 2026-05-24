@@ -12,7 +12,7 @@ namespace pathfinder::client_protocol {
 class ClientProjectionAdapter {
 public:
     // Compatibility constructor for protocol/unit tests only. Production wiring must
-    // inject a runtime bridge through ClientServerRuntimeFactory; otherwise the
+    // inject a runtime bridge through ClientRuntimeHostFactory; otherwise the
     // adapter can only return an empty safe projection.
     ClientProjectionAdapter();
     explicit ClientProjectionAdapter(

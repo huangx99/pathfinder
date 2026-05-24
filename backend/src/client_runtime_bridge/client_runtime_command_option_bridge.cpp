@@ -78,6 +78,18 @@ namespace {
         return std::find(tags.begin(), tags.end(), tag) != tags.end();
     }
 
+    bool isSocialNpcActor(const pathfinder::content::ContentRegistry& registry,
+                          const pathfinder::world_runtime::IWorldRuntime& runtime,
+                          const pathfinder::world_runtime::WorldActorRuntime& actor) {
+        if (!actor.alive) return false;
+        auto entity_res = runtime.findEntity(actor.entity_id);
+        if (entity_res.is_error()) return false;
+        const auto* agent = registry.findAgent(entity_res.value()->entity_key);
+        if (!agent) return false;
+        if (agent->embodiment == "wildlife" || agent->cognition_band == "instinctive") return false;
+        return agent->can_teach || agent->embodiment == "humanoid" || agent->cognition_band == "social";
+    }
+
     pathfinder::knowledge::KnowledgeOwner actorKnowledgeOwner(const std::string& actor_key) {
         pathfinder::knowledge::KnowledgeOwner owner;
         owner.kind = pathfinder::knowledge::KnowledgeOwnerKind::Actor;
@@ -666,6 +678,7 @@ std::vector<WorldCommandOptionDto> TeachingAndNpcWorkCommandOptionProvider::buil
 
     for (const auto& [candidate_actor_key, candidate_actor] : snapshot.actors) {
         if (candidate_actor_key == actor.actor_key) continue;
+        if (!isSocialNpcActor(content_registry_, runtime, candidate_actor)) continue;
         if (!sameOrAdjacent(actor.coord, candidate_actor.coord)) continue;
 
         std::string target_entity_id = candidate_actor.entity_id;
@@ -699,9 +712,23 @@ std::vector<WorldCommandOptionDto> TeachingAndNpcWorkCommandOptionProvider::buil
             options.push_back(std::move(follow));
         }
 
+        auto worker_claims_res = knowledge_repository_.listByOwner(actorKnowledgeOwner(candidate_actor_key));
+        std::vector<pathfinder::knowledge::KnowledgeClaim> worker_claims;
+        if (worker_claims_res.is_ok()) worker_claims = worker_claims_res.value();
+
+        auto recipientAlreadyKnows = [&](const pathfinder::knowledge::KnowledgeClaim& source_claim) {
+            const auto source_id = source_claim.knowledge_id.value();
+            return std::any_of(worker_claims.begin(), worker_claims.end(), [&](const auto& known) {
+                return known.knowledge_id.value() == source_id ||
+                    (known.subject.subject_id == source_claim.subject.subject_id &&
+                     known.predicate.action_key == source_claim.predicate.action_key &&
+                     known.predicate.effect_key == source_claim.predicate.effect_key);
+            });
+        };
+
         if (registry_.findByKind(WorldCommandKind::Teach)) {
             for (const auto& claim : teacher_claims) {
-                if (!claim.teaching_profile.teachable) continue;
+                if (!claim.teaching_profile.teachable || recipientAlreadyKnows(claim)) continue;
                 WorldCommandOptionDto teach;
                 teach.option_id = makeOptionId("opt_teach_knowledge");
                 teach.command_kind = WorldCommandKind::Teach;
@@ -718,9 +745,6 @@ std::vector<WorldCommandOptionDto> TeachingAndNpcWorkCommandOptionProvider::buil
         }
 
         if (!registry_.findByKind(WorldCommandKind::Use)) continue;
-        auto worker_claims_res = knowledge_repository_.listByOwner(actorKnowledgeOwner(candidate_actor_key));
-        if (worker_claims_res.is_error()) continue;
-        const auto worker_claims = worker_claims_res.value();
         for (const auto* reaction : content_registry_.allReactions()) {
             if (!reaction || (reaction->action_key != "craft" && reaction->action_key != "use" && reaction->action_key != "combine")) continue;
             bool matched = false;

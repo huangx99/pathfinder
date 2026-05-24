@@ -116,6 +116,7 @@ struct BeastAgentProfile {
     int hearing_radius = 0;
     double base_aggression = 0.0;
     double base_fear = 0.0;
+    int attack_damage = 1;
     std::vector<std::string> prey_tags;
     std::vector<std::string> danger_tags;
     std::vector<std::string> deterrent_tags;
@@ -160,6 +161,7 @@ struct BeastActionIntent {
     pathfinder::world_command::WorldCommandKind command_kind = pathfinder::world_command::WorldCommandKind::Unknown;
     BeastDecisionReasonKind reason_kind = BeastDecisionReasonKind::Unknown;
     double risk_score = 0.0;
+    int attack_damage = 1;
     std::string safe_summary_zh_cn;
 
     pathfinder::foundation::Result<void> validateBasic() const;

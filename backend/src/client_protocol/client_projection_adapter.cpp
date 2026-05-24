@@ -7,7 +7,7 @@ namespace pathfinder::client_protocol {
 using pathfinder::foundation::Result;
 
 // Test-only compatibility constructor. Production must use the bridge-injected
-// constructor from ClientServerRuntimeFactory so projection data comes from runtime.
+// constructor from ClientRuntimeHostFactory so projection data comes from runtime.
 ClientProjectionAdapter::ClientProjectionAdapter() = default;
 
 ClientProjectionAdapter::ClientProjectionAdapter(
@@ -58,7 +58,7 @@ Result<ClientWorldProjection> ClientProjectionAdapter::buildFullProjection(
     }
 
     // P53 test fallback only: visible cells/entities are intentionally empty.
-    // Production must never rely on this branch; ClientServerRuntimeFactory injects
+    // Production must never rely on this branch; ClientRuntimeHostFactory injects
     // ClientRuntimeProjectionBridge so the branch above returns real runtime data.
     ClientWorldProjection proj;
     proj.projection_version = projection_version;

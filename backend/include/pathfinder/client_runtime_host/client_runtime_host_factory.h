@@ -26,6 +26,7 @@
 #include "pathfinder/world_map_interaction/region_lifecycle_trigger_service.h"
 #include "pathfinder/world_map_interaction/client_map_selection_service.h"
 #include "pathfinder/world_map_interaction/client_map_projection_adapter.h"
+#include "pathfinder/world_modules/core/world_module_context.h"
 #include "pathfinder/content/content_registry.h"
 #include "pathfinder/world_command/world_command_registry.h"
 #include "pathfinder/world_command/world_command_dispatcher.h"
@@ -33,14 +34,14 @@
 #include <memory>
 #include <string>
 
-namespace pathfinder::client_http {
+namespace pathfinder::client_runtime_host {
 
 // P56: Creates the runtime-backed backend dependencies for client HTTP server.
 // Wires P53 Client Protocol with WorldCommand pipeline and WorldGridRuntime.
 //
 // CRITICAL: Member declaration order determines initialization order.
 // Any member used in another member's constructor must be declared BEFORE it.
-struct ClientServerRuntimeFactory {
+struct ClientRuntimeHostFactory {
     // ------------------------------------------------------------------------
     // 1. Core runtime
     // ------------------------------------------------------------------------
@@ -70,6 +71,7 @@ struct ClientServerRuntimeFactory {
     // 4. Command registry (injected into option_bridge and dispatcher)
     // ------------------------------------------------------------------------
     pathfinder::world_command::WorldCommandHandlerRegistry registry;
+    pathfinder::world_modules::WorldPostCommandHookRegistry post_command_hooks;
 
     // ------------------------------------------------------------------------
     // 5. Runtime bridges (depend on runtime and registry)
@@ -110,9 +112,9 @@ struct ClientServerRuntimeFactory {
     pathfinder::client_protocol::ClientProtocolCodec codec;
     std::unique_ptr<pathfinder::client_http::ClientHttpGateway> http_gateway;
 
-    ClientServerRuntimeFactory();
+    ClientRuntimeHostFactory();
 
     pathfinder::foundation::Result<void> resetWorld();
 };
 
-} // namespace pathfinder::client_http
+} // namespace pathfinder::client_runtime_host

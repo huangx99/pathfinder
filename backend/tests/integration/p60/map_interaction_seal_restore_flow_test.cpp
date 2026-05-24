@@ -1,14 +1,14 @@
 #include <cassert>
 #include <iostream>
 #include <string>
-#include "pathfinder/client_http/client_server_runtime_factory.h"
+#include "pathfinder/client_runtime_host/client_runtime_host_factory.h"
 #include "pathfinder/client_protocol/client_protocol_harness.h"
 #include "pathfinder/world_command/world_command_types.h"
 #include "pathfinder/world_region_state/world_region_state_types.h"
 #include "pathfinder/client_http/client_http_types.h"
 #include "json.hpp"
 
-using namespace pathfinder::client_http;
+using namespace pathfinder::client_runtime_host;
 using namespace pathfinder::client_protocol;
 using namespace pathfinder::world_command;
 using namespace pathfinder::world_map_interaction;
@@ -16,7 +16,7 @@ using namespace pathfinder::world_region_state;
 using namespace pathfinder::foundation;
 
 struct RuntimeBackedFixture {
-    ClientServerRuntimeFactory factory;
+    ClientRuntimeHostFactory factory;
     ClientProtocolHarness harness;
 
     RuntimeBackedFixture()

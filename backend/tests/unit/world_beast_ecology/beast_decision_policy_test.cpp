@@ -39,7 +39,7 @@ void run_world_beast_ecology_policy_tests() {
     profile.danger_tags.push_back("danger_effect_tag");
     profile.deterrent_tags.push_back("deterrent_tag");
 
-    // 1. No targets -> Wait (P52 safe fallback without wander algorithm)
+    // 1. No targets without coord -> Wait; with coord -> Wander.
     BeastDecisionPolicy::PolicyContext ctx1;
     ctx1.actor_key = "beast_1";
     ctx1.profile = profile;
@@ -48,6 +48,18 @@ void run_world_beast_ecology_policy_tests() {
     assert(r1.is_ok());
     assert(r1.value().kind == BeastActionIntentKind::Wait);
     assert(r1.value().reason_kind == BeastDecisionReasonKind::NoValidAction);
+
+    BeastDecisionPolicy::PolicyContext ctx1b;
+    ctx1b.actor_key = "beast_1";
+    ctx1b.actor_coord = WorldCellCoord{0, 0, "surface"};
+    ctx1b.profile = profile;
+    ctx1b.tick = 11;
+    auto r1b = policy.selectIntent(ctx1b);
+    assert(r1b.is_ok());
+    assert(r1b.value().kind == BeastActionIntentKind::Wander);
+    assert(r1b.value().command_kind == pathfinder::world_command::WorldCommandKind::Move);
+    assert(r1b.value().target_coord.has_value());
+    assert(r1b.value().target_coord->layer_key == "surface");
 
     // 2. Prey tag -> Approach
     BeastPerceptionItem prey;
@@ -189,6 +201,61 @@ void run_world_beast_ecology_policy_tests() {
     assert(r6b.is_ok());
     assert(r6b.value().kind == BeastActionIntentKind::Flee);
     assert(r6b.value().reason_kind == BeastDecisionReasonKind::LearnedRisk);
+
+    // 6c. Nearby visible deterrent suppresses hunting and causes an escape step.
+    BeastPerceptionItem nearby_deterrent;
+    nearby_deterrent.perception_id = "p5c_fire";
+    nearby_deterrent.kind = BeastPerceptionKind::Object;
+    nearby_deterrent.target_ref = "obj_fire_1";
+    nearby_deterrent.target_key = "camp_fire";
+    nearby_deterrent.coord = WorldCellCoord{0, 0, "surface"};
+    nearby_deterrent.distance = 4;
+    nearby_deterrent.visible = true;
+    nearby_deterrent.tag_keys.push_back("deterrent_tag");
+
+    BeastPerceptionItem visible_prey;
+    visible_prey.perception_id = "p5c_prey";
+    visible_prey.kind = BeastPerceptionKind::Actor;
+    visible_prey.target_ref = "prey_actor_fire_safe";
+    visible_prey.target_key = "prey_entity";
+    visible_prey.coord = WorldCellCoord{2, 0, "surface"};
+    visible_prey.distance = 2;
+    visible_prey.visible = true;
+    visible_prey.tag_keys.push_back("prey_tag");
+
+    BeastDecisionPolicy::PolicyContext ctx6c;
+    ctx6c.actor_key = "beast_1";
+    ctx6c.actor_coord = WorldCellCoord{4, 0, "surface"};
+    ctx6c.profile = profile;
+    ctx6c.perceptions.push_back(nearby_deterrent);
+    ctx6c.perceptions.push_back(visible_prey);
+    ctx6c.tick = 12;
+    auto r6c = policy.selectIntent(ctx6c);
+    assert(r6c.is_ok());
+    assert(r6c.value().kind == BeastActionIntentKind::Flee);
+    assert(r6c.value().reason_kind == BeastDecisionReasonKind::PerceivedDanger);
+    assert(r6c.value().target_coord.has_value());
+    assert(std::abs(r6c.value().target_coord->x - nearby_deterrent.coord->x) +
+           std::abs(r6c.value().target_coord->y - nearby_deterrent.coord->y) > nearby_deterrent.distance);
+
+    // 6d. Distant deterrent still suppresses hunting but becomes roaming.
+    auto distant_deterrent = nearby_deterrent;
+    distant_deterrent.perception_id = "p5d_fire";
+    distant_deterrent.distance = 7;
+    BeastDecisionPolicy::PolicyContext ctx6d;
+    ctx6d.actor_key = "beast_1";
+    ctx6d.actor_coord = WorldCellCoord{7, 0, "surface"};
+    ctx6d.profile = profile;
+    ctx6d.perceptions.push_back(distant_deterrent);
+    ctx6d.perceptions.push_back(visible_prey);
+    ctx6d.tick = 13;
+    auto r6d = policy.selectIntent(ctx6d);
+    assert(r6d.is_ok());
+    assert(r6d.value().kind == BeastActionIntentKind::Wander);
+    assert(r6d.value().reason_kind == BeastDecisionReasonKind::PerceivedDanger);
+    assert(r6d.value().target_coord.has_value());
+    assert(std::abs(r6d.value().target_coord->x - distant_deterrent.coord->x) +
+           std::abs(r6d.value().target_coord->y - distant_deterrent.coord->y) >= distant_deterrent.distance);
 
     // 7. Curious temperament -> Observe
     BeastAgentProfile curious_profile;

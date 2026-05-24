@@ -74,7 +74,7 @@ add_executable(${APP_NAME} ${PATHFINDER_AXMOL_SOURCES})
 target_include_directories(${APP_NAME} PRIVATE Source)
 target_link_libraries(${APP_NAME} PRIVATE
     ${_AX_CORE_LIB}
-    pathfinder_client_http
+    pathfinder_client_runtime_host
 )
 target_compile_definitions(${APP_NAME} PRIVATE PATHFINDER_REPO_ROOT="${PATHFINDER_REPO_DIR}")
 

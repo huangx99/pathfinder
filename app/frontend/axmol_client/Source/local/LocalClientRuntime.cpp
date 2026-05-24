@@ -1,5 +1,5 @@
 #include "local/LocalClientRuntime.h"
-#include "pathfinder/client_http/client_server_runtime_factory.h"
+#include "pathfinder/client_runtime_host/client_runtime_host_factory.h"
 #include <algorithm>
 #include <filesystem>
 #include <map>
@@ -78,7 +78,7 @@ bool LocalClientRuntime::bootstrap() {
         if (!factory_) {
             const auto old_path = std::filesystem::current_path();
             std::filesystem::current_path(repoRoot());
-            factory_ = std::make_unique<pathfinder::client_http::ClientServerRuntimeFactory>();
+            factory_ = std::make_unique<pathfinder::client_runtime_host::ClientRuntimeHostFactory>();
             std::filesystem::current_path(old_path);
         }
 
@@ -122,6 +122,9 @@ bool LocalClientRuntime::refresh() {
 bool LocalClientRuntime::reset() {
     if (!factory_ && !bootstrap()) return false;
     snapshot_.knowledge_items.clear();
+    snapshot_.actor_inventory_items.clear();
+    snapshot_.actor_inventory_capacity_slots.clear();
+    snapshot_.actor_work_status.clear();
     ClientResetRequest request;
     request.client_id = client_id_;
     request.session_id = session_id_;
@@ -232,6 +235,19 @@ void LocalClientRuntime::applyCommand(const ClientCommandResponse& response) {
     }
     for (const auto& event : response.event_feed) {
         snapshot_.events.push_back(event.body_text.empty() ? (event.title_text.empty() ? event.event_kind : event.title_text) : ((event.title_text.empty() ? event.event_kind : event.title_text) + "：" + event.body_text));
+        if (!event.actor_key.empty()) {
+            if (event.event_kind == "NpcWorkOrderAccepted") snapshot_.actor_work_status[event.actor_key] = "准备工作";
+            else if (event.event_kind == "NpcWorkMoving") snapshot_.actor_work_status[event.actor_key] = "正在前往";
+            else if (event.event_kind == "NpcWorkGathering" || event.event_kind == "ResourceHarvested") snapshot_.actor_work_status[event.actor_key] = "正在采集";
+            else if (event.event_kind == "NpcWorkPicking") snapshot_.actor_work_status[event.actor_key] = "正在拾取";
+            else if (event.event_kind == "NpcWorkCrafting") snapshot_.actor_work_status[event.actor_key] = "正在制作";
+            else if (event.event_kind == "NpcWorkDelivering") snapshot_.actor_work_status[event.actor_key] = "正在交付";
+            else if (event.event_kind == "NpcWorkOrderCompleted") snapshot_.actor_work_status[event.actor_key] = "完成代工";
+            else if (event.event_kind == "NpcWorkBlocked") snapshot_.actor_work_status[event.actor_key] = "工作受阻";
+            else if (event.event_kind == "ActorMoved") snapshot_.actor_work_status[event.actor_key] = "正在移动";
+            else if (event.event_kind == "NpcFollowEnabled") snapshot_.actor_work_status[event.actor_key] = "正在跟随";
+            else if (event.event_kind == "NpcCounteredThreat") snapshot_.actor_work_status[event.actor_key] = "正在防卫";
+        }
     }
     snapshot_.status_text = response.result.failure_reason_keys.empty()
         ? toString(response.result.result_kind)
@@ -277,15 +293,28 @@ void LocalClientRuntime::applyProjectionPatch(const WorldProjectionPatchDto& pat
     }
 
     for (const auto& inventory : patch.changed_inventories) {
-        if (!isPlayerInventoryPatch(inventory)) continue;
+        const auto owner_key = stringField(inventory.fields, "owner_key", "");
+        const bool player_inventory = isPlayerInventoryPatch(inventory);
         if (inventory.op == PatchOp::Remove || inventory.op == PatchOp::Clear) {
-            snapshot_.inventory_items.clear();
-            snapshot_.inventory_capacity_slots = 9;
+            if (player_inventory) {
+                snapshot_.inventory_items.clear();
+                snapshot_.inventory_capacity_slots = 9;
+            } else if (!owner_key.empty()) {
+                snapshot_.actor_inventory_items.erase(owner_key);
+                snapshot_.actor_inventory_capacity_slots.erase(owner_key);
+            }
             continue;
         }
-        snapshot_.inventory_capacity_slots = std::max(9, parseIntField(inventory.fields, "capacity_slots", snapshot_.inventory_capacity_slots));
-        snapshot_.inventory_items = parseInventoryEntryFields(inventory);
-        localizeInventoryItems(snapshot_.inventory_items);
+        auto items = parseInventoryEntryFields(inventory);
+        localizeInventoryItems(items);
+        const int capacity = std::max(9, parseIntField(inventory.fields, "capacity_slots", player_inventory ? snapshot_.inventory_capacity_slots : 9));
+        if (player_inventory) {
+            snapshot_.inventory_capacity_slots = capacity;
+            snapshot_.inventory_items = std::move(items);
+        } else if (!owner_key.empty()) {
+            snapshot_.actor_inventory_capacity_slots[owner_key] = capacity;
+            snapshot_.actor_inventory_items[owner_key] = std::move(items);
+        }
     }
 
     for (const auto& entity : patch.changed_entities) {
@@ -306,6 +335,9 @@ void LocalClientRuntime::applyProjectionPatch(const WorldProjectionPatchDto& pat
         view.y = parseIntField(entity.fields, "y", 0);
         view.layer_key = stringField(entity.fields, "layer_key", "surface");
         view.is_resource_node = parseBoolField(entity.fields, "resource_node", false);
+        view.health = parseIntField(entity.fields, "health", 0);
+        view.max_health = parseIntField(entity.fields, "max_health", 0);
+        view.alive = parseBoolField(entity.fields, "alive", true);
 
         auto it = std::find_if(snapshot_.entities.begin(), snapshot_.entities.end(), matches_entity);
         if (it == snapshot_.entities.end()) {
@@ -361,6 +393,8 @@ void LocalClientRuntime::applyProjection(
     snapshot_.entities.clear();
     snapshot_.options.clear();
     snapshot_.inventory_items.clear();
+    snapshot_.actor_inventory_items.clear();
+    snapshot_.actor_inventory_capacity_slots.clear();
     snapshot_.inventory_capacity_slots = 9;
 
     for (const auto& cell : projection.visible_cells) {
@@ -389,14 +423,25 @@ void LocalClientRuntime::applyProjection(
         view.y = parseIntField(entity.fields, "y", 0);
         view.layer_key = stringField(entity.fields, "layer_key", "surface");
         view.is_resource_node = parseBoolField(entity.fields, "resource_node", false);
+        view.health = parseIntField(entity.fields, "health", 0);
+        view.max_health = parseIntField(entity.fields, "max_health", 0);
+        view.alive = parseBoolField(entity.fields, "alive", true);
         snapshot_.entities.push_back(std::move(view));
     }
 
     for (const auto& inventory : projection.inventories) {
-        if (!isPlayerInventoryPatch(inventory)) continue;
-        snapshot_.inventory_capacity_slots = std::max(9, parseIntField(inventory.fields, "capacity_slots", snapshot_.inventory_capacity_slots));
-        snapshot_.inventory_items = parseInventoryEntryFields(inventory);
-        localizeInventoryItems(snapshot_.inventory_items);
+        const auto owner_key = stringField(inventory.fields, "owner_key", "");
+        const bool player_inventory = isPlayerInventoryPatch(inventory);
+        auto items = parseInventoryEntryFields(inventory);
+        localizeInventoryItems(items);
+        const int capacity = std::max(9, parseIntField(inventory.fields, "capacity_slots", 9));
+        if (player_inventory) {
+            snapshot_.inventory_capacity_slots = capacity;
+            snapshot_.inventory_items = std::move(items);
+        } else if (!owner_key.empty()) {
+            snapshot_.actor_inventory_capacity_slots[owner_key] = capacity;
+            snapshot_.actor_inventory_items[owner_key] = std::move(items);
+        }
     }
 
     for (const auto& knowledge : projection.knowledge) {
@@ -448,6 +493,19 @@ void LocalClientRuntime::applyProjection(
 
     for (const auto& event : events) {
         snapshot_.events.push_back(event.body_text.empty() ? (event.title_text.empty() ? event.event_kind : event.title_text) : ((event.title_text.empty() ? event.event_kind : event.title_text) + "：" + event.body_text));
+        if (!event.actor_key.empty()) {
+            if (event.event_kind == "NpcWorkOrderAccepted") snapshot_.actor_work_status[event.actor_key] = "准备工作";
+            else if (event.event_kind == "NpcWorkMoving") snapshot_.actor_work_status[event.actor_key] = "正在前往";
+            else if (event.event_kind == "NpcWorkGathering" || event.event_kind == "ResourceHarvested") snapshot_.actor_work_status[event.actor_key] = "正在采集";
+            else if (event.event_kind == "NpcWorkPicking") snapshot_.actor_work_status[event.actor_key] = "正在拾取";
+            else if (event.event_kind == "NpcWorkCrafting") snapshot_.actor_work_status[event.actor_key] = "正在制作";
+            else if (event.event_kind == "NpcWorkDelivering") snapshot_.actor_work_status[event.actor_key] = "正在交付";
+            else if (event.event_kind == "NpcWorkOrderCompleted") snapshot_.actor_work_status[event.actor_key] = "完成代工";
+            else if (event.event_kind == "NpcWorkBlocked") snapshot_.actor_work_status[event.actor_key] = "工作受阻";
+            else if (event.event_kind == "ActorMoved") snapshot_.actor_work_status[event.actor_key] = "正在移动";
+            else if (event.event_kind == "NpcFollowEnabled") snapshot_.actor_work_status[event.actor_key] = "正在跟随";
+            else if (event.event_kind == "NpcCounteredThreat") snapshot_.actor_work_status[event.actor_key] = "正在防卫";
+        }
     }
     if (snapshot_.events.size() > 8) {
         snapshot_.events.erase(snapshot_.events.begin(), snapshot_.events.end() - 8);

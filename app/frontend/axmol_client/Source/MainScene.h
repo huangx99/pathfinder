@@ -73,6 +73,7 @@ private:
     void syncPlayerCoord();
     void startPathTo(Coord target);
     void executeNextPathStep(float delta);
+    void updateWorldAutoTick(float delta);
     void pollPendingCommand();
     void submitOptionAndRender(const pf::client::LocalCommandOptionView& option, bool consumes_path_step = false);
     void finishSubmittedOption(bool ok);
@@ -129,12 +130,14 @@ private:
     bool has_selection_{true};
     std::string status_text_{"正在启动本地 Runtime..."};
     float path_step_accumulator_{0.0F};
+    float world_tick_accumulator_{0.0F};
     float water_anim_accumulator_{0.0F};
     int water_anim_phase_{0};
     std::future<bool> pending_command_;
     pf::client::LocalCommandOptionView pending_option_;
     bool command_pending_{false};
     bool pending_consumes_path_step_{false};
+    bool pending_auto_tick_{false};
     bool player_move_animating_{false};
     float player_move_remaining_{0.0F};
 

@@ -7,8 +7,8 @@
 #include <string>
 #include <vector>
 
-namespace pathfinder::client_http {
-struct ClientServerRuntimeFactory;
+namespace pathfinder::client_runtime_host {
+struct ClientRuntimeHostFactory;
 }
 
 namespace pf::client {
@@ -32,6 +32,9 @@ struct LocalEntityView {
     int y{0};
     std::string layer_key{"surface"};
     bool is_resource_node{false};
+    int health{0};
+    int max_health{0};
+    bool alive{true};
 };
 
 struct LocalInventoryItemView {
@@ -80,8 +83,11 @@ struct LocalClientSnapshot {
     std::vector<LocalEntityView> entities;
     std::vector<LocalCommandOptionView> options;
     std::vector<LocalInventoryItemView> inventory_items;
+    std::map<std::string, std::vector<LocalInventoryItemView>> actor_inventory_items;
+    std::map<std::string, int> actor_inventory_capacity_slots;
     std::vector<LocalKnowledgeView> knowledge_items;
     int inventory_capacity_slots{9};
+    std::map<std::string, std::string> actor_work_status;
     std::vector<std::string> events;
 };
 
@@ -122,7 +128,7 @@ private:
     static bool parseBoolField(const std::map<std::string, std::string>& fields, const std::string& key, bool fallback);
     static std::string stringField(const std::map<std::string, std::string>& fields, const std::string& key, const std::string& fallback = "");
 
-    std::unique_ptr<pathfinder::client_http::ClientServerRuntimeFactory> factory_;
+    std::unique_ptr<pathfinder::client_runtime_host::ClientRuntimeHostFactory> factory_;
     LocalClientSnapshot snapshot_;
     std::string session_id_{"axmol_local_session"};
     std::string client_id_{"axmol_local_client"};

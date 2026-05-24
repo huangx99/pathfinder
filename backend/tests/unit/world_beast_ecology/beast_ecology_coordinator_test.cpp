@@ -190,7 +190,7 @@ void run_world_beast_ecology_coordinator_tests() {
     profile_port.setProfile("beast_1", profile);
     world_port.setActor("beast_1", 0, 0);
 
-    // 1. No targets -> Wait (P52 safe fallback), pipeline executes
+    // 1. No targets -> Wander when actor coordinates are available, pipeline executes
     BeastTickRequest req;
     req.request_id = "r1";
     req.actor_key = "beast_1";
@@ -205,10 +205,11 @@ void run_world_beast_ecology_coordinator_tests() {
     assert(r1.value().ok == true);
     assert(r1.value().actor_key == "beast_1");
     assert(r1.value().selected_intent.has_value());
-    assert(r1.value().selected_intent.value().kind == BeastActionIntentKind::Wait);
+    assert(r1.value().selected_intent.value().kind == BeastActionIntentKind::Wander);
     assert(r1.value().issued_command.has_value());
     assert(r1.value().issued_command.value().source == WorldCommandSource::BeastDecision);
-    assert(r1.value().issued_command.value().command_kind == WorldCommandKind::Wait);
+    assert(r1.value().issued_command.value().command_kind == WorldCommandKind::Move);
+    assert(r1.value().issued_command.value().target.target_coord.has_value());
     assert(pipeline_port.execute_count == 1);
 
     // 2. Profile missing -> fail
@@ -255,7 +256,7 @@ void run_world_beast_ecology_coordinator_tests() {
     BeastPerceptionItem danger;
     danger.perception_id = "p2";
     danger.kind = BeastPerceptionKind::Effect;
-    danger.target_ref = "effect_fire_1";
+    danger.target_ref = "effect_deterrent_1";
     danger.target_key = "danger_effect_tag";
     danger.coord = WorldCellCoord{1, 0, "surface"};
     danger.distance = 1;

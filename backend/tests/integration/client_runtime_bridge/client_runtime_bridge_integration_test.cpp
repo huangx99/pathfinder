@@ -3,12 +3,13 @@
 #include <functional>
 #include <map>
 #include <vector>
-#include "pathfinder/client_http/client_server_runtime_factory.h"
+#include "pathfinder/client_runtime_host/client_runtime_host_factory.h"
 #include "pathfinder/client_protocol/client_protocol_harness.h"
 #include "pathfinder/world_command/world_command_types.h"
 #include "pathfinder/world_inventory/world_inventory_types.h"
+#include "pathfinder/world_runtime/world_runtime_types.h"
 
-using namespace pathfinder::client_http;
+using namespace pathfinder::client_runtime_host;
 using namespace pathfinder::client_protocol;
 using namespace pathfinder::world_command;
 using namespace pathfinder::foundation;
@@ -18,7 +19,7 @@ using namespace pathfinder::world_inventory;
 // Helper: create a fully wired factory with runtime-backed bridge.
 // ---------------------------------------------------------------------------
 struct RuntimeBackedFixture {
-    ClientServerRuntimeFactory factory;
+    ClientRuntimeHostFactory factory;
     ClientProtocolHarness harness;
 
     RuntimeBackedFixture()
@@ -94,6 +95,28 @@ static void spawnMapItem(RuntimeBackedFixture& f,
     assert(res.is_ok());
 }
 
+
+static void spawnResourceNode(RuntimeBackedFixture& f,
+                              const std::string& node_id,
+                              const std::string& resource_key,
+                              const pathfinder::world_runtime::WorldCellCoord& coord,
+                              const std::string& required_action_key,
+                              const std::vector<std::string>& outputs) {
+    pathfinder::world_runtime::WorldResourceNodeRuntime node;
+    node.node_id = node_id;
+    node.resource_key = resource_key;
+    node.coord = coord;
+    node.node_kind_str = "Stone";
+    node.node_state_str = "Available";
+    node.remaining_charges = 2;
+    node.max_charges = 2;
+    node.required_action_key = required_action_key;
+    node.output_entity_keys = outputs;
+    node.tag_keys = {"test_resource"};
+    auto res = f.factory.world_runtime->upsertGeneratedResourceNode(node);
+    assert(res.is_ok());
+}
+
 static int inventoryQuantity(RuntimeBackedFixture& f,
                              const std::string& actor_key,
                              const std::string& object_key) {
@@ -116,6 +139,35 @@ static const WorldCommandOptionDto* findOption(
 
 static bool entityExists(RuntimeBackedFixture& f, const std::string& entity_id) {
     return f.factory.world_runtime->findEntity(entity_id).is_ok();
+}
+
+static void destroyMapItemsByKey(RuntimeBackedFixture& f, const std::string& object_key) {
+    auto snap = f.factory.world_runtime->snapshotForDebug();
+    assert(snap.is_ok());
+    for (const auto& [entity_id, entity] : snap.value().entities) {
+        if (entity.entity_key == object_key &&
+            entity.location_kind == pathfinder::world_runtime::WorldEntityLocationKind::OnMap) {
+            (void)f.factory.world_runtime->destroyEntity(entity_id);
+        }
+    }
+}
+
+static ClientCommandResponse submitWait(RuntimeBackedFixture& f,
+                                        const std::string& session_id,
+                                        uint64_t& version,
+                                        uint64_t& sequence) {
+    auto refresh = f.harness.fakeRefresh(session_id, "client_1", version);
+    assert(refresh.is_ok());
+    version = refresh.value().projection_version;
+    const auto* wait = findOption(refresh.value().available_commands, [](const auto& option) {
+        return option.command_kind == WorldCommandKind::Wait && option.command_key == "wait";
+    });
+    assert(wait != nullptr);
+    auto response = f.harness.fakeSubmitOption(session_id, "client_1", sequence++, version, wait->option_id);
+    assert(response.is_ok());
+    assert(response.value().result.result_kind == WorldCommandResultKind::Succeeded);
+    version = response.value().new_projection_version;
+    return response.value();
 }
 
 // ---------------------------------------------------------------------------
@@ -594,7 +646,8 @@ void run_npc_order_crafts_axe_after_teaching_tests() {
     assert(teach.value().result.result_kind == WorldCommandResultKind::Succeeded);
     version = teach.value().new_projection_version;
 
-    spawnMapItem(f, "npc_test_stone_for_axe", "loose_stone", {1, 1, "surface"});
+    destroyMapItemsByKey(f, "loose_stone");
+    spawnResourceNode(f, "npc_test_stone_node_for_axe", "loose_stone_node", {1, 1, "surface"}, "gather", {"loose_stone"});
     spawnMapItem(f, "npc_test_wood_for_axe", "wood", {2, 1, "surface"});
 
     auto order_refresh = f.harness.fakeRefresh("session_npc_axe", "client_1", version);
@@ -613,7 +666,36 @@ void run_npc_order_crafts_axe_after_teaching_tests() {
     auto order = f.harness.fakeSubmitOption("session_npc_axe", "client_1", 5, version, order_axe->option_id);
     assert(order.is_ok());
     assert(order.value().result.result_kind == WorldCommandResultKind::Succeeded);
+    assert(inventoryQuantity(f, "player", "axe") == player_axe_after_learning);
+
+    bool accepted = false;
+    for (const auto& event : order.value().event_feed) {
+        if (event.event_kind == "NpcWorkOrderAccepted") accepted = true;
+    }
+    assert(accepted);
+    version = order.value().new_projection_version;
+
+    bool saw_gather = false;
+    bool saw_pick = false;
+    bool saw_craft = false;
+    bool saw_complete = false;
+    uint64_t sequence = 6;
+    int waits = 0;
+    for (; waits < 20 && inventoryQuantity(f, "player", "axe") == player_axe_after_learning; ++waits) {
+        auto wait_response = submitWait(f, "session_npc_axe", version, sequence);
+        for (const auto& event : wait_response.event_feed) {
+            if (event.event_kind == "NpcWorkGathering") saw_gather = true;
+            if (event.event_kind == "NpcWorkPicking") saw_pick = true;
+            if (event.event_kind == "NpcWorkCrafting") saw_craft = true;
+            if (event.event_kind == "NpcWorkOrderCompleted") saw_complete = true;
+        }
+    }
+    assert(waits >= 3);
     assert(inventoryQuantity(f, "player", "axe") > player_axe_after_learning);
+    assert(saw_gather);
+    assert(saw_pick);
+    assert(saw_craft);
+    assert(saw_complete);
 
     std::cout << "client_runtime_bridge_npc_order_crafts_axe_after_teaching_tests: all passed" << std::endl;
 }
@@ -655,6 +737,8 @@ void run_npc_order_torch_counters_threat_after_teaching_tests() {
         commands = craft.value().available_commands;
     }
 
+    const int player_torch_after_learning = inventoryQuantity(f, "player", "torch");
+
     const auto* teach_torch = findOption(commands, [](const auto& option) {
         return option.command_kind == WorldCommandKind::Teach &&
                option.target.target_actor_key == "companion" &&
@@ -685,17 +769,24 @@ void run_npc_order_torch_counters_threat_after_teaching_tests() {
     auto order = f.harness.fakeSubmitOption("session_npc_torch", "client_1", 5, version, order_torch->option_id);
     assert(order.is_ok());
     assert(order.value().result.result_kind == WorldCommandResultKind::Succeeded);
-    assert(inventoryQuantity(f, "player", "torch") >= 1);
-    assert(!entityExists(f, "scenario_beast_shadow"));
+    assert(inventoryQuantity(f, "player", "torch") == player_torch_after_learning);
+    assert(entityExists(f, "scenario_beast_shadow"));
+    version = order.value().new_projection_version;
 
     bool has_counter_event = false;
-    for (const auto& event : order.value().event_feed) {
-        if (event.event_kind == "NpcCounteredThreat") {
-            has_counter_event = true;
-            break;
+    bool has_complete_event = false;
+    uint64_t sequence = 6;
+    for (int step = 0; step < 20 && (!has_counter_event || inventoryQuantity(f, "player", "torch") <= player_torch_after_learning); ++step) {
+        auto wait_response = submitWait(f, "session_npc_torch", version, sequence);
+        for (const auto& event : wait_response.event_feed) {
+            if (event.event_kind == "NpcCounteredThreat") has_counter_event = true;
+            if (event.event_kind == "NpcWorkOrderCompleted") has_complete_event = true;
         }
     }
+    assert(inventoryQuantity(f, "player", "torch") > player_torch_after_learning);
+    assert(!entityExists(f, "scenario_beast_shadow"));
     assert(has_counter_event);
+    assert(has_complete_event);
 
     std::cout << "client_runtime_bridge_npc_order_torch_counters_threat_after_teaching_tests: all passed" << std::endl;
 }
@@ -770,6 +861,73 @@ void run_npc_follow_command_moves_companion_tests() {
     std::cout << "client_runtime_bridge_npc_follow_command_moves_companion_tests: all passed" << std::endl;
 }
 
+
+// ---------------------------------------------------------------------------
+// P63: wildlife is a real actor; waiting lets it move through BeastDecision and
+// eventually attack through the Attack command handler with projected health.
+// ---------------------------------------------------------------------------
+void run_wildlife_actor_chases_and_attacks_tests() {
+    RuntimeBackedFixture f;
+
+    auto boot = f.harness.fakeBootstrap("client_1", "session_wildlife", "player");
+    assert(boot.is_ok());
+    uint64_t version = boot.value().projection_version;
+
+    auto beast_actor = f.factory.world_runtime->findActor("beast_shadow");
+    assert(beast_actor.is_ok());
+    assert(entityExists(f, "scenario_beast_shadow"));
+
+    // Remove the starting camp fire so this test isolates chase/attack instead
+    // of the fire deterrent branch. This is fixture setup, not gameplay logic.
+    (void)f.factory.world_runtime->destroyEntity("scenario_camp_fire");
+
+    int initial_player_health = f.factory.world_runtime->findActor("player").value()->health;
+    int initial_companion_health = f.factory.world_runtime->findActor("companion").value()->health;
+    bool saw_damage_event = false;
+    bool saw_health_patch = false;
+
+    for (int step = 0; step < 10 && !saw_damage_event; ++step) {
+        auto refresh = f.harness.fakeRefresh("session_wildlife", "client_1", version);
+        assert(refresh.is_ok());
+        version = refresh.value().projection_version;
+        const auto* wait = findOption(refresh.value().available_commands, [](const auto& option) {
+            return option.command_kind == WorldCommandKind::Wait && option.command_key == "wait";
+        });
+        assert(wait != nullptr);
+
+        auto response = f.harness.fakeSubmitOption("session_wildlife", "client_1", static_cast<uint64_t>(step + 1), version, wait->option_id);
+        assert(response.is_ok());
+        assert(response.value().result.result_kind == WorldCommandResultKind::Succeeded);
+        version = response.value().new_projection_version;
+
+        for (const auto& event : response.value().event_feed) {
+            if (event.event_kind == "ActorDamaged" || event.event_kind == "ActorDowned") {
+                saw_damage_event = true;
+            }
+        }
+        for (const auto& patch : response.value().projection_patch.changed_entities) {
+            auto key_it = patch.fields.find("entity_key");
+            auto health_it = patch.fields.find("health");
+            auto max_it = patch.fields.find("max_health");
+            if (key_it != patch.fields.end() &&
+                (key_it->second == "player" || key_it->second == "companion") &&
+                health_it != patch.fields.end() && max_it != patch.fields.end()) {
+                saw_health_patch = true;
+            }
+        }
+    }
+
+    auto player_after = f.factory.world_runtime->findActor("player");
+    auto companion_after = f.factory.world_runtime->findActor("companion");
+    assert(player_after.is_ok());
+    assert(companion_after.is_ok());
+    assert(player_after.value()->health < initial_player_health || companion_after.value()->health < initial_companion_health);
+    assert(saw_damage_event);
+    assert(saw_health_patch);
+
+    std::cout << "client_runtime_bridge_wildlife_actor_chases_and_attacks_tests: all passed" << std::endl;
+}
+
 // ---------------------------------------------------------------------------
 // main
 // ---------------------------------------------------------------------------
@@ -793,6 +951,7 @@ int main(int argc, char* argv[]) {
         run_npc_order_torch_counters_threat_after_teaching_tests();
         run_pickup_options_exclude_predator_tests();
         run_npc_follow_command_moves_companion_tests();
+        run_wildlife_actor_chases_and_attacks_tests();
         return 0;
     }
 
@@ -815,6 +974,7 @@ int main(int argc, char* argv[]) {
     else if (test_name == "npc_order_torch_counters_threat_after_teaching") run_npc_order_torch_counters_threat_after_teaching_tests();
     else if (test_name == "pickup_options_exclude_predator") run_pickup_options_exclude_predator_tests();
     else if (test_name == "npc_follow_command_moves_companion") run_npc_follow_command_moves_companion_tests();
+    else if (test_name == "wildlife_actor_chases_and_attacks") run_wildlife_actor_chases_and_attacks_tests();
     else {
         std::cerr << "Unknown test: " << test_name << std::endl;
         return 1;

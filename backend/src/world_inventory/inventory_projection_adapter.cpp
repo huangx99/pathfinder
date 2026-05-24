@@ -76,6 +76,8 @@ Result<std::vector<InventoryPatchDto>> InventoryProjectionAdapter::buildInventor
             visible = true;
         } else if (inv->public_read) {
             visible = true;
+        } else if (viewer_actor_key == "player" && inv->owner.owner_kind == InventoryOwnerKind::Actor) {
+            visible = true;
         }
 
         if (!visible) continue;

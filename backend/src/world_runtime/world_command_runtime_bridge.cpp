@@ -232,6 +232,99 @@ Result<WorldCommandExecutionResult> WorldCommandRuntimeBridge::handleWait(
     return Result<WorldCommandExecutionResult>::ok(std::move(result));
 }
 
+
+Result<WorldCommandExecutionResult> WorldCommandRuntimeBridge::handleAttack(
+    const WorldCommandContext& context,
+    const WorldCommandDto& command) {
+
+    WorldCommandExecutionResult result;
+    result.result_kind = WorldCommandResultKind::Blocked;
+
+    if (command.target.target_actor_key.empty()) {
+        result.failure_reason_keys.push_back("attack_missing_target_actor");
+        return Result<WorldCommandExecutionResult>::ok(std::move(result));
+    }
+
+    auto attacker_res = runtime_.findActor(command.actor_key);
+    auto target_res = runtime_.findActor(command.target.target_actor_key);
+    if (attacker_res.is_error() || target_res.is_error()) {
+        result.failure_reason_keys.push_back("attack_actor_not_found");
+        return Result<WorldCommandExecutionResult>::ok(std::move(result));
+    }
+
+    const auto attacker = *attacker_res.value();
+    const auto target = *target_res.value();
+    if (!attacker.alive || !target.alive) {
+        result.failure_reason_keys.push_back("attack_actor_not_alive");
+        return Result<WorldCommandExecutionResult>::ok(std::move(result));
+    }
+    if (attacker.coord.layer_key != target.coord.layer_key ||
+        std::abs(attacker.coord.x - target.coord.x) > 1 ||
+        std::abs(attacker.coord.y - target.coord.y) > 1) {
+        result.failure_reason_keys.push_back("attack_target_out_of_range");
+        return Result<WorldCommandExecutionResult>::ok(std::move(result));
+    }
+
+    int damage = safeParse<int>(command.parameters, "damage", 1);
+    damage = std::clamp(damage, 1, 1000);
+    auto health_res = runtime_.applyActorHealthDelta(
+        command.target.target_actor_key,
+        -damage,
+        {"attack", toString(command.source)});
+    if (health_res.is_error() || !health_res.value().ok) {
+        result.result_kind = WorldCommandResultKind::Failed;
+        result.failure_reason_keys.push_back("attack_health_apply_failed");
+        return Result<WorldCommandExecutionResult>::ok(std::move(result));
+    }
+
+    const auto health = health_res.value();
+    result.result_kind = WorldCommandResultKind::Succeeded;
+    result.changed_entity_ids = health.changed_entity_ids;
+
+    WorldStateDeltaDto delta;
+    delta.delta_id = command.command_id + "_health_delta";
+    delta.delta_kind = "actor_health_changed";
+    delta.target_ref = command.target.target_actor_key;
+    delta.op = PatchOp::Update;
+    delta.fields["previous_health"] = std::to_string(health.previous_health);
+    delta.fields["health"] = std::to_string(health.new_health);
+    delta.fields["max_health"] = std::to_string(health.max_health);
+    delta.fields["alive"] = health.alive ? "true" : "false";
+    delta.reason_keys = health.reason_keys;
+    result.state_deltas.push_back(std::move(delta));
+
+    WorldEventDto event;
+    event.event_id = command.command_id + "_damaged";
+    event.event_kind = health.alive ? "ActorDamaged" : "ActorDowned";
+    event.tick = context.currentTick();
+    event.title_text = health.alive ? "受到攻击" : "倒下";
+    event.body_text = "野生威胁发动攻击，目标生命发生变化。";
+    event.actor_key = command.actor_key;
+    event.target_entity_id = health.entity_id;
+    event.coord = WorldCoordinateDto{target.coord.x, target.coord.y, target.coord.layer_key};
+    event.priority = 80;
+    result.events.push_back(std::move(event));
+
+    WorldExperienceDto exp;
+    exp.experience_id = command.command_id + "_damage_taken_exp";
+    exp.actor_key = command.target.target_actor_key;
+    exp.command_key = "attack";
+    exp.subject_entity_key = attacker.entity_id;
+    exp.target_entity_key = target.entity_id;
+    exp.effect_key = "damage_taken";
+    exp.tick = context.currentTick();
+    exp.reason_keys = {"attacked_by_wild_agent", toString(command.source)};
+    result.experiences.push_back(std::move(exp));
+
+    result.projection_patch_override = buildProjectionPatch(
+        {},
+        health.changed_entity_ids,
+        command.actor_key,
+        false);
+
+    return Result<WorldCommandExecutionResult>::ok(std::move(result));
+}
+
 WorldProjectionPatchDto WorldCommandRuntimeBridge::buildProjectionPatch(
     const std::vector<std::string>& changed_cell_ids,
     const std::vector<std::string>& changed_entity_ids,

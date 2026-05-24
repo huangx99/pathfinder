@@ -206,6 +206,7 @@ Result<void> BeastAgentProfile::validateBasic() const {
     if (vision_radius < 0 || vision_radius > 64) return Result<void>::fail(makeError(ErrorCode::validation_failed, "vision_radius_out_of_range"));
     if (base_aggression < 0.0 || base_aggression > 100.0) return Result<void>::fail(makeError(ErrorCode::validation_failed, "base_aggression_out_of_range"));
     if (base_fear < 0.0 || base_fear > 100.0) return Result<void>::fail(makeError(ErrorCode::validation_failed, "base_fear_out_of_range"));
+    if (attack_damage < 1 || attack_damage > 1000) return Result<void>::fail(makeError(ErrorCode::validation_failed, "attack_damage_out_of_range"));
     bool can_wait_or_move = false;
     for (const auto& cap : instinct_capabilities) {
         auto v = cap.validateBasic();
@@ -241,6 +242,7 @@ Result<void> BeastActionIntent::validateBasic() const {
     if (command_kind == pathfinder::world_command::WorldCommandKind::Unknown) return Result<void>::fail(makeError(ErrorCode::validation_failed, "command_kind_unknown"));
     if (reason_kind == BeastDecisionReasonKind::Unknown) return Result<void>::fail(makeError(ErrorCode::validation_failed, "reason_kind_unknown"));
     if (risk_score < 0.0 || risk_score > 100.0) return Result<void>::fail(makeError(ErrorCode::validation_failed, "risk_score_out_of_range"));
+    if (attack_damage < 1 || attack_damage > 1000) return Result<void>::fail(makeError(ErrorCode::validation_failed, "intent_attack_damage_out_of_range"));
     if ((kind == BeastActionIntentKind::Approach || kind == BeastActionIntentKind::Attack || kind == BeastActionIntentKind::Flee) && target_ref.empty()) {
         return Result<void>::fail(makeError(ErrorCode::validation_failed, "target_ref_required_for_intent"));
     }

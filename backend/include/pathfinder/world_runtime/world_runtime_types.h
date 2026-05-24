@@ -114,6 +114,21 @@ struct WorldActorRuntime {
     WorldCellCoord coord;
     int vision_radius = 3;
     bool is_player_controlled = false;
+    int max_health = 10;
+    int health = 10;
+    bool alive = true;
+};
+
+struct ActorHealthChangeResult {
+    bool ok = false;
+    std::string actor_key;
+    std::string entity_id;
+    int previous_health = 0;
+    int new_health = 0;
+    int max_health = 0;
+    bool alive = false;
+    std::vector<std::string> changed_entity_ids;
+    std::vector<std::string> reason_keys;
 };
 
 struct WorldExplorationState {

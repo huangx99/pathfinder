@@ -27,6 +27,10 @@ public:
 
     virtual foundation::Result<void> generateInitialWorld(const WorldRuntimeConfig& config) = 0;
     virtual foundation::Result<MoveActorResult> moveActor(const std::string& actor_key, const WorldCellCoord& target) = 0;
+    virtual foundation::Result<ActorHealthChangeResult> applyActorHealthDelta(
+        const std::string& actor_key,
+        int delta,
+        const std::vector<std::string>& reason_keys) = 0;
     virtual foundation::Result<InspectWorldResult> inspect(const std::string& actor_key, const world_command::WorldCommandTargetDto& target) const = 0;
     virtual foundation::Result<AdvanceWorldTimeResult> advanceWorldTime(uint64_t tick_delta) = 0;
 

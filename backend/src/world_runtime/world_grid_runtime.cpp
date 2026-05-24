@@ -94,6 +94,18 @@ std::string makeStableEntityId(const std::string& entity_key, const WorldCellCoo
     return entity_key + "_" + coord.layer_key + "_" + std::to_string(coord.x) + "_" + std::to_string(coord.y)
            + (local_index > 0 ? "_" + std::to_string(local_index) : "");
 }
+
+int numericStateAsInt(const std::map<std::string, double>& states, const std::string& key, int fallback) {
+    auto it = states.find(key);
+    if (it == states.end()) return fallback;
+    return std::max(0, static_cast<int>(std::round(it->second)));
+}
+
+void syncActorHealthToEntity(WorldEntityInstance& entity, const WorldActorRuntime& actor) {
+    entity.numeric_states["health"] = static_cast<double>(actor.health);
+    entity.numeric_states["max_health"] = static_cast<double>(actor.max_health);
+    entity.numeric_states["alive"] = actor.alive ? 1.0 : 0.0;
+}
 } // anonymous namespace
 
 Result<void> WorldGridRuntime::generateInitialWorld(const WorldRuntimeConfig& config) {
@@ -183,6 +195,9 @@ Result<void> WorldGridRuntime::setupPlayerActor(const WorldRuntimeConfig& config
     player.entity_id = makeStableEntityId("player", player.coord);
     player.vision_radius = config.default_vision_radius;
     player.is_player_controlled = true;
+    player.max_health = 10;
+    player.health = 10;
+    player.alive = true;
     std::string player_entity_id = player.entity_id;
     WorldCellCoord player_coord = player.coord;
     actors_[player.actor_key] = std::move(player);
@@ -195,6 +210,8 @@ Result<void> WorldGridRuntime::setupPlayerActor(const WorldRuntimeConfig& config
     player_entity.coord = player_coord;
     player_entity.location_kind = WorldEntityLocationKind::OnMap;
     player_entity.visible_by_default = true;
+    player_entity.tag_keys = {"actor", "humanoid", "player", "prey"};
+    syncActorHealthToEntity(player_entity, actors_.at("player"));
     entities_[player_entity.entity_id] = std::move(player_entity);
 
     // Add player to origin cell if it exists
@@ -218,7 +235,10 @@ Result<void> WorldGridRuntime::spawnActor(
     const std::string& display_name_key,
     const WorldCellCoord& coord,
     int vision_radius,
-    bool is_player_controlled) {
+    bool is_player_controlled,
+    const std::vector<std::string>& tag_keys,
+    const std::map<std::string, double>& numeric_states,
+    const std::string& entity_id_override) {
 
     if (actor_key.empty() || entity_key.empty()) {
         return Result<void>::fail(
@@ -240,9 +260,12 @@ Result<void> WorldGridRuntime::spawnActor(
     WorldActorRuntime actor;
     actor.actor_key = actor_key;
     actor.coord = coord;
-    actor.entity_id = makeStableEntityId(entity_key, coord);
+    actor.entity_id = entity_id_override.empty() ? makeStableEntityId(entity_key, coord) : entity_id_override;
     actor.vision_radius = std::max(1, vision_radius);
     actor.is_player_controlled = is_player_controlled;
+    actor.max_health = std::max(1, numericStateAsInt(numeric_states, "max_health", 10));
+    actor.health = std::clamp(numericStateAsInt(numeric_states, "health", actor.max_health), 0, actor.max_health);
+    actor.alive = actor.health > 0;
     const auto entity_id = actor.entity_id;
     actors_[actor.actor_key] = actor;
 
@@ -253,6 +276,9 @@ Result<void> WorldGridRuntime::spawnActor(
     entity.coord = coord;
     entity.location_kind = WorldEntityLocationKind::OnMap;
     entity.visible_by_default = true;
+    entity.tag_keys = tag_keys;
+    entity.numeric_states = numeric_states;
+    syncActorHealthToEntity(entity, actor);
     entities_[entity.entity_id] = std::move(entity);
 
     auto& entity_ids = cell_it->second.entity_ids;
@@ -337,6 +363,11 @@ Result<MoveActorResult> WorldGridRuntime::moveActor(const std::string& actor_key
 
     auto& actor = actor_it->second;
     result.from = actor.coord;
+
+    if (!actor.alive) {
+        result.block_reason = WorldMoveBlockReason::ActorMissing;
+        return Result<MoveActorResult>::ok(std::move(result));
+    }
 
     // Check target cell exists
     auto target_cell_it = cells_.find(target.cellId());
@@ -432,6 +463,46 @@ Result<MoveActorResult> WorldGridRuntime::moveActor(const std::string& actor_key
 
     incrementStateVersion();
     return Result<MoveActorResult>::ok(std::move(result));
+}
+
+
+Result<ActorHealthChangeResult> WorldGridRuntime::applyActorHealthDelta(
+    const std::string& actor_key,
+    int delta,
+    const std::vector<std::string>& reason_keys) {
+
+    ActorHealthChangeResult result;
+    result.actor_key = actor_key;
+    result.reason_keys = reason_keys;
+
+    auto actor_it = actors_.find(actor_key);
+    if (actor_it == actors_.end()) {
+        return Result<ActorHealthChangeResult>::fail(
+            makeError(ErrorCode::id_not_found, "actor_not_found", "Actor not found: " + actor_key));
+    }
+
+    auto& actor = actor_it->second;
+    if (actor.max_health <= 0) {
+        actor.max_health = 1;
+    }
+    result.entity_id = actor.entity_id;
+    result.previous_health = actor.health;
+    actor.health = std::clamp(actor.health + delta, 0, actor.max_health);
+    actor.alive = actor.health > 0;
+
+    result.ok = true;
+    result.new_health = actor.health;
+    result.max_health = actor.max_health;
+    result.alive = actor.alive;
+
+    auto ent_it = entities_.find(actor.entity_id);
+    if (ent_it != entities_.end()) {
+        syncActorHealthToEntity(ent_it->second, actor);
+        result.changed_entity_ids.push_back(actor.entity_id);
+    }
+
+    incrementStateVersion();
+    return Result<ActorHealthChangeResult>::ok(std::move(result));
 }
 
 Result<InspectWorldResult> WorldGridRuntime::inspect(
@@ -719,6 +790,15 @@ Result<void> WorldGridRuntime::destroyEntity(const std::string& entity_id) {
             entity_ids.erase(
                 std::remove(entity_ids.begin(), entity_ids.end(), entity_id),
                 entity_ids.end());
+        }
+    }
+
+    for (auto actor_it = actors_.begin(); actor_it != actors_.end();) {
+        if (actor_it->second.entity_id == entity_id) {
+            exploration_.erase(actor_it->first);
+            actor_it = actors_.erase(actor_it);
+        } else {
+            ++actor_it;
         }
     }
 

@@ -15,5 +15,6 @@ std::shared_ptr<pathfinder::world_command::IWorldCommandHandler> createGenerateW
 std::shared_ptr<pathfinder::world_command::IWorldCommandHandler> createMoveCommandHandler(IWorldRuntime& runtime, pathfinder::world_generation::MoveTargetRegionGuard* guard);
 std::shared_ptr<pathfinder::world_command::IWorldCommandHandler> createInspectCommandHandler(IWorldRuntime& runtime);
 std::shared_ptr<pathfinder::world_command::IWorldCommandHandler> createWaitCommandHandler(IWorldRuntime& runtime);
+std::shared_ptr<pathfinder::world_command::IWorldCommandHandler> createAttackCommandHandler(IWorldRuntime& runtime);
 
 } // namespace pathfinder::world_runtime

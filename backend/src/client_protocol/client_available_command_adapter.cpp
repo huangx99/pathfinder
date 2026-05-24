@@ -55,7 +55,7 @@ Result<std::vector<WorldCommandOptionDto>> ClientAvailableCommandAdapter::buildO
 
     // P53 test fallback only: returns a minimal Wait/Inspect set for protocol tests.
     // Production must not rely on this branch. If a playable command is needed, add
-    // a runtime-backed provider/handler and wire it through ClientServerRuntimeFactory.
+    // a runtime-backed provider/handler and wire it through ClientRuntimeHostFactory.
     std::vector<WorldCommandOptionDto> options;
 
     {
