@@ -5,8 +5,8 @@
 namespace pf::ui {
 namespace {
 
-constexpr float kWidth = 980.0F;
-constexpr float kHeight = 56.0F;
+constexpr float kWidth = 940.0F;
+constexpr float kHeight = 64.0F;
 
 std::string eventPrefix(const std::string& text) {
     if (text.find("阻止") == 0 || text.find("超出") == 0 ||
@@ -35,12 +35,12 @@ bool EventLogPanel::init() {
     bg_ = pixelPanelBackground(getContentSize());
     addChild(bg_, 0);
 
-    line1_ = pixelPanelLabel("", 12.0F, ax::Vec2(kWidth - 20.0F, 18.0F), PixelPalette::TextSecondary);
-    line1_->setPosition(10.0F, kHeight - 14.0F);
+    line1_ = pixelPanelLabel("", 12.0F, ax::Vec2(kWidth - 20.0F, 20.0F), PixelPalette::TextSecondary);
+    line1_->setPosition(10.0F, kHeight - 12.0F);
     addChild(line1_, 1);
 
-    line2_ = pixelPanelLabel("", 12.0F, ax::Vec2(kWidth - 20.0F, 18.0F), PixelPalette::TextSecondary);
-    line2_->setPosition(10.0F, kHeight - 32.0F);
+    line2_ = pixelPanelLabel("", 12.0F, ax::Vec2(kWidth - 20.0F, 20.0F), PixelPalette::TextSecondary);
+    line2_->setPosition(10.0F, kHeight - 36.0F);
     addChild(line2_, 1);
 
     return true;

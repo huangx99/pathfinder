@@ -6,10 +6,12 @@ namespace pf::ui {
 namespace {
 
 constexpr float kWidth = 220.0F;
-constexpr float kHeight = 640.0F;
+constexpr float kHeight = 500.0F;
 constexpr float kSlotSize = 52.0F;
 constexpr float kIconSize = 36.0F;
 constexpr float kSlotGap = 4.0F;
+constexpr float kToolLabelHeight = 14.0F;
+constexpr float kToolRowGap = 18.0F;
 constexpr float kCols = 2.0F;
 
 ax::Node* createToolIcon(const std::string& key, float size) {
@@ -110,7 +112,7 @@ void ToolPalettePanel::updateContent() {
     selected_index_ = client_->selectedToolIndex();
 
     const float grid_x = 14.0F;
-    float y = kHeight - 90.0F;
+    float y = kHeight - 96.0F;
 
     for (int index = 0; index < static_cast<int>(tools.size()); ++index) {
         const int col = index % 2;
@@ -134,10 +136,10 @@ void ToolPalettePanel::updateContent() {
 
         // 文字标签
         auto* label = pixelLabel(tools[index].label, 9.0F,
-                                  ax::Vec2(kSlotSize, 12.0F),
+                                  ax::Vec2(kSlotSize, kToolLabelHeight),
                                   is_selected ? PixelPalette::SlotSelected : PixelPalette::TextSecondary);
         label->setAlignment(ax::TextHAlignment::CENTER, ax::TextVAlignment::CENTER);
-        label->setPosition(x + kSlotSize * 0.5F, y - 2.0F);
+        label->setPosition(x + kSlotSize * 0.5F, y - 8.0F);
         addChild(label, 3);
         tool_labels_.push_back(label);
 
@@ -156,7 +158,7 @@ void ToolPalettePanel::updateContent() {
         _eventDispatcher->addEventListenerWithSceneGraphPriority(listener, slot);
 
         if (col == 1) {
-            y -= kSlotSize + kSlotGap + 12.0F;
+            y -= kSlotSize + kSlotGap + kToolRowGap;
         }
     }
 }

@@ -24,22 +24,22 @@ bool V3SandboxScene::init() {
     addChild(bg, 0);
 
     // 标题
-    auto* title = pf::ui::pixelLabel("认知生态沙盒", 22.0F, ax::Vec2(240.0F, 32.0F), pf::ui::pixelColor(250, 204, 21));
-    title->setPosition(14.0F, 704.0F);
+    auto* title = pf::ui::pixelPanelLabel("认知生态沙盒", 22.0F, ax::Vec2(240.0F, 28.0F), pf::ui::pixelColor(250, 204, 21));
+    title->setPosition(14.0F, 718.0F);
     addChild(title, 2);
 
     // 播放控制（左上角）
     playback_panel_ = pf::ui::PlaybackControlPanel::create(
         [this]() { togglePlayback(); },
         [this]() { stepOnce(); });
-    playback_panel_->setPosition(14.0F, 636.0F);
+    playback_panel_->setPosition(14.0F, 606.0F);
     addChild(playback_panel_, 12);
 
     // 工具栏（左侧）
     tool_panel_ = pf::ui::ToolPalettePanel::create(
         &client_,
         [this](int index) { handleToolClicked(index); });
-    tool_panel_->setPosition(14.0F, 40.0F);
+    tool_panel_->setPosition(14.0F, 90.0F);
     addChild(tool_panel_, 10);
 
     // 地图（中央）

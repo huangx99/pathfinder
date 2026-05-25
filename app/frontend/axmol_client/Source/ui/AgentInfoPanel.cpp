@@ -18,6 +18,17 @@ constexpr float kGridWidth  = kGridCols * kSlotSize + (kGridCols - 1) * kSlotGap
 constexpr float kGridHeight = kGridRows * kSlotSize + (kGridRows - 1) * kSlotGap;
 constexpr float kGridX = (kWidth - kGridWidth) * 0.5F;
 constexpr float kIconSize = 32.0F;
+constexpr float kPanelPadX = 12.0F;
+constexpr float kNameTop = kHeight - 10.0F;
+constexpr float kHealthTop = kHeight - 44.0F;
+constexpr float kHungerTop = kHeight - 74.0F;
+constexpr float kInventoryTitleTop = kHeight - 106.0F;
+constexpr float kInventoryGridTop = kHeight - 132.0F;
+constexpr float kInventoryGridBottom = kInventoryGridTop - kGridHeight;
+constexpr float kSelectedItemTop = kInventoryGridBottom - 14.0F;
+constexpr float kKnowledgeTitleTop = kSelectedItemTop - 28.0F;
+constexpr float kKnowledgeListTop = kKnowledgeTitleTop - 24.0F;
+constexpr float kKnowledgeLineHeight = 20.0F;
 
 std::string actionName(const std::string& key) {
     if (key == "eat") return "吃";
@@ -80,51 +91,51 @@ void AgentInfoPanel::buildSkeleton() {
 
     // 名字
     name_label_ = pixelPanelLabel("", 18.0F, ax::Vec2(kWidth - 24.0F, 26.0F), PixelPalette::TextPrimary);
-    name_label_->setPosition(12.0F, kHeight - 10.0F);
+    name_label_->setPosition(kPanelPadX, kNameTop);
     addChild(name_label_, 2);
 
     // 心形图标 + 血条
     auto* heart = createHeartIcon(20.0F);
-    heart->setPosition(12.0F, kHeight - 42.0F);
+    heart->setPosition(kPanelPadX, kHealthTop - 16.0F);
     addChild(heart, 2);
 
     health_bar_ = pixelProgressBar(kWidth - 48.0F, 14.0F, 1.0F,
                                     PixelPalette::HealthFill,
                                     PixelPalette::PanelFill,
                                     PixelPalette::HealthBorder);
-    health_bar_->setPosition(40.0F, kHeight - 52.0F);
+    health_bar_->setPosition(40.0F, kHealthTop - 17.0F);
     addChild(health_bar_, 2);
 
     health_text_ = pixelLabel("100%", 11.0F, ax::Vec2(40.0F, 14.0F), PixelPalette::TextPrimary);
     health_text_->setAlignment(ax::TextHAlignment::CENTER, ax::TextVAlignment::CENTER);
-    health_text_->setPosition(kWidth - 28.0F, kHeight - 45.0F);
+    health_text_->setPosition(kWidth - 28.0F, kHealthTop - 10.0F);
     addChild(health_text_, 3);
 
     // 鸡腿图标 + 饥饿条
     auto* hunger = createHungerIcon(20.0F);
-    hunger->setPosition(12.0F, kHeight - 70.0F);
+    hunger->setPosition(kPanelPadX, kHungerTop - 16.0F);
     addChild(hunger, 2);
 
     hunger_bar_ = pixelProgressBar(kWidth - 48.0F, 14.0F, 1.0F,
                                     PixelPalette::HungerFill,
                                     PixelPalette::PanelFill,
                                     PixelPalette::HungerBorder);
-    hunger_bar_->setPosition(40.0F, kHeight - 80.0F);
+    hunger_bar_->setPosition(40.0F, kHungerTop - 17.0F);
     addChild(hunger_bar_, 2);
 
     hunger_text_ = pixelLabel("100%", 11.0F, ax::Vec2(40.0F, 14.0F), PixelPalette::TextPrimary);
     hunger_text_->setAlignment(ax::TextHAlignment::CENTER, ax::TextVAlignment::CENTER);
-    hunger_text_->setPosition(kWidth - 28.0F, kHeight - 73.0F);
+    hunger_text_->setPosition(kWidth - 28.0F, kHungerTop - 10.0F);
     addChild(hunger_text_, 3);
 
     // 背包标题
     auto* inv_title = pixelPanelLabel("背包", 14.0F, ax::Vec2(60.0F, 20.0F), PixelPalette::TextSecondary);
-    inv_title->setPosition(12.0F, kHeight - 96.0F);
+    inv_title->setPosition(kPanelPadX, kInventoryTitleTop);
     addChild(inv_title, 2);
 
     // 背包网格
     inventory_container_ = ax::Node::create();
-    inventory_container_->setPosition(kGridX, kHeight - 118.0F - kGridHeight);
+    inventory_container_->setPosition(kGridX, kInventoryGridBottom);
     addChild(inventory_container_, 2);
 
     slot_nodes_.resize(16);
@@ -184,17 +195,17 @@ void AgentInfoPanel::buildSkeleton() {
 
     // 选中物品信息
     selected_item_label_ = pixelPanelLabel("", 12.0F, ax::Vec2(kWidth - 24.0F, 18.0F), PixelPalette::TextSecondary);
-    selected_item_label_->setPosition(12.0F, kHeight - 118.0F - kGridHeight - 18.0F);
+    selected_item_label_->setPosition(kPanelPadX, kSelectedItemTop);
     addChild(selected_item_label_, 2);
 
     // 知识标题
     knowledge_title_ = pixelPanelLabel("知识", 14.0F, ax::Vec2(60.0F, 20.0F), PixelPalette::TextSecondary);
-    knowledge_title_->setPosition(12.0F, kHeight - 118.0F - kGridHeight - 40.0F);
+    knowledge_title_->setPosition(kPanelPadX, kKnowledgeTitleTop);
     addChild(knowledge_title_, 2);
 
     // 知识容器
     knowledge_container_ = ax::Node::create();
-    knowledge_container_->setPosition(12.0F, kHeight - 118.0F - kGridHeight - 44.0F);
+    knowledge_container_->setPosition(kPanelPadX, kKnowledgeListTop);
     addChild(knowledge_container_, 2);
 }
 
@@ -362,7 +373,7 @@ void AgentInfoPanel::showTooltip(int slot_index) {
     const int col = slot_index % 4;
     const int row = slot_index / 4;
     const float slot_x = kGridX + col * (kSlotSize + kSlotGap);
-    const float slot_y = getContentSize().height - 118.0F - kGridHeight + (3 - row) * (kSlotSize + kSlotGap);
+    const float slot_y = kInventoryGridBottom + (3 - row) * (kSlotSize + kSlotGap);
     float tx = slot_x + kSlotSize * 0.5F - tooltip_w * 0.5F;
     float ty = slot_y + kSlotSize + 4.0F;
     // 避免超出面板右边界
@@ -397,7 +408,7 @@ void AgentInfoPanel::updateKnowledge(const pathfinder::v3_sandbox::V3AgentView* 
     }
 
     // 限制显示数量
-    const size_t max_lines = 5;
+    const size_t max_lines = 6;
     if (filtered.size() > max_lines) filtered.resize(max_lines);
 
     // 更新标题
@@ -412,7 +423,7 @@ void AgentInfoPanel::updateKnowledge(const pathfinder::v3_sandbox::V3AgentView* 
     }
 
     // 显示新行（复用或创建）
-    const float line_h = 16.0F;
+    const float line_h = kKnowledgeLineHeight;
     float y = 0.0F;
     for (size_t i = 0; i < filtered.size(); ++i) {
         const auto& claim = filtered[i];
@@ -427,7 +438,7 @@ void AgentInfoPanel::updateKnowledge(const pathfinder::v3_sandbox::V3AgentView* 
             line_label->setVisible(true);
         } else {
             line_label = pixelPanelLabel(text, 11.0F,
-                                     ax::Vec2(kWidth - 28.0F, line_h),
+                                     ax::Vec2(kWidth - 28.0F, line_h - 2.0F),
                                      statusColor(claim.status));
             line_label->setPosition(0.0F, y);
             knowledge_container_->addChild(line_label, 1);

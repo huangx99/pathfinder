@@ -60,12 +60,12 @@ bool PlaybackControlPanel::init(std::function<void()> on_toggle,
 
     // 标题
     auto* title = pixelPanelLabel("回合", 12.0F, ax::Vec2(60.0F, 18.0F), PixelPalette::TextSecondary);
-    title->setPosition(10.0F, kHeight - 10.0F);
+    title->setPosition(10.0F, kHeight - 8.0F);
     addChild(title, 1);
 
     // 回合数
     tick_label_ = pixelPanelLabel("第 0 回合", 14.0F, ax::Vec2(120.0F, 20.0F), PixelPalette::TextPrimary);
-    tick_label_->setPosition(10.0F, kHeight - 34.0F);
+    tick_label_->setPosition(10.0F, kHeight - 32.0F);
     addChild(tick_label_, 1);
 
     // 开始/暂停按钮
