@@ -50,7 +50,7 @@ set(PATHFINDER_AXMOL_SOURCES
     Source/world/SandboxMapLayer.cpp
     Source/ui/UiStyle.cpp
     Source/ui/ToolPalettePanel.cpp
-    Source/ui/InspectorPanel.cpp
+    Source/ui/PixelUI.cpp
     Source/ui/EventLogPanel.cpp
     Source/ui/PlaybackControlPanel.cpp
     Source/ui/AgentInfoPanel.cpp

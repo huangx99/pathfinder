@@ -1,24 +1,30 @@
 #pragma once
 
 #include "axmol/axmol.h"
-
 #include <functional>
 
 namespace pf::ui {
 
 class PlaybackControlPanel final : public ax::Node {
 public:
-    static PlaybackControlPanel* create(std::function<void()> on_toggle, std::function<void()> on_step);
-    bool init(std::function<void()> on_toggle, std::function<void()> on_step);
+    static PlaybackControlPanel* create(std::function<void()> on_toggle,
+                                         std::function<void()> on_step);
+    bool init(std::function<void()> on_toggle,
+               std::function<void()> on_step);
     void setState(bool playing, int tick);
 
 private:
-    void render();
+    void updateContent();
 
     std::function<void()> on_toggle_;
     std::function<void()> on_step_;
     bool playing_{false};
     int tick_{0};
+
+    ax::Node* bg_{nullptr};
+    ax::Label* tick_label_{nullptr};
+    ax::Node* toggle_button_{nullptr};
+    ax::Node* step_button_{nullptr};
 };
 
 } // namespace pf::ui

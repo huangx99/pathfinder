@@ -3,13 +3,13 @@
 #include "ui/EventLogPanel.h"
 #include "ui/PlaybackControlPanel.h"
 #include "ui/ToolPalettePanel.h"
-#include "ui/UiStyle.h"
+#include "ui/PixelUI.h"
 #include "world/SandboxMapLayer.h"
 
 namespace pf::client {
 namespace {
 constexpr float kMapX = 250.0F;
-constexpr float kMapY = 118.0F;
+constexpr float kMapY = 80.0F;
 }
 
 ax::Scene* V3SandboxScene::createScene() {
@@ -20,32 +20,42 @@ bool V3SandboxScene::init() {
     if (!Scene::init()) return false;
 
     auto* bg = ax::DrawNode::create();
-    bg->drawSolidRect(ax::Vec2::ZERO, ax::Vec2(1280.0F, 720.0F), pf::ui::color(3, 7, 18));
+    bg->drawSolidRect(ax::Vec2::ZERO, ax::Vec2(1280.0F, 720.0F), pf::ui::pixelColor(20, 20, 25));
     addChild(bg, 0);
 
-    auto* title = pf::ui::label("认知生态沙盒", 24.0F, ax::Vec2(210.0F, 34.0F));
-    title->setTextColor(ax::Color32(250, 204, 21, 255));
-    title->setPosition(250.0F, 704.0F);
+    // 标题
+    auto* title = pf::ui::pixelLabel("认知生态沙盒", 22.0F, ax::Vec2(240.0F, 32.0F), pf::ui::pixelColor(250, 204, 21));
+    title->setPosition(14.0F, 704.0F);
     addChild(title, 2);
 
-    playback_panel_ = pf::ui::PlaybackControlPanel::create([this]() { togglePlayback(); }, [this]() { stepOnce(); });
-    playback_panel_->setPosition(594.0F, 642.0F);
+    // 播放控制（左上角）
+    playback_panel_ = pf::ui::PlaybackControlPanel::create(
+        [this]() { togglePlayback(); },
+        [this]() { stepOnce(); });
+    playback_panel_->setPosition(14.0F, 636.0F);
     addChild(playback_panel_, 12);
 
-    tool_panel_ = pf::ui::ToolPalettePanel::create(&client_, [this](int index) { handleToolClicked(index); });
+    // 工具栏（左侧）
+    tool_panel_ = pf::ui::ToolPalettePanel::create(
+        &client_,
+        [this](int index) { handleToolClicked(index); });
     tool_panel_->setPosition(14.0F, 40.0F);
     addChild(tool_panel_, 10);
 
-    map_layer_ = pf::world::SandboxMapLayer::create([this](int x, int y) { handleCellClicked(x, y); });
+    // 地图（中央）
+    map_layer_ = pf::world::SandboxMapLayer::create(
+        [this](int x, int y) { handleCellClicked(x, y); });
     map_layer_->setPosition(kMapX, kMapY);
     addChild(map_layer_, 4);
 
+    // Agent 信息（右侧）
     agent_info_panel_ = pf::ui::AgentInfoPanel::create();
-    agent_info_panel_->setPosition(986.0F, 96.0F);
+    agent_info_panel_->setPosition(986.0F, 40.0F);
     addChild(agent_info_panel_, 10);
 
+    // 事件日志（底部横跨）
     event_log_panel_ = pf::ui::EventLogPanel::create();
-    event_log_panel_->setPosition(250.0F, 14.0F);
+    event_log_panel_->setPosition(14.0F, 14.0F);
     addChild(event_log_panel_, 10);
 
     refreshAll();

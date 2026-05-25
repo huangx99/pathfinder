@@ -1,18 +1,34 @@
 #include "ui/ToolPalettePanel.h"
-#include "ui/UiStyle.h"
-
-#include "axmol/ui/UIScrollView.h"
+#include "ui/PixelUI.h"
+#include "procedural/ProceduralArt.h"
 
 namespace pf::ui {
 namespace {
+
 constexpr float kWidth = 220.0F;
 constexpr float kHeight = 640.0F;
-constexpr float kButtonHeight = 34.0F;
-constexpr float kListHeight = 430.0F;
-constexpr float kListInnerHeight = 760.0F;
+constexpr float kSlotSize = 52.0F;
+constexpr float kIconSize = 36.0F;
+constexpr float kSlotGap = 4.0F;
+constexpr float kCols = 2.0F;
+
+ax::Node* createToolIcon(const std::string& key, float size) {
+    if (key == "grass")  return pf::art::createGrassTile(size);
+    if (key == "soil")   return pf::art::createSoilTile(size);
+    if (key == "water")  return pf::art::createWaterTile(size);
+    if (key == "red_berry")        return pf::art::createRedBerry(size);
+    if (key == "decayed_red_berry") return pf::art::createDecayedRedBerry(size);
+    if (key == "stone_flake")      return pf::art::createStoneFlake(size);
+    if (key == "bitter_leaf")      return pf::art::createBitterLeaf(size);
+    if (key == "wood")             return pf::art::createWood(size);
+    if (key == "basic_npc")        return pf::art::createPlayer(size);
+    return nullptr;
 }
 
-ToolPalettePanel* ToolPalettePanel::create(pf::client::V3LocalClient* client, std::function<void(int)> on_tool_clicked) {
+} // namespace
+
+ToolPalettePanel* ToolPalettePanel::create(pf::client::V3LocalClient* client,
+                                            std::function<void(int)> on_tool_clicked) {
     auto* panel = new ToolPalettePanel();
     if (panel && panel->init(client, std::move(on_tool_clicked))) {
         panel->autorelease();
@@ -22,87 +38,126 @@ ToolPalettePanel* ToolPalettePanel::create(pf::client::V3LocalClient* client, st
     return nullptr;
 }
 
-bool ToolPalettePanel::init(pf::client::V3LocalClient* client, std::function<void(int)> on_tool_clicked) {
+bool ToolPalettePanel::init(pf::client::V3LocalClient* client,
+                             std::function<void(int)> on_tool_clicked) {
     if (!Node::init()) return false;
     client_ = client;
     on_tool_clicked_ = std::move(on_tool_clicked);
     setContentSize(ax::Size(kWidth, kHeight));
-    refresh();
+    buildSkeleton();
+    updateContent();
     return true;
 }
 
-void ToolPalettePanel::refresh() {
-    removeAllChildren();
-    addChild(panelBackground(getContentSize()), 0);
-    auto* title = panelLabel("工具", 24.0F, ax::Vec2(kWidth - 24.0F, 32.0F));
-    title->setPosition(12.0F, kHeight - 16.0F);
+void ToolPalettePanel::buildSkeleton() {
+    bg_ = pixelPanelBackground(getContentSize());
+    addChild(bg_, 0);
+
+    // 标题
+    auto* title = pixelPanelLabel("工具", 18.0F, ax::Vec2(kWidth - 24.0F, 26.0F), PixelPalette::TextPrimary);
+    title->setPosition(12.0F, kHeight - 10.0F);
     addChild(title, 2);
 
-    const auto* selected_tool = client_->selectedTool();
-    auto* selected = panelLabel(selected_tool ? ("当前：" + selected_tool->label) : "当前：未选择", 15.0F, ax::Vec2(kWidth - 24.0F, 42.0F));
-    selected->setTextColor(ax::Color32(250, 204, 21, 255));
-    selected->setPosition(12.0F, kHeight - 56.0F);
-    addChild(selected, 2);
+    // 取消选择按钮
+    cancel_button_ = pixelButton(ax::Size(kWidth - 24.0F, 30.0F), "取消选择", 13.0F);
+    cancel_button_->setPosition(12.0F, kHeight - 48.0F);
 
-    auto* cancel_label = label("取消选择", 16.0F, ax::Vec2(kWidth - 36.0F, 28.0F));
-    cancel_label->setTextColor(client_->hasSelectedTool() ? ax::Color32(226, 232, 240, 255) : ax::Color32(15, 23, 42, 255));
-    auto* cancel_item = ax::MenuItemLabel::create(cancel_label, [this](ax::Object*) {
-        if (on_tool_clicked_) on_tool_clicked_(-1);
-    });
-    cancel_item->setAnchorPoint(ax::Vec2(0.0F, 0.5F));
-    cancel_item->setPosition(16.0F, kHeight - 100.0F);
-    auto* cancel_menu = ax::Menu::create(cancel_item, nullptr);
-    cancel_menu->setPosition(ax::Vec2::ZERO);
-    addChild(cancel_menu, 3);
-    auto* cancel_bg = ax::DrawNode::create();
-    cancel_bg->drawSolidRect(ax::Vec2(10.0F, kHeight - 100.0F - kButtonHeight * 0.5F), ax::Vec2(kWidth - 10.0F, kHeight - 100.0F + kButtonHeight * 0.5F),
-                             client_->hasSelectedTool() ? color(30, 41, 59, 0.86F) : color(250, 204, 21, 0.92F));
-    addChild(cancel_bg, 1);
-
-    auto* scroll = ax::ui::ScrollView::create();
-    scroll->setContentSize(ax::Size(kWidth - 20.0F, kListHeight));
-    scroll->setInnerContainerSize(ax::Size(kWidth - 20.0F, kListInnerHeight));
-    scroll->setDirection(ax::ui::ScrollView::Direction::VERTICAL);
-    scroll->setBounceEnabled(true);
-    scroll->setScrollBarEnabled(true);
-    scroll->setScrollBarWidth(4.0F);
-    scroll->setScrollBarColor(ax::Color32(148, 163, 184, 255));
-    scroll->setScrollBarOpacity(180);
-    scroll->setScrollBarPositionFromCorner(ax::Vec2(2.0F, 2.0F));
-    scroll->setPosition(ax::Vec2(10.0F, 24.0F));
-    addChild(scroll, 3);
-
-    auto* menu = ax::Menu::create();
-    menu->setPosition(ax::Vec2::ZERO);
-    scroll->addChild(menu, 3);
-
-    float y = kListInnerHeight - 18.0F;
-    std::string current_category;
-    const auto& tools = client_->tools();
-    for (int index = 0; index < static_cast<int>(tools.size()); ++index) {
-        if (tools[index].category != current_category) {
-            current_category = tools[index].category;
-            auto* section = panelLabel(current_category, 14.0F, ax::Vec2(kWidth - 24.0F, 22.0F));
-            section->setTextColor(ax::Color32(147, 197, 253, 255));
-            section->setPosition(2.0F, y + 10.0F);
-            scroll->addChild(section, 2);
-            y -= 24.0F;
+    auto* cancel_listener = ax::EventListenerTouchOneByOne::create();
+    cancel_listener->setSwallowTouches(true);
+    cancel_listener->onTouchBegan = [this](ax::Touch* touch, ax::Event*) {
+        const auto local = cancel_button_->convertToNodeSpace(touch->getLocation());
+        const auto size = cancel_button_->getContentSize();
+        if (local.x >= 0 && local.x <= size.width && local.y >= 0 && local.y <= size.height) {
+            // 按下效果
+            if (auto* bg = cancel_button_->getChildByName("bg")) {
+                bg->setColor(ax::Color32(107, 107, 107));
+            }
+            return true;
         }
-        const bool is_selected = index == client_->selectedToolIndex();
-        auto* item_label = label(tools[index].label, 16.0F, ax::Vec2(kWidth - 36.0F, 28.0F));
-        item_label->setTextColor(is_selected ? ax::Color32(15, 23, 42, 255) : ax::Color32(226, 232, 240, 255));
-        auto* item = ax::MenuItemLabel::create(item_label, [this, index](ax::Object*) {
-            if (on_tool_clicked_) on_tool_clicked_(index);
-        });
-        item->setAnchorPoint(ax::Vec2(0.0F, 0.5F));
-        item->setPosition(8.0F, y);
-        menu->addChild(item, 2);
+        return false;
+    };
+    cancel_listener->onTouchEnded = [this](ax::Touch*, ax::Event*) {
+        if (auto* bg = cancel_button_->getChildByName("bg")) {
+            bg->setColor(ax::Color32(139, 139, 139));
+        }
+        if (on_tool_clicked_) on_tool_clicked_(-1);
+    };
+    cancel_listener->onTouchCancelled = [this](ax::Touch*, ax::Event*) {
+        if (auto* bg = cancel_button_->getChildByName("bg")) {
+            bg->setColor(ax::Color32(139, 139, 139));
+        }
+    };
+    _eventDispatcher->addEventListenerWithSceneGraphPriority(cancel_listener, cancel_button_);
+    addChild(cancel_button_, 3);
+}
 
-        auto* bg = ax::DrawNode::create();
-        bg->drawSolidRect(ax::Vec2(0.0F, y - kButtonHeight * 0.5F), ax::Vec2(kWidth - 20.0F, y + kButtonHeight * 0.5F),
-                          is_selected ? color(250, 204, 21, 0.92F) : color(30, 41, 59, 0.86F));
-        scroll->addChild(bg, 1);
-        y -= kButtonHeight + 7.0F;
+void ToolPalettePanel::refresh() {
+    updateContent();
+}
+
+void ToolPalettePanel::updateContent() {
+    // 清除旧的工具格子
+    for (auto* slot : tool_slots_) {
+        slot->removeFromParentAndCleanup(true);
+    }
+    tool_slots_.clear();
+    for (auto* label : tool_labels_) {
+        label->removeFromParentAndCleanup(true);
+    }
+    tool_labels_.clear();
+
+    const auto& tools = client_->tools();
+    selected_index_ = client_->selectedToolIndex();
+
+    const float grid_x = 14.0F;
+    float y = kHeight - 90.0F;
+
+    for (int index = 0; index < static_cast<int>(tools.size()); ++index) {
+        const int col = index % 2;
+        const float x = grid_x + col * (kSlotSize + kSlotGap);
+
+        const bool is_selected = index == selected_index_;
+
+        // 格子背景
+        auto* slot = inventorySlot(kSlotSize, is_selected);
+        slot->setPosition(x, y);
+        addChild(slot, 2);
+        tool_slots_.push_back(slot);
+
+        // 图标
+        auto* icon = createToolIcon(tools[index].key, kIconSize);
+        if (icon) {
+            icon->setPosition(x + kSlotSize * 0.5F, y + kSlotSize * 0.5F + 4.0F);
+            addChild(icon, 3);
+            tool_slots_.push_back(icon); // 方便清理
+        }
+
+        // 文字标签
+        auto* label = pixelLabel(tools[index].label, 9.0F,
+                                  ax::Vec2(kSlotSize, 12.0F),
+                                  is_selected ? PixelPalette::SlotSelected : PixelPalette::TextSecondary);
+        label->setAlignment(ax::TextHAlignment::CENTER, ax::TextVAlignment::CENTER);
+        label->setPosition(x + kSlotSize * 0.5F, y - 2.0F);
+        addChild(label, 3);
+        tool_labels_.push_back(label);
+
+        // Touch 监听
+        auto* listener = ax::EventListenerTouchOneByOne::create();
+        listener->setSwallowTouches(true);
+        listener->onTouchBegan = [slot](ax::Touch* touch, ax::Event*) {
+            const auto local = slot->convertToNodeSpace(touch->getLocation());
+            const auto size = slot->getContentSize();
+            return local.x >= 0 && local.x <= size.width &&
+                   local.y >= 0 && local.y <= size.height;
+        };
+        listener->onTouchEnded = [this, index](ax::Touch*, ax::Event*) {
+            if (on_tool_clicked_) on_tool_clicked_(index);
+        };
+        _eventDispatcher->addEventListenerWithSceneGraphPriority(listener, slot);
+
+        if (col == 1) {
+            y -= kSlotSize + kSlotGap + 12.0F;
+        }
     }
 }
 

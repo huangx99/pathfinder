@@ -1,14 +1,22 @@
 #include "ui/EventLogPanel.h"
+#include "ui/PixelUI.h"
 #include "ui/UiStyle.h"
-
-#include "axmol/ui/UIScrollView.h"
 
 namespace pf::ui {
 namespace {
+
 constexpr float kWidth = 980.0F;
-constexpr float kHeight = 118.0F;
-constexpr float kInnerHeight = 360.0F;
+constexpr float kHeight = 56.0F;
+
+std::string eventPrefix(const std::string& text) {
+    if (text.find("阻止") == 0 || text.find("超出") == 0 ||
+        text.find("不能") == 0 || text.find("尚未") == 0) {
+        return "⚠️ ";
+    }
+    return "💬 ";
 }
+
+} // namespace
 
 EventLogPanel* EventLogPanel::create() {
     auto* panel = new EventLogPanel();
@@ -23,37 +31,46 @@ EventLogPanel* EventLogPanel::create() {
 bool EventLogPanel::init() {
     if (!Node::init()) return false;
     setContentSize(ax::Size(kWidth, kHeight));
-    setEvents({}, "");
+
+    bg_ = pixelPanelBackground(getContentSize());
+    addChild(bg_, 0);
+
+    line1_ = pixelLabel("", 12.0F, ax::Vec2(kWidth - 20.0F, 18.0F), PixelPalette::TextSecondary);
+    line1_->setPosition(10.0F, kHeight - 14.0F);
+    addChild(line1_, 1);
+
+    line2_ = pixelLabel("", 12.0F, ax::Vec2(kWidth - 20.0F, 18.0F), PixelPalette::TextSecondary);
+    line2_->setPosition(10.0F, kHeight - 32.0F);
+    addChild(line2_, 1);
+
     return true;
 }
 
 void EventLogPanel::setEvents(const std::vector<std::string>& events, const std::string& error) {
-    removeAllChildren();
-    addChild(panelBackground(getContentSize(), color(8, 13, 26, 0.92F)), 0);
-    auto* title = panelLabel(error.empty() ? "事件" : ("阻止：" + humanizeDebugText(error)), 16.0F, ax::Vec2(kWidth - 24.0F, 22.0F));
-    title->setTextColor(error.empty() ? ax::Color32(147, 197, 253, 255) : ax::Color32(248, 113, 113, 255));
-    title->setPosition(12.0F, kHeight - 12.0F);
-    addChild(title, 2);
+    if (!error.empty()) {
+        auto text = humanizeDebugText(error);
+        line1_->setString("⚠️ " + text);
+        line1_->setTextColor(ax::Color32(248, 113, 113));
+        line2_->setString("");
+        return;
+    }
 
-    auto* scroll = ax::ui::ScrollView::create();
-    scroll->setContentSize(ax::Size(kWidth - 24.0F, kHeight - 40.0F));
-    scroll->setInnerContainerSize(ax::Size(kWidth - 24.0F, kInnerHeight));
-    scroll->setDirection(ax::ui::ScrollView::Direction::VERTICAL);
-    scroll->setBounceEnabled(true);
-    scroll->setScrollBarEnabled(true);
-    scroll->setScrollBarWidth(4.0F);
-    scroll->setScrollBarColor(ax::Color32(148, 163, 184, 255));
-    scroll->setScrollBarOpacity(170);
-    scroll->setPosition(ax::Vec2(12.0F, 8.0F));
-    addChild(scroll, 2);
+    line1_->setTextColor(ax::Color32(226, 232, 240));
+    line2_->setTextColor(ax::Color32(170, 170, 170));
 
-    float y = kInnerHeight - 8.0F;
-    for (auto it = events.rbegin(); it != events.rend(); ++it) {
-        auto* line = panelLabel(shorten(humanizeDebugText(*it), 62), 14.0F, ax::Vec2(kWidth - 36.0F, 22.0F));
-        line->setPosition(0.0F, y);
-        scroll->addChild(line, 2);
-        y -= 24.0F;
-        if (y < 12.0F) break;
+    if (events.empty()) {
+        line1_->setString("");
+        line2_->setString("");
+        return;
+    }
+
+    auto it = events.rbegin();
+    line1_->setString(eventPrefix(humanizeDebugText(*it)) + humanizeDebugText(*it));
+    ++it;
+    if (it != events.rend()) {
+        line2_->setString(eventPrefix(humanizeDebugText(*it)) + humanizeDebugText(*it));
+    } else {
+        line2_->setString("");
     }
 }
 
