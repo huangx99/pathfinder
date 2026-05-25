@@ -1,3 +1,18 @@
+
+# Engine logging tests
+add_executable(pathfinder_tests_logging
+    unit/logging/logger_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_logging PRIVATE
+    pathfinder_logging
+    pathfinder_foundation
+)
+
+add_test(NAME logging_global_switch COMMAND pathfinder_tests_logging global_switch)
+add_test(NAME logging_tag_and_custom COMMAND pathfinder_tests_logging tag_and_custom)
+add_test(NAME logging_truncate_on_start COMMAND pathfinder_tests_logging truncate_on_start)
+
 # Foundation tests
 add_executable(pathfinder_tests_foundation
     unit/foundation/smoke_test.cpp

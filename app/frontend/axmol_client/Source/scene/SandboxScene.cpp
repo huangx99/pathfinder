@@ -5,6 +5,7 @@
 #include "ui/ToolPalettePanel.h"
 #include "ui/PixelUI.h"
 #include "world/SandboxMapLayer.h"
+#include "pathfinder/logging/logger.h"
 
 namespace pf::client {
 namespace {
@@ -18,6 +19,7 @@ ax::Scene* SandboxScene::createScene() {
 
 bool SandboxScene::init() {
     if (!Scene::init()) return false;
+    pathfinder::logging::log(pathfinder::logging::tag::Ui, "sandbox scene init");
 
     auto* bg = ax::DrawNode::create();
     bg->drawSolidRect(ax::Vec2::ZERO, ax::Vec2(1280.0F, 720.0F), pf::ui::pixelColor(20, 20, 25));
@@ -71,26 +73,34 @@ void SandboxScene::refreshAll() {
 }
 
 void SandboxScene::handleCellClicked(int x, int y) {
+    pathfinder::logging::log(pathfinder::logging::tag::Input, "cell clicked x=" + std::to_string(x) + " y=" + std::to_string(y));
     selected_x_ = x;
     selected_y_ = y;
     if (const auto* agent = client_.agentAtCell(x, y)) {
         selected_agent_id_ = agent->agent_id;
+        pathfinder::logging::log(pathfinder::logging::tag::Ui, "agent selected id=" + selected_agent_id_);
         refreshAll();
         return;
     }
     selected_agent_id_.clear();
-    client_.applySelectedToolToCell(x, y);
+    const bool applied = client_.applySelectedToolToCell(x, y);
+    pathfinder::logging::log(pathfinder::logging::tag::Command, std::string("cell command result=") + (applied ? "success" : "blocked") + " last_error=" + client_.lastError());
     refreshAll();
 }
 
 void SandboxScene::handleToolClicked(int index) {
     if (index < 0) {
+        pathfinder::logging::log(pathfinder::logging::tag::Tool, "tool selection cleared");
         client_.clearToolSelection();
         refreshAll();
         return;
     }
     const auto& tools = client_.tools();
-    if (index < 0 || index >= static_cast<int>(tools.size())) return;
+    if (index < 0 || index >= static_cast<int>(tools.size())) {
+        pathfinder::logging::logError(pathfinder::logging::tag::Tool, "invalid tool index=" + std::to_string(index));
+        return;
+    }
+    pathfinder::logging::log(pathfinder::logging::tag::Tool, "tool selected index=" + std::to_string(index) + " key=" + tools[index].key + " label=" + tools[index].label);
     client_.selectTool(index);
     refreshAll();
 }
@@ -105,23 +115,27 @@ void SandboxScene::togglePlayback() {
 }
 
 void SandboxScene::stepOnce() {
+    pathfinder::logging::log(pathfinder::logging::tag::Input, "step once clicked");
     client_.tick(1);
     refreshAll();
 }
 
 void SandboxScene::startPlayback() {
     if (playing_) return;
+    pathfinder::logging::log(pathfinder::logging::tag::Ui, "playback started");
     playing_ = true;
     schedule([this](float dt) { handlePlaybackTick(dt); }, 0.75F, "sandbox_playback_tick");
 }
 
 void SandboxScene::stopPlayback() {
     if (!playing_) return;
+    pathfinder::logging::log(pathfinder::logging::tag::Ui, "playback stopped");
     playing_ = false;
     unschedule("sandbox_playback_tick");
 }
 
 void SandboxScene::handlePlaybackTick(float) {
+    pathfinder::logging::log(pathfinder::logging::tag::Runtime, "playback tick");
     client_.tick(1);
     refreshAll();
 }

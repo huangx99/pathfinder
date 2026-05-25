@@ -1,4 +1,5 @@
 #include "runtime/EngineLocalClient.h"
+#include "pathfinder/logging/logger.h"
 
 #include <algorithm>
 #include <charconv>
@@ -96,24 +97,32 @@ std::string eventText(const pathfinder::world_command::WorldEventDto& event) {
 } // namespace
 
 EngineLocalClient::EngineLocalClient() {
+    pathfinder::logging::log(pathfinder::logging::tag::Runtime, "engine local client created");
     bootstrap();
 }
 
 void EngineLocalClient::selectTool(int index) {
-    if (index < 0 || index >= static_cast<int>(tools_.size())) return;
+    if (index < 0 || index >= static_cast<int>(tools_.size())) {
+        pathfinder::logging::logError(pathfinder::logging::tag::Tool, "selectTool rejected index=" + std::to_string(index));
+        return;
+    }
     selected_tool_index_ = index;
+    pathfinder::logging::log(pathfinder::logging::tag::Tool, "selected tool index=" + std::to_string(index) + " key=" + tools_[index].key);
 }
 
 void EngineLocalClient::clearToolSelection() {
     selected_tool_index_ = -1;
     last_error_.clear();
+    pathfinder::logging::log(pathfinder::logging::tag::Tool, "selected tool cleared");
 }
 
 bool EngineLocalClient::applySelectedToolToCell(int x, int y) {
+    pathfinder::logging::log(pathfinder::logging::tag::Command, "apply tool to cell x=" + std::to_string(x) + " y=" + std::to_string(y) + " has_tool=" + (hasSelectedTool() ? std::string("true") : std::string("false")));
     if (hasSelectedTool()) {
         auto tool_option = findSelectedToolOptionForCell(x, y);
         if (tool_option) return submitOption(tool_option->option_id);
         last_error_ = "selected_tool_not_available_for_cell";
+        pathfinder::logging::logError(pathfinder::logging::tag::Command, "selected tool unavailable for cell x=" + std::to_string(x) + " y=" + std::to_string(y));
         return false;
     }
 
@@ -121,6 +130,7 @@ bool EngineLocalClient::applySelectedToolToCell(int x, int y) {
     if (cell_option) return submitOption(cell_option->option_id);
 
     last_error_ = "no_available_command_for_cell";
+    pathfinder::logging::logError(pathfinder::logging::tag::Command, "no available command for cell x=" + std::to_string(x) + " y=" + std::to_string(y));
     return false;
 }
 
@@ -168,6 +178,7 @@ const EngineAgentView* EngineLocalClient::findAgent(const std::string& agent_id)
 }
 
 bool EngineLocalClient::bootstrap() {
+    pathfinder::logging::log(pathfinder::logging::tag::Runtime, "bootstrap requested session=" + session_id_ + " actor=" + actor_key_);
     pathfinder::client_protocol::ClientBootstrapRequest request;
     request.client_id = client_id_;
     request.session_id = session_id_;
@@ -179,14 +190,17 @@ bool EngineLocalClient::bootstrap() {
     auto response = host_.session_gateway.bootstrap(request);
     if (response.is_error()) {
         last_error_ = "bootstrap_failed";
+        pathfinder::logging::logError(pathfinder::logging::tag::Runtime, "bootstrap failed");
         return false;
     }
     applyBootstrap(response.value());
     last_error_.clear();
+    pathfinder::logging::log(pathfinder::logging::tag::Runtime, "bootstrap succeeded projection_version=" + std::to_string(snapshot_.projection_version) + " commands=" + std::to_string(snapshot_.available_commands.size()));
     return true;
 }
 
 bool EngineLocalClient::refresh() {
+    pathfinder::logging::log(pathfinder::logging::tag::Runtime, "refresh requested known_version=" + std::to_string(snapshot_.projection_version));
     pathfinder::client_protocol::ClientRefreshRequest request;
     request.client_id = client_id_;
     request.session_id = session_id_;
@@ -197,14 +211,17 @@ bool EngineLocalClient::refresh() {
     auto response = host_.session_gateway.refresh(request);
     if (response.is_error()) {
         last_error_ = "refresh_failed";
+        pathfinder::logging::logError(pathfinder::logging::tag::Runtime, "refresh failed");
         return false;
     }
     applyRefresh(response.value());
     last_error_.clear();
+    pathfinder::logging::log(pathfinder::logging::tag::Runtime, "refresh succeeded projection_version=" + std::to_string(snapshot_.projection_version) + " commands=" + std::to_string(snapshot_.available_commands.size()));
     return true;
 }
 
 bool EngineLocalClient::submitOption(const std::string& option_id) {
+    pathfinder::logging::log(pathfinder::logging::tag::Command, "submit option option_id=" + option_id + " known_version=" + std::to_string(snapshot_.projection_version));
     pathfinder::client_protocol::ClientCommandRequest request;
     request.client_id = client_id_;
     request.session_id = session_id_;
@@ -217,10 +234,13 @@ bool EngineLocalClient::submitOption(const std::string& option_id) {
     auto response = host_.command_gateway.handleCommand(request);
     if (response.is_error()) {
         last_error_ = "command_failed";
+        pathfinder::logging::logError(pathfinder::logging::tag::Command, "command gateway returned error option_id=" + option_id);
         return false;
     }
     applyCommand(response.value());
-    return response.value().result.result_kind == pathfinder::world_command::WorldCommandResultKind::Succeeded;
+    const bool succeeded = response.value().result.result_kind == pathfinder::world_command::WorldCommandResultKind::Succeeded;
+    pathfinder::logging::log(pathfinder::logging::tag::Command, std::string("command result=") + (succeeded ? "succeeded" : "not_succeeded") + " new_version=" + std::to_string(response.value().new_projection_version) + " failures=" + std::to_string(response.value().result.failure_reason_keys.size()));
+    return succeeded;
 }
 
 void EngineLocalClient::applyBootstrap(const pathfinder::client_protocol::ClientBootstrapResponse& response) {
@@ -362,6 +382,7 @@ void EngineLocalClient::rebuildSnapshot(const pathfinder::client_protocol::Clien
 }
 
 void EngineLocalClient::rebuildTools() {
+    const auto previous_count = tools_.size();
     tools_.clear();
     for (const auto& option : snapshot_.available_commands) {
         if (!option.enabled) continue;
@@ -388,6 +409,9 @@ void EngineLocalClient::rebuildTools() {
         tools_.push_back(std::move(tool));
     }
     if (selected_tool_index_ >= static_cast<int>(tools_.size())) selected_tool_index_ = -1;
+    if (previous_count != tools_.size()) {
+        pathfinder::logging::log(pathfinder::logging::tag::Tool, "tools rebuilt count=" + std::to_string(tools_.size()));
+    }
 }
 
 std::optional<pathfinder::world_command::WorldCommandOptionDto> EngineLocalClient::findSelectedToolOptionForCell(int x, int y) const {

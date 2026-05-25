@@ -1,6 +1,7 @@
 #include "world/SandboxMapLayer.h"
 #include "procedural/ProceduralArt.h"
 #include "ui/PixelUI.h"
+#include "pathfinder/logging/logger.h"
 
 #include <algorithm>
 
@@ -43,12 +44,17 @@ bool SandboxMapLayer::init(std::function<void(int, int)> on_cell_clicked) {
     listener->onTouchBegan = [this](ax::Touch* touch, ax::Event*) {
         int x = 0;
         int y = 0;
-        return positionToCell(convertToNodeSpace(touch->getLocation()), x, y);
+        const bool hit = positionToCell(convertToNodeSpace(touch->getLocation()), x, y);
+        if (hit) {
+            pathfinder::logging::log(pathfinder::logging::tag::Input, "map touch began x=" + std::to_string(x) + " y=" + std::to_string(y));
+        }
+        return hit;
     };
     listener->onTouchEnded = [this](ax::Touch* touch, ax::Event*) {
         int x = 0;
         int y = 0;
         if (positionToCell(convertToNodeSpace(touch->getLocation()), x, y) && on_cell_clicked_) {
+            pathfinder::logging::log(pathfinder::logging::tag::Input, "map touch ended x=" + std::to_string(x) + " y=" + std::to_string(y));
             on_cell_clicked_(x, y);
         }
     };
@@ -67,6 +73,7 @@ void SandboxMapLayer::render(const pf::client::EngineSnapshot& snapshot, int sel
     const bool size_changed = (cached_width_ != snapshot.width || cached_height_ != snapshot.height);
 
     if (first_time || size_changed) {
+        pathfinder::logging::log(pathfinder::logging::tag::Map, "map layer rebuilt width=" + std::to_string(snapshot.width) + " height=" + std::to_string(snapshot.height) + " min_x=" + std::to_string(snapshot.min_x) + " min_y=" + std::to_string(snapshot.min_y));
         removeAllChildren();
         cache_.clear();
         cache_.resize(std::max(0, snapshot.width * snapshot.height));

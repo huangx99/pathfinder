@@ -21,6 +21,19 @@ target_include_directories(pathfinder_foundation PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
+# Engine logging library
+add_library(pathfinder_logging STATIC
+    src/logging/logger.cpp
+)
+
+target_include_directories(pathfinder_logging PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(pathfinder_logging PUBLIC
+    pathfinder_foundation
+)
+
 # Config library (P1)
 add_library(pathfinder_config STATIC
     src/config/validation.cpp
