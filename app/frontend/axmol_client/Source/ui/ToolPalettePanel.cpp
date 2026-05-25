@@ -8,9 +8,9 @@ constexpr float kHeight = 640.0F;
 constexpr float kButtonHeight = 34.0F;
 }
 
-ToolPalettePanel* ToolPalettePanel::create(pf::client::V3LocalClient* client, std::function<void()> on_tool_changed) {
+ToolPalettePanel* ToolPalettePanel::create(pf::client::V3LocalClient* client, std::function<void(int)> on_tool_clicked) {
     auto* panel = new ToolPalettePanel();
-    if (panel && panel->init(client, std::move(on_tool_changed))) {
+    if (panel && panel->init(client, std::move(on_tool_clicked))) {
         panel->autorelease();
         return panel;
     }
@@ -18,10 +18,10 @@ ToolPalettePanel* ToolPalettePanel::create(pf::client::V3LocalClient* client, st
     return nullptr;
 }
 
-bool ToolPalettePanel::init(pf::client::V3LocalClient* client, std::function<void()> on_tool_changed) {
+bool ToolPalettePanel::init(pf::client::V3LocalClient* client, std::function<void(int)> on_tool_clicked) {
     if (!Node::init()) return false;
     client_ = client;
-    on_tool_changed_ = std::move(on_tool_changed);
+    on_tool_clicked_ = std::move(on_tool_clicked);
     setContentSize(ax::Size(kWidth, kHeight));
     refresh();
     return true;
@@ -50,9 +50,7 @@ void ToolPalettePanel::refresh() {
         auto* item_label = label(tools[index].label, 16.0F, ax::Vec2(kWidth - 36.0F, 28.0F));
         item_label->setTextColor(is_selected ? ax::Color32(15, 23, 42, 255) : ax::Color32(226, 232, 240, 255));
         auto* item = ax::MenuItemLabel::create(item_label, [this, index](ax::Object*) {
-            client_->selectTool(index);
-            refresh();
-            if (on_tool_changed_) on_tool_changed_();
+            if (on_tool_clicked_) on_tool_clicked_(index);
         });
         item->setAnchorPoint(ax::Vec2(0.0F, 0.5F));
         item->setPosition(16.0F, y);

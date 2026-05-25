@@ -52,6 +52,8 @@ set(PATHFINDER_AXMOL_SOURCES
     Source/ui/ToolPalettePanel.cpp
     Source/ui/InspectorPanel.cpp
     Source/ui/EventLogPanel.cpp
+    Source/ui/PlaybackControlPanel.cpp
+    Source/ui/AgentInfoPanel.cpp
     Source/procedural/GrassTile.cpp
     Source/procedural/SoilTile.cpp
     Source/procedural/WaterTile.cpp

@@ -48,7 +48,8 @@ bool V3LocalClient::applySelectedToolToCell(int x, int y) {
         command.agent_template_key = "basic_npc";
         command.agent_name = "小人" + std::to_string(next_agent_name_++);
     } else {
-        return tick(1);
+        last_error_ = "tool_not_supported_on_map";
+        return false;
     }
     return submit(command);
 }
@@ -87,6 +88,20 @@ bool V3LocalClient::inspectAgent(const std::string& agent_id, std::vector<std::s
     return true;
 }
 
+const pathfinder::v3_sandbox::V3AgentView* V3LocalClient::agentAtCell(int x, int y) const {
+    for (const auto& agent : snapshot_.agents) {
+        if (agent.x == x && agent.y == y) return &agent;
+    }
+    return nullptr;
+}
+
+const pathfinder::v3_sandbox::V3AgentView* V3LocalClient::findAgent(const std::string& agent_id) const {
+    for (const auto& agent : snapshot_.agents) {
+        if (agent.agent_id == agent_id) return &agent;
+    }
+    return nullptr;
+}
+
 bool V3LocalClient::submit(pathfinder::v3_sandbox::V3SandboxCommand command) {
     auto result = runtime_.submit(command);
     if (!result.accepted) {
@@ -110,7 +125,6 @@ void V3LocalClient::rebuildTools() {
         tools_.push_back({ToolKind::PlaceObject, object, labelForObject(object)});
     }
     tools_.push_back({ToolKind::PlaceAgent, "basic_npc", "投放小人"});
-    tools_.push_back({ToolKind::Tick, "tick", "推进时间"});
 }
 
 } // namespace pf::client

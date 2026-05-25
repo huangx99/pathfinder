@@ -10,12 +10,11 @@ namespace pf::client {
 enum class ToolKind {
     PaintTerrain,
     PlaceObject,
-    PlaceAgent,
-    Tick
+    PlaceAgent
 };
 
 struct ToolDefinition {
-    ToolKind kind{ToolKind::Tick};
+    ToolKind kind{ToolKind::PaintTerrain};
     std::string key;
     std::string label;
 };
@@ -35,6 +34,8 @@ public:
     bool tick(int count = 1);
     bool inspectCell(int x, int y, std::vector<std::string>& lines);
     bool inspectAgent(const std::string& agent_id, std::vector<std::string>& lines);
+    const pathfinder::v3_sandbox::V3AgentView* agentAtCell(int x, int y) const;
+    const pathfinder::v3_sandbox::V3AgentView* findAgent(const std::string& agent_id) const;
 
 private:
     bool submit(pathfinder::v3_sandbox::V3SandboxCommand command);

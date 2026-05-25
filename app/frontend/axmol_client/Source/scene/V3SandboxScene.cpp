@@ -1,6 +1,7 @@
 #include "scene/V3SandboxScene.h"
+#include "ui/AgentInfoPanel.h"
 #include "ui/EventLogPanel.h"
-#include "ui/InspectorPanel.h"
+#include "ui/PlaybackControlPanel.h"
 #include "ui/ToolPalettePanel.h"
 #include "ui/UiStyle.h"
 #include "world/SandboxMapLayer.h"
@@ -22,19 +23,16 @@ bool V3SandboxScene::init() {
     bg->drawSolidRect(ax::Vec2::ZERO, ax::Vec2(1280.0F, 720.0F), pf::ui::color(3, 7, 18));
     addChild(bg, 0);
 
-    auto* title = pf::ui::label("Pathfinder V3 认知生态沙盒", 26.0F, ax::Vec2(900.0F, 36.0F));
+    auto* title = pf::ui::label("Pathfinder V3", 24.0F, ax::Vec2(210.0F, 34.0F));
     title->setTextColor(ax::Color32(250, 204, 21, 255));
     title->setPosition(250.0F, 704.0F);
     addChild(title, 2);
 
-    auto* subtitle = pf::ui::label("选择左侧工具，点击地图投放；NPC 只会根据附近感知和自身经历行动。", 15.0F, ax::Vec2(820.0F, 24.0F));
-    subtitle->setPosition(250.0F, 672.0F);
-    addChild(subtitle, 2);
+    playback_panel_ = pf::ui::PlaybackControlPanel::create([this]() { togglePlayback(); }, [this]() { stepOnce(); });
+    playback_panel_->setPosition(594.0F, 642.0F);
+    addChild(playback_panel_, 12);
 
-    tool_panel_ = pf::ui::ToolPalettePanel::create(&client_, [this]() {
-        if (client_.selectedTool().kind == ToolKind::Tick) client_.tick(1);
-        refreshAll();
-    });
+    tool_panel_ = pf::ui::ToolPalettePanel::create(&client_, [this](int index) { handleToolClicked(index); });
     tool_panel_->setPosition(14.0F, 40.0F);
     addChild(tool_panel_, 10);
 
@@ -42,9 +40,9 @@ bool V3SandboxScene::init() {
     map_layer_->setPosition(kMapX, kMapY);
     addChild(map_layer_, 4);
 
-    inspector_panel_ = pf::ui::InspectorPanel::create();
-    inspector_panel_->setPosition(986.0F, 250.0F);
-    addChild(inspector_panel_, 10);
+    agent_info_panel_ = pf::ui::AgentInfoPanel::create();
+    agent_info_panel_->setPosition(986.0F, 96.0F);
+    addChild(agent_info_panel_, 10);
 
     event_log_panel_ = pf::ui::EventLogPanel::create();
     event_log_panel_->setPosition(250.0F, 14.0F);
@@ -57,31 +55,67 @@ bool V3SandboxScene::init() {
 void V3SandboxScene::refreshAll() {
     map_layer_->render(client_.snapshot(), selected_x_, selected_y_);
     tool_panel_->refresh();
+    playback_panel_->setState(playing_, client_.snapshot().tick);
     event_log_panel_->setEvents(client_.snapshot().events, client_.lastError());
-    if (selected_x_ >= 0 && selected_y_ >= 0) updateInspectorForCell(selected_x_, selected_y_);
+    updateAgentPanel();
 }
 
 void V3SandboxScene::handleCellClicked(int x, int y) {
     selected_x_ = x;
     selected_y_ = y;
+    if (const auto* agent = client_.agentAtCell(x, y)) {
+        selected_agent_id_ = agent->agent_id;
+        refreshAll();
+        return;
+    }
+    selected_agent_id_.clear();
     client_.applySelectedToolToCell(x, y);
     refreshAll();
 }
 
-void V3SandboxScene::updateInspectorForCell(int x, int y) {
-    std::vector<std::string> lines;
-    client_.inspectCell(x, y, lines);
-    const auto& snapshot = client_.snapshot();
-    for (const auto& cell : snapshot.cells) {
-        if (cell.x != x || cell.y != y || cell.agent_ids.empty()) continue;
-        std::vector<std::string> agent_lines;
-        if (client_.inspectAgent(cell.agent_ids.front(), agent_lines)) {
-            lines.push_back("---- NPC ----");
-            lines.insert(lines.end(), agent_lines.begin(), agent_lines.end());
-        }
-        break;
+void V3SandboxScene::handleToolClicked(int index) {
+    const auto& tools = client_.tools();
+    if (index < 0 || index >= static_cast<int>(tools.size())) return;
+    client_.selectTool(index);
+    refreshAll();
+}
+
+void V3SandboxScene::togglePlayback() {
+    if (playing_) {
+        stopPlayback();
+    } else {
+        startPlayback();
     }
-    inspector_panel_->setLines("格子 (" + std::to_string(x) + "," + std::to_string(y) + ")", lines);
+    refreshAll();
+}
+
+void V3SandboxScene::stepOnce() {
+    client_.tick(1);
+    refreshAll();
+}
+
+void V3SandboxScene::startPlayback() {
+    if (playing_) return;
+    playing_ = true;
+    schedule([this](float dt) { handlePlaybackTick(dt); }, 0.75F, "v3_playback_tick");
+}
+
+void V3SandboxScene::stopPlayback() {
+    if (!playing_) return;
+    playing_ = false;
+    unschedule("v3_playback_tick");
+}
+
+void V3SandboxScene::handlePlaybackTick(float) {
+    client_.tick(1);
+    refreshAll();
+}
+
+void V3SandboxScene::updateAgentPanel() {
+    const pathfinder::v3_sandbox::V3AgentView* agent = nullptr;
+    if (!selected_agent_id_.empty()) agent = client_.findAgent(selected_agent_id_);
+    if (!agent) selected_agent_id_.clear();
+    agent_info_panel_->setAgent(agent);
 }
 
 } // namespace pf::client
