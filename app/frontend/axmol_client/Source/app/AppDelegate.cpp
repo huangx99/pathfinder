@@ -32,7 +32,7 @@ bool AppDelegate::applicationDidFinishLaunching() {
         director->setRenderView(render_view);
     }
 
-    director->setStatsDisplay(true);
+    director->setStatsDisplay(false);
     director->setAnimationInterval(1.0F / 60.0F);
     render_view->setDesignResolutionSize(kDesignWidth, kDesignHeight, ResolutionPolicy::SHOW_ALL);
     director->runWithScene(pf::client::V3SandboxScene::createScene());
