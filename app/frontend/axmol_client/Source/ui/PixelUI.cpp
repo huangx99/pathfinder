@@ -253,18 +253,18 @@ ax::Node* createTooltip(const ax::Size& size,
     root->addChild(bg, 0);
 
     // 标题
-    auto* title_label = pixelLabel(title, font_size + 2.0F,
-                                    ax::Vec2(size.width - 12.0F, 20.0F),
-                                    pixelColor(255, 215, 0));
+    auto* title_label = pixelPanelLabel(title, font_size + 2.0F,
+                                        ax::Vec2(size.width - 12.0F, 20.0F),
+                                        pixelColor(255, 215, 0));
     title_label->setPosition(6.0F, size.height - 6.0F);
     root->addChild(title_label, 1);
 
     // 内容行
     float y = size.height - 28.0F;
     for (const auto& line : lines) {
-        auto* line_label = pixelLabel(line, font_size,
-                                       ax::Vec2(size.width - 12.0F, 18.0F),
-                                       PixelPalette::TextPrimary);
+        auto* line_label = pixelPanelLabel(line, font_size,
+                                           ax::Vec2(size.width - 12.0F, 18.0F),
+                                           PixelPalette::TextPrimary);
         line_label->setPosition(6.0F, y);
         root->addChild(line_label, 1);
         y -= 18.0F;

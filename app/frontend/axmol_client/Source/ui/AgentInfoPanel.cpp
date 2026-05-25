@@ -426,7 +426,7 @@ void AgentInfoPanel::updateKnowledge(const pathfinder::v3_sandbox::V3AgentView* 
             line_label->setString(text);
             line_label->setVisible(true);
         } else {
-            line_label = pixelLabel(text, 11.0F,
+            line_label = pixelPanelLabel(text, 11.0F,
                                      ax::Vec2(kWidth - 28.0F, line_h),
                                      statusColor(claim.status));
             line_label->setPosition(0.0F, y);

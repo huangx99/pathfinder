@@ -35,11 +35,11 @@ bool EventLogPanel::init() {
     bg_ = pixelPanelBackground(getContentSize());
     addChild(bg_, 0);
 
-    line1_ = pixelLabel("", 12.0F, ax::Vec2(kWidth - 20.0F, 18.0F), PixelPalette::TextSecondary);
+    line1_ = pixelPanelLabel("", 12.0F, ax::Vec2(kWidth - 20.0F, 18.0F), PixelPalette::TextSecondary);
     line1_->setPosition(10.0F, kHeight - 14.0F);
     addChild(line1_, 1);
 
-    line2_ = pixelLabel("", 12.0F, ax::Vec2(kWidth - 20.0F, 18.0F), PixelPalette::TextSecondary);
+    line2_ = pixelPanelLabel("", 12.0F, ax::Vec2(kWidth - 20.0F, 18.0F), PixelPalette::TextSecondary);
     line2_->setPosition(10.0F, kHeight - 32.0F);
     addChild(line2_, 1);
 

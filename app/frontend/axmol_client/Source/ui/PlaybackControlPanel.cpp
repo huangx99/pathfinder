@@ -64,7 +64,7 @@ bool PlaybackControlPanel::init(std::function<void()> on_toggle,
     addChild(title, 1);
 
     // 回合数
-    tick_label_ = pixelLabel("第 0 回合", 14.0F, ax::Vec2(120.0F, 20.0F), PixelPalette::TextPrimary);
+    tick_label_ = pixelPanelLabel("第 0 回合", 14.0F, ax::Vec2(120.0F, 20.0F), PixelPalette::TextPrimary);
     tick_label_->setPosition(10.0F, kHeight - 34.0F);
     addChild(tick_label_, 1);
 
