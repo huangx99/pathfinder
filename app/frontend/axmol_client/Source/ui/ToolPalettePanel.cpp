@@ -1,11 +1,15 @@
 #include "ui/ToolPalettePanel.h"
 #include "ui/UiStyle.h"
 
+#include "axmol/ui/UIScrollView.h"
+
 namespace pf::ui {
 namespace {
 constexpr float kWidth = 220.0F;
 constexpr float kHeight = 640.0F;
 constexpr float kButtonHeight = 34.0F;
+constexpr float kListHeight = 430.0F;
+constexpr float kListInnerHeight = 760.0F;
 }
 
 ToolPalettePanel* ToolPalettePanel::create(pf::client::V3LocalClient* client, std::function<void(int)> on_tool_clicked) {
@@ -40,10 +44,6 @@ void ToolPalettePanel::refresh() {
     selected->setPosition(12.0F, kHeight - 56.0F);
     addChild(selected, 2);
 
-    auto* menu = ax::Menu::create();
-    menu->setPosition(ax::Vec2::ZERO);
-    addChild(menu, 3);
-
     auto* cancel_label = label("取消选择", 16.0F, ax::Vec2(kWidth - 36.0F, 28.0F));
     cancel_label->setTextColor(client_->hasSelectedTool() ? ax::Color32(226, 232, 240, 255) : ax::Color32(15, 23, 42, 255));
     auto* cancel_item = ax::MenuItemLabel::create(cancel_label, [this](ax::Object*) {
@@ -51,13 +51,32 @@ void ToolPalettePanel::refresh() {
     });
     cancel_item->setAnchorPoint(ax::Vec2(0.0F, 0.5F));
     cancel_item->setPosition(16.0F, kHeight - 100.0F);
-    menu->addChild(cancel_item, 2);
+    auto* cancel_menu = ax::Menu::create(cancel_item, nullptr);
+    cancel_menu->setPosition(ax::Vec2::ZERO);
+    addChild(cancel_menu, 3);
     auto* cancel_bg = ax::DrawNode::create();
     cancel_bg->drawSolidRect(ax::Vec2(10.0F, kHeight - 100.0F - kButtonHeight * 0.5F), ax::Vec2(kWidth - 10.0F, kHeight - 100.0F + kButtonHeight * 0.5F),
                              client_->hasSelectedTool() ? color(30, 41, 59, 0.86F) : color(250, 204, 21, 0.92F));
     addChild(cancel_bg, 1);
 
-    float y = kHeight - 144.0F;
+    auto* scroll = ax::ui::ScrollView::create();
+    scroll->setContentSize(ax::Size(kWidth - 20.0F, kListHeight));
+    scroll->setInnerContainerSize(ax::Size(kWidth - 20.0F, kListInnerHeight));
+    scroll->setDirection(ax::ui::ScrollView::Direction::VERTICAL);
+    scroll->setBounceEnabled(true);
+    scroll->setScrollBarEnabled(true);
+    scroll->setScrollBarWidth(4.0F);
+    scroll->setScrollBarColor(ax::Color32(148, 163, 184, 255));
+    scroll->setScrollBarOpacity(180);
+    scroll->setScrollBarPositionFromCorner(ax::Vec2(2.0F, 2.0F));
+    scroll->setPosition(ax::Vec2(10.0F, 24.0F));
+    addChild(scroll, 3);
+
+    auto* menu = ax::Menu::create();
+    menu->setPosition(ax::Vec2::ZERO);
+    scroll->addChild(menu, 3);
+
+    float y = kListInnerHeight - 18.0F;
     std::string current_category;
     const auto& tools = client_->tools();
     for (int index = 0; index < static_cast<int>(tools.size()); ++index) {
@@ -65,8 +84,8 @@ void ToolPalettePanel::refresh() {
             current_category = tools[index].category;
             auto* section = panelLabel(current_category, 14.0F, ax::Vec2(kWidth - 24.0F, 22.0F));
             section->setTextColor(ax::Color32(147, 197, 253, 255));
-            section->setPosition(12.0F, y + 10.0F);
-            addChild(section, 2);
+            section->setPosition(2.0F, y + 10.0F);
+            scroll->addChild(section, 2);
             y -= 24.0F;
         }
         const bool is_selected = index == client_->selectedToolIndex();
@@ -76,13 +95,13 @@ void ToolPalettePanel::refresh() {
             if (on_tool_clicked_) on_tool_clicked_(index);
         });
         item->setAnchorPoint(ax::Vec2(0.0F, 0.5F));
-        item->setPosition(16.0F, y);
+        item->setPosition(8.0F, y);
         menu->addChild(item, 2);
 
         auto* bg = ax::DrawNode::create();
-        bg->drawSolidRect(ax::Vec2(10.0F, y - kButtonHeight * 0.5F), ax::Vec2(kWidth - 10.0F, y + kButtonHeight * 0.5F),
+        bg->drawSolidRect(ax::Vec2(0.0F, y - kButtonHeight * 0.5F), ax::Vec2(kWidth - 20.0F, y + kButtonHeight * 0.5F),
                           is_selected ? color(250, 204, 21, 0.92F) : color(30, 41, 59, 0.86F));
-        addChild(bg, 1);
+        scroll->addChild(bg, 1);
         y -= kButtonHeight + 7.0F;
     }
 }
