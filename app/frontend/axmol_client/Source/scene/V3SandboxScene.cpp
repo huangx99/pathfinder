@@ -23,7 +23,7 @@ bool V3SandboxScene::init() {
     bg->drawSolidRect(ax::Vec2::ZERO, ax::Vec2(1280.0F, 720.0F), pf::ui::color(3, 7, 18));
     addChild(bg, 0);
 
-    auto* title = pf::ui::label("Pathfinder V3", 24.0F, ax::Vec2(210.0F, 34.0F));
+    auto* title = pf::ui::label("认知生态沙盒", 24.0F, ax::Vec2(210.0F, 34.0F));
     title->setTextColor(ax::Color32(250, 204, 21, 255));
     title->setPosition(250.0F, 704.0F);
     addChild(title, 2);
@@ -74,6 +74,11 @@ void V3SandboxScene::handleCellClicked(int x, int y) {
 }
 
 void V3SandboxScene::handleToolClicked(int index) {
+    if (index < 0) {
+        client_.clearToolSelection();
+        refreshAll();
+        return;
+    }
     const auto& tools = client_.tools();
     if (index < 0 || index >= static_cast<int>(tools.size())) return;
     client_.selectTool(index);

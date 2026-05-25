@@ -17,6 +17,7 @@ struct ToolDefinition {
     ToolKind kind{ToolKind::PaintTerrain};
     std::string key;
     std::string label;
+    std::string category;
 };
 
 class V3LocalClient {
@@ -25,11 +26,13 @@ public:
 
     const pathfinder::v3_sandbox::V3SandboxSnapshot& snapshot() const { return snapshot_; }
     const std::vector<ToolDefinition>& tools() const { return tools_; }
-    const ToolDefinition& selectedTool() const { return tools_[selected_tool_index_]; }
+    bool hasSelectedTool() const { return selected_tool_index_ >= 0 && selected_tool_index_ < static_cast<int>(tools_.size()); }
+    const ToolDefinition* selectedTool() const { return hasSelectedTool() ? &tools_[selected_tool_index_] : nullptr; }
     int selectedToolIndex() const { return selected_tool_index_; }
     const std::string& lastError() const { return last_error_; }
 
     void selectTool(int index);
+    void clearToolSelection();
     bool applySelectedToolToCell(int x, int y);
     bool tick(int count = 1);
     bool inspectCell(int x, int y, std::vector<std::string>& lines);
@@ -44,7 +47,7 @@ private:
     pathfinder::v3_sandbox::V3SandboxRuntime runtime_;
     pathfinder::v3_sandbox::V3SandboxSnapshot snapshot_;
     std::vector<ToolDefinition> tools_;
-    int selected_tool_index_{0};
+    int selected_tool_index_{-1};
     int next_agent_name_{1};
     std::string last_error_;
 };

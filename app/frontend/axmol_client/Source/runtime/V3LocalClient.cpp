@@ -32,18 +32,27 @@ void V3LocalClient::selectTool(int index) {
     selected_tool_index_ = index;
 }
 
+void V3LocalClient::clearToolSelection() {
+    selected_tool_index_ = -1;
+    last_error_.clear();
+}
+
 bool V3LocalClient::applySelectedToolToCell(int x, int y) {
-    const auto& tool = selectedTool();
+    const auto* tool = selectedTool();
+    if (!tool) {
+        last_error_.clear();
+        return false;
+    }
     pathfinder::v3_sandbox::V3SandboxCommand command;
     command.x = x;
     command.y = y;
-    if (tool.kind == ToolKind::PaintTerrain) {
+    if (tool->kind == ToolKind::PaintTerrain) {
         command.kind = pathfinder::v3_sandbox::V3SandboxCommandKind::PaintTerrain;
-        command.terrain_key = tool.key;
-    } else if (tool.kind == ToolKind::PlaceObject) {
+        command.terrain_key = tool->key;
+    } else if (tool->kind == ToolKind::PlaceObject) {
         command.kind = pathfinder::v3_sandbox::V3SandboxCommandKind::PlaceObject;
-        command.object_key = tool.key;
-    } else if (tool.kind == ToolKind::PlaceAgent) {
+        command.object_key = tool->key;
+    } else if (tool->kind == ToolKind::PlaceAgent) {
         command.kind = pathfinder::v3_sandbox::V3SandboxCommandKind::PlaceAgent;
         command.agent_template_key = "basic_npc";
         command.agent_name = "小人" + std::to_string(next_agent_name_++);
@@ -112,19 +121,19 @@ bool V3LocalClient::submit(pathfinder::v3_sandbox::V3SandboxCommand command) {
     last_error_.clear();
     snapshot_ = runtime_.snapshot();
     rebuildTools();
-    if (selected_tool_index_ >= static_cast<int>(tools_.size())) selected_tool_index_ = 0;
+    if (selected_tool_index_ >= static_cast<int>(tools_.size())) selected_tool_index_ = -1;
     return true;
 }
 
 void V3LocalClient::rebuildTools() {
     tools_.clear();
     for (const auto& terrain : snapshot_.unlocked_terrains) {
-        tools_.push_back({ToolKind::PaintTerrain, terrain, labelForTerrain(terrain)});
+        tools_.push_back({ToolKind::PaintTerrain, terrain, labelForTerrain(terrain), "绘制地形"});
     }
     for (const auto& object : snapshot_.unlocked_objects) {
-        tools_.push_back({ToolKind::PlaceObject, object, labelForObject(object)});
+        tools_.push_back({ToolKind::PlaceObject, object, labelForObject(object), "投放物品"});
     }
-    tools_.push_back({ToolKind::PlaceAgent, "basic_npc", "投放小人"});
+    tools_.push_back({ToolKind::PlaceAgent, "basic_npc", "投放小人", "投放角色"});
 }
 
 } // namespace pf::client

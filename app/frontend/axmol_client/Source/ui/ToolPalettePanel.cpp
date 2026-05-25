@@ -34,7 +34,8 @@ void ToolPalettePanel::refresh() {
     title->setPosition(12.0F, kHeight - 16.0F);
     addChild(title, 2);
 
-    auto* selected = panelLabel("当前：" + client_->selectedTool().label, 15.0F, ax::Vec2(kWidth - 24.0F, 42.0F));
+    const auto* selected_tool = client_->selectedTool();
+    auto* selected = panelLabel(selected_tool ? ("当前：" + selected_tool->label) : "当前：未选择", 15.0F, ax::Vec2(kWidth - 24.0F, 42.0F));
     selected->setTextColor(ax::Color32(250, 204, 21, 255));
     selected->setPosition(12.0F, kHeight - 56.0F);
     addChild(selected, 2);
@@ -43,9 +44,31 @@ void ToolPalettePanel::refresh() {
     menu->setPosition(ax::Vec2::ZERO);
     addChild(menu, 3);
 
-    float y = kHeight - 104.0F;
+    auto* cancel_label = label("取消选择", 16.0F, ax::Vec2(kWidth - 36.0F, 28.0F));
+    cancel_label->setTextColor(client_->hasSelectedTool() ? ax::Color32(226, 232, 240, 255) : ax::Color32(15, 23, 42, 255));
+    auto* cancel_item = ax::MenuItemLabel::create(cancel_label, [this](ax::Object*) {
+        if (on_tool_clicked_) on_tool_clicked_(-1);
+    });
+    cancel_item->setAnchorPoint(ax::Vec2(0.0F, 0.5F));
+    cancel_item->setPosition(16.0F, kHeight - 100.0F);
+    menu->addChild(cancel_item, 2);
+    auto* cancel_bg = ax::DrawNode::create();
+    cancel_bg->drawSolidRect(ax::Vec2(10.0F, kHeight - 100.0F - kButtonHeight * 0.5F), ax::Vec2(kWidth - 10.0F, kHeight - 100.0F + kButtonHeight * 0.5F),
+                             client_->hasSelectedTool() ? color(30, 41, 59, 0.86F) : color(250, 204, 21, 0.92F));
+    addChild(cancel_bg, 1);
+
+    float y = kHeight - 144.0F;
+    std::string current_category;
     const auto& tools = client_->tools();
     for (int index = 0; index < static_cast<int>(tools.size()); ++index) {
+        if (tools[index].category != current_category) {
+            current_category = tools[index].category;
+            auto* section = panelLabel(current_category, 14.0F, ax::Vec2(kWidth - 24.0F, 22.0F));
+            section->setTextColor(ax::Color32(147, 197, 253, 255));
+            section->setPosition(12.0F, y + 10.0F);
+            addChild(section, 2);
+            y -= 24.0F;
+        }
         const bool is_selected = index == client_->selectedToolIndex();
         auto* item_label = label(tools[index].label, 16.0F, ax::Vec2(kWidth - 36.0F, 28.0F));
         item_label->setTextColor(is_selected ? ax::Color32(15, 23, 42, 255) : ax::Color32(226, 232, 240, 255));

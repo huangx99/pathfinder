@@ -8,6 +8,15 @@ ax::Color color(int r, int g, int b, float a) {
 }
 
 namespace {
+void replaceAll(std::string& text, const std::string& from, const std::string& to) {
+    if (from.empty()) return;
+    size_t start = 0;
+    while ((start = text.find(from, start)) != std::string::npos) {
+        text.replace(start, from.size(), to);
+        start += to.size();
+    }
+}
+
 std::string fontPath() {
     static const std::array<std::string, 7> candidates{
         "fonts/NotoSansCJK-Regular.ttc",
@@ -68,6 +77,33 @@ std::string shorten(const std::string& text, size_t max_chars) {
     }
     if (bytes >= text.size()) return text;
     return text.substr(0, bytes) + "...";
+}
+
+std::string humanizeDebugText(std::string text) {
+    replaceAll(text, "decayed_red_berry", "腐烂红果");
+    replaceAll(text, "red_berry", "红果");
+    replaceAll(text, "bitter_leaf", "苦叶");
+    replaceAll(text, "stone_flake", "石片");
+    replaceAll(text, "no_visible_effect", "无明显效果");
+    replaceAll(text, "restore_hunger", "缓解饥饿");
+    replaceAll(text, "use_hint", "发现用途");
+    replaceAll(text, "poison", "中毒");
+    replaceAll(text, "candidate", "候选");
+    replaceAll(text, "active", "已确认");
+    replaceAll(text, "tool_not_supported_on_map", "当前工具不能用于地图");
+    replaceAll(text, "out_of_bounds", "超出地图范围");
+    replaceAll(text, "cell_not_walkable", "这里不能投放");
+    replaceAll(text, "object_locked", "对象尚未解锁");
+    replaceAll(text, "terrain_locked", "地形尚未解锁");
+    replaceAll(text, "尝试use", "尝试使用");
+    replaceAll(text, "尝试eat", "尝试吃");
+    replaceAll(text, "执行 use", "执行 使用");
+    replaceAll(text, "执行 eat", "执行 吃");
+    replaceAll(text, " + use", " + 使用");
+    replaceAll(text, " + eat", " + 吃");
+    replaceAll(text, " -> ", " → ");
+    replaceAll(text, " + ", " → ");
+    return text;
 }
 
 } // namespace pf::ui

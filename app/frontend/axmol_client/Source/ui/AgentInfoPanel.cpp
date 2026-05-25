@@ -70,7 +70,7 @@ void AgentInfoPanel::setAgent(const pathfinder::v3_sandbox::V3AgentView* agent) 
     }
 
     addLine("位置：(" + std::to_string(agent->x) + "," + std::to_string(agent->y) + ")", y, 22.0F, 14.0F);
-    addLine("当前：" + shorten(agent->current_intent, 22), y, 38.0F, 14.0F);
+    addLine("当前：" + shorten(humanizeDebugText(agent->current_intent), 22), y, 38.0F, 14.0F);
     addMeter("生命", agent->health, color(34, 197, 94, 0.95F), y);
     addMeter("饥饿", agent->hunger, color(251, 191, 36, 0.95F), y);
 
@@ -103,7 +103,7 @@ void AgentInfoPanel::setAgent(const pathfinder::v3_sandbox::V3AgentView* agent) 
     } else {
         int shown = 0;
         for (auto it = agent->recent_memory.rbegin(); it != agent->recent_memory.rend() && shown < 6; ++it, ++shown) {
-            addLine(shorten(*it, 25), y, 30.0F, 13.0F);
+            addLine(shorten(humanizeDebugText(*it), 25), y, 30.0F, 13.0F);
         }
     }
 }
