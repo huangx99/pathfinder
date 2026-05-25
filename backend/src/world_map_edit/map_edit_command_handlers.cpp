@@ -36,6 +36,10 @@ std::string makePlacedActorKey(const std::string& agent_key, const WorldCellCoor
         std::to_string(++g_spawn_counter);
 }
 
+bool containsKey(const std::vector<std::string>& values, const std::string& key) {
+    return std::find(values.begin(), values.end(), key) != values.end();
+}
+
 const PaintableTerrainDefinition* findTerrain(const std::string& terrain_key) {
     static const auto terrains = buildPaintableTerrains();
     auto it = std::find_if(terrains.begin(), terrains.end(), [&](const auto& terrain) {
@@ -97,8 +101,12 @@ public:
         }
 
         const auto region_id = cell_res.value()->region_id;
+        auto tag_keys = terrain->tag_keys;
+        if (containsKey(cell_res.value()->tag_keys, "sandbox") && !containsKey(tag_keys, "sandbox")) {
+            tag_keys.push_back("sandbox");
+        }
         auto update_res = world_runtime_.createOrUpdateGeneratedCell(
-            coord, terrain->terrain_key, region_id, terrain->blocks_movement, terrain->movement_cost, terrain->tag_keys);
+            coord, terrain->terrain_key, region_id, terrain->blocks_movement, terrain->movement_cost, tag_keys);
         if (update_res.is_error()) {
             result.result_kind = WorldCommandResultKind::Failed;
             result.failure_reason_keys.push_back("paint_terrain_failed");

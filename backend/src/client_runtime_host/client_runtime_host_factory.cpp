@@ -15,6 +15,7 @@
 #include "pathfinder/content/json_content_loader.h"
 #include "pathfinder/world_modules/core/default_world_modules.h"
 #include <iostream>
+#include <map>
 #include <filesystem>
 #include <mutex>
 #include <stdexcept>
@@ -175,54 +176,60 @@ ClientRuntimeHostFactory::ClientRuntimeHostFactory()
     option_bridge->setMapEditServices(content_registry);
 
     command_gateway.setPostCommandHook([this](const WorldCommandDto& command, ClientCommandResponse& response) {
-        const auto run_world_modules = [&]() {
-            post_command_hooks.runHooks(command, response);
-        };
+        post_command_hooks.runHooks(command, response);
 
         if (!knowledge_learning_service || !knowledge_repository || response.experiences.empty()) {
-            run_world_modules();
             return;
         }
 
-        pathfinder::world_learning::WorldKnowledgeLearningRequest request;
-        request.request_id = response.result.command_id + "_learning";
-        request.source_command = command;
-        request.source_kind = pathfinder::world_learning::WorldLearningSourceKind::DirectExperience;
-        request.actor_key = response.result.actor_key.empty() ? command.actor_key : response.result.actor_key;
-        request.tick = response.new_projection_version;
-        request.command_result.result_kind = response.result.result_kind;
-        request.command_result.failure_reason_keys = response.result.failure_reason_keys;
-        request.command_result.warning_keys = response.result.warning_keys;
-        request.command_result.state_deltas = response.result.state_deltas;
-        request.command_result.spawned_commands = response.result.spawned_commands;
-        request.command_result.events = response.event_feed;
-        request.command_result.experiences = response.experiences;
-
-        pathfinder::knowledge::KnowledgeOwner owner;
-        owner.kind = pathfinder::knowledge::KnowledgeOwnerKind::Actor;
-        owner.entity_id = pathfinder::foundation::EntityId(request.actor_key);
-        auto claims_res = knowledge_repository->listByOwner(owner);
-        if (claims_res.is_ok()) {
-            request.existing_actor_claims = claims_res.value();
+        std::map<std::string, std::vector<WorldExperienceDto>> experiences_by_actor;
+        for (const auto& experience : response.experiences) {
+            std::string owner_actor = experience.actor_key;
+            if (owner_actor.empty()) owner_actor = response.result.actor_key.empty() ? command.actor_key : response.result.actor_key;
+            if (owner_actor.empty()) continue;
+            experiences_by_actor[owner_actor].push_back(experience);
         }
 
-        auto learning_res = knowledge_learning_service->learnFromCommandResult(request);
-        if (learning_res.is_error()) {
-            response.warning_keys.push_back("knowledge_learning_failed");
-            return;
+        for (const auto& [owner_actor, actor_experiences] : experiences_by_actor) {
+            pathfinder::world_learning::WorldKnowledgeLearningRequest request;
+            request.request_id = response.result.command_id + "_learning_" + owner_actor;
+            request.source_command = command;
+            request.source_kind = pathfinder::world_learning::WorldLearningSourceKind::DirectExperience;
+            request.actor_key = owner_actor;
+            request.tick = response.new_projection_version;
+            request.command_result.result_kind = response.result.result_kind;
+            request.command_result.failure_reason_keys = response.result.failure_reason_keys;
+            request.command_result.warning_keys = response.result.warning_keys;
+            request.command_result.state_deltas = response.result.state_deltas;
+            request.command_result.spawned_commands = response.result.spawned_commands;
+            request.command_result.events = response.event_feed;
+            request.command_result.experiences = actor_experiences;
+
+            pathfinder::knowledge::KnowledgeOwner owner;
+            owner.kind = pathfinder::knowledge::KnowledgeOwnerKind::Actor;
+            owner.entity_id = pathfinder::foundation::EntityId(owner_actor);
+            auto claims_res = knowledge_repository->listByOwner(owner);
+            if (claims_res.is_ok()) {
+                request.existing_actor_claims = claims_res.value();
+            }
+
+            auto learning_res = knowledge_learning_service->learnFromCommandResult(request);
+            if (learning_res.is_error()) {
+                response.warning_keys.push_back("knowledge_learning_failed");
+                continue;
+            }
+            auto learning = learning_res.value();
+            response.warning_keys.insert(response.warning_keys.end(), learning.warning_keys.begin(), learning.warning_keys.end());
+            response.event_feed.insert(response.event_feed.end(), learning.events.begin(), learning.events.end());
+            response.result.state_deltas.insert(response.result.state_deltas.end(), learning.state_deltas.begin(), learning.state_deltas.end());
+            if (learning.projection_patch.has_value()) {
+                auto& patch = learning.projection_patch.value();
+                response.projection_patch.changed_knowledge.insert(
+                    response.projection_patch.changed_knowledge.end(),
+                    patch.changed_knowledge.begin(),
+                    patch.changed_knowledge.end());
+            }
         }
-        auto learning = learning_res.value();
-        response.warning_keys.insert(response.warning_keys.end(), learning.warning_keys.begin(), learning.warning_keys.end());
-        response.event_feed.insert(response.event_feed.end(), learning.events.begin(), learning.events.end());
-        response.result.state_deltas.insert(response.result.state_deltas.end(), learning.state_deltas.begin(), learning.state_deltas.end());
-        if (learning.projection_patch.has_value()) {
-            auto& patch = learning.projection_patch.value();
-            response.projection_patch.changed_knowledge.insert(
-                response.projection_patch.changed_knowledge.end(),
-                patch.changed_knowledge.begin(),
-                patch.changed_knowledge.end());
-        }
-        run_world_modules();
     });
 
     ensure_service = std::make_shared<world_generation::WorldRegionEnsureService>(

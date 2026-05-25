@@ -1170,6 +1170,7 @@ add_library(pathfinder_world_modules STATIC
     src/world_modules/follow/world_follow_module.cpp
     src/world_modules/npc_work/world_npc_work_module.cpp
     src/world_modules/agent_wander/world_agent_wander_module.cpp
+    src/world_modules/object_interaction/world_object_interaction_module.cpp
 )
 
 target_include_directories(pathfinder_world_modules PUBLIC

@@ -46,6 +46,11 @@ std::string displayNameForKey(const std::string& key) {
     if (key == "player") return "探索者";
     if (key == "companion") return "同伴";
     if (key == "beast_shadow") return "野兽暗影";
+    if (key == "plain" || key == "grass") return "平地";
+    if (key == "forest") return "树林";
+    if (key == "stone_field") return "石地";
+    if (key == "water_edge" || key == "water") return "浅水";
+    if (key == "blocked" || key == "soil") return "阻挡";
     if (key == "red_berry") return "红果";
     if (key == "decayed_red_berry") return "腐烂红果";
     if (key == "bitter_leaf") return "苦叶";
@@ -87,6 +92,23 @@ std::string optionCategory(pathfinder::world_command::WorldCommandKind kind) {
         case WorldCommandKind::Wait: return "时间";
         default: return "命令";
     }
+}
+
+
+std::string toolDisplayLabel(const pathfinder::world_command::WorldCommandOptionDto& option) {
+    const auto& item_key = option.target.target_item_key;
+    if (!item_key.empty()) {
+        return displayNameForKey(item_key);
+    }
+    std::string label = option.label_text;
+    const std::vector<std::string> prefixes = {"投放", "绘制"};
+    for (const auto& prefix : prefixes) {
+        if (label.rfind(prefix, 0) == 0) {
+            label.erase(0, prefix.size());
+            break;
+        }
+    }
+    return label.empty() ? option.command_key : label;
 }
 
 std::string eventText(const pathfinder::world_command::WorldEventDto& event) {
@@ -373,7 +395,7 @@ void EngineLocalClient::rebuildTools() {
         ToolDefinition tool;
         tool.kind = ToolKind::CommandOption;
         tool.key = stable_key;
-        tool.label = option.label_text;
+        tool.label = toolDisplayLabel(option);
         tool.category = optionCategory(option.command_kind);
         tool.command_kind = option.command_kind;
         tool.target_item_key = target_item;

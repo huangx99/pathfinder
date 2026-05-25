@@ -16,4 +16,6 @@ bool runAgentWanderTicks(
     const std::function<bool(const std::string&)>& is_actor_busy,
     pathfinder::client_protocol::ClientCommandResponse& response);
 
+void clearAgentWanderRuntimeState();
+
 } // namespace pathfinder::world_agent_wander

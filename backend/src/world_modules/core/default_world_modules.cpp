@@ -9,6 +9,7 @@
 #include "pathfinder/world_modules/knowledge/actor_knowledge_inspect_module.h"
 #include "pathfinder/world_modules/core/world_use_command_router.h"
 #include "pathfinder/world_modules/npc_work/world_npc_work_module.h"
+#include "pathfinder/world_modules/object_interaction/world_object_interaction_module.h"
 #include "pathfinder/world_reaction/craft_command_handler.h"
 #include "pathfinder/world_runtime/world_command_runtime_handlers.h"
 #include "pathfinder/world_teaching/iworld_actor_query_port.h"
@@ -41,6 +42,8 @@ void registerCoreCommandHandlers(WorldModuleContext& context) {
         context.world_runtime, context.move_guard));
     context.registry.registerHandler(pathfinder::world_runtime::createWaitCommandHandler(context.world_runtime));
     context.registry.registerHandler(pathfinder::world_runtime::createAttackCommandHandler(context.world_runtime));
+    context.registry.registerHandler(pathfinder::world_object_interaction::createEatObjectCommandHandler(
+        context.world_runtime, context.content_registry));
 
     context.registry.registerHandler(pathfinder::world_map_edit::createPaintTerrainCommandHandler(
         context.world_runtime));
@@ -79,6 +82,8 @@ void registerUseCommandHandlers(WorldModuleContext& context) {
         context.reaction_service,
         context.content_registry,
         context.knowledge_repository));
+    use_router->addHandler(pathfinder::world_object_interaction::createUseObjectCommandHandler(
+        context.world_runtime, context.content_registry));
     context.registry.registerHandler(use_router);
 }
 
@@ -173,6 +178,7 @@ void registerDefaultWorldModules(WorldModuleContext& context) {
 void clearDefaultWorldModuleRuntimeState() {
     pathfinder::world_follow::clearFollowingActors();
     pathfinder::world_npc_work::clearNpcWorkTasks();
+    pathfinder::world_agent_wander::clearAgentWanderRuntimeState();
 }
 
 } // namespace pathfinder::world_modules

@@ -9,6 +9,8 @@
 #include "pathfinder/world_command/world_command_types.h"
 #include "pathfinder/world_inventory/world_inventory_types.h"
 #include "pathfinder/world_runtime/world_runtime_types.h"
+#include "pathfinder/knowledge/knowledge_repository.h"
+#include "pathfinder/foundation/id.h"
 
 using namespace pathfinder::client_runtime_host;
 using namespace pathfinder::client_protocol;
@@ -1075,6 +1077,64 @@ void run_idle_npc_wanders_on_wait_tests() {
     std::cout << "client_runtime_bridge_idle_npc_wanders_on_wait_tests: all passed" << std::endl;
 }
 
+
+// ---------------------------------------------------------------------------
+// Idle NPCs should try nearby world objects through backend commands, and the
+// resulting experience must be learned by that NPC rather than by the player.
+// ---------------------------------------------------------------------------
+void run_idle_npc_tries_nearby_object_and_learns_tests() {
+    RuntimeBackedFixture f;
+    spawnTestActor(f, "companion_taster", "companion", {0, 0, "surface"});
+    spawnMapItem(f, "test_red_berry_for_npc", "red_berry", {1, 0, "surface"}, 1);
+
+    auto boot = f.harness.fakeBootstrap("client_1", "session_npc_object_try", "player");
+    assert(boot.is_ok());
+    uint64_t version = boot.value().projection_version;
+    uint64_t sequence = 1;
+
+    bool saw_object_event = false;
+    for (int step = 0; step < 3 && entityExists(f, "test_red_berry_for_npc"); ++step) {
+        auto response = submitWait(f, "session_npc_object_try", version, sequence);
+        version = response.new_projection_version;
+        for (const auto& event : response.event_feed) {
+            if (event.event_kind == "ObjectEaten") saw_object_event = true;
+        }
+    }
+
+    assert(!entityExists(f, "test_red_berry_for_npc"));
+    assert(saw_object_event);
+
+    pathfinder::knowledge::KnowledgeOwner npc_owner;
+    npc_owner.kind = pathfinder::knowledge::KnowledgeOwnerKind::Actor;
+    npc_owner.entity_id = pathfinder::foundation::EntityId("companion_taster");
+    auto npc_claims = f.factory.knowledge_repository->listByOwner(npc_owner);
+    assert(npc_claims.is_ok());
+    bool npc_learned = false;
+    for (const auto& claim : npc_claims.value()) {
+        if (claim.subject.subject_id == "red_berry" &&
+            claim.predicate.action_key == "eat" &&
+            claim.predicate.effect_key == "restore_hunger") {
+            npc_learned = true;
+        }
+    }
+    assert(npc_learned);
+
+    pathfinder::knowledge::KnowledgeOwner player_owner;
+    player_owner.kind = pathfinder::knowledge::KnowledgeOwnerKind::Actor;
+    player_owner.entity_id = pathfinder::foundation::EntityId("player");
+    auto player_claims = f.factory.knowledge_repository->listByOwner(player_owner);
+    assert(player_claims.is_ok());
+    bool player_wrongly_learned = false;
+    for (const auto& claim : player_claims.value()) {
+        if (claim.subject.subject_id == "red_berry" && claim.predicate.action_key == "eat") {
+            player_wrongly_learned = true;
+        }
+    }
+    assert(!player_wrongly_learned);
+
+    std::cout << "client_runtime_bridge_idle_npc_tries_nearby_object_and_learns_tests: all passed" << std::endl;
+}
+
 // ---------------------------------------------------------------------------
 // P63: wildlife is a real actor; waiting lets it move through BeastDecision and
 // eventually attack through the Attack command handler with projected health.
@@ -1169,6 +1229,7 @@ int main(int argc, char* argv[]) {
         run_map_edit_options_respect_raw_policy_tests();
         run_map_edit_commands_execute_through_pipeline_tests();
         run_idle_npc_wanders_on_wait_tests();
+        run_idle_npc_tries_nearby_object_and_learns_tests();
         run_wildlife_actor_chases_and_attacks_tests();
         return 0;
     }
@@ -1195,6 +1256,7 @@ int main(int argc, char* argv[]) {
     else if (test_name == "map_edit_options_respect_raw_policy") run_map_edit_options_respect_raw_policy_tests();
     else if (test_name == "map_edit_commands_execute_through_pipeline") run_map_edit_commands_execute_through_pipeline_tests();
     else if (test_name == "idle_npc_wanders_on_wait") run_idle_npc_wanders_on_wait_tests();
+    else if (test_name == "idle_npc_tries_nearby_object_and_learns") run_idle_npc_tries_nearby_object_and_learns_tests();
     else if (test_name == "wildlife_actor_chases_and_attacks") run_wildlife_actor_chases_and_attacks_tests();
     else {
         std::cerr << "Unknown test: " << test_name << std::endl;
