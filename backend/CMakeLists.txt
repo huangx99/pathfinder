@@ -1073,6 +1073,7 @@ target_link_libraries(pathfinder_client_runtime_bridge PUBLIC
     pathfinder_world_harvest
     pathfinder_world_inventory
     pathfinder_world_reaction
+    pathfinder_knowledge
 )
 
 # World Map Interaction library (P60)

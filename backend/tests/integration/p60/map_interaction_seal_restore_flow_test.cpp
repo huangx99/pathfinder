@@ -10,6 +10,7 @@
 
 using namespace pathfinder::client_runtime_host;
 using namespace pathfinder::client_protocol;
+using namespace pathfinder::client_http;
 using namespace pathfinder::world_command;
 using namespace pathfinder::world_map_interaction;
 using namespace pathfinder::world_region_state;
