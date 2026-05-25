@@ -1,7 +1,7 @@
 #pragma once
 
 #include "axmol/axmol.h"
-#include "runtime/V3LocalClient.h"
+#include "runtime/EngineLocalClient.h"
 
 #include <string>
 
@@ -10,11 +10,11 @@ namespace pf::ui { class ToolPalettePanel; class AgentInfoPanel; class EventLogP
 
 namespace pf::client {
 
-class V3SandboxScene final : public ax::Scene {
+class SandboxScene final : public ax::Scene {
 public:
     static ax::Scene* createScene();
     bool init() override;
-    CREATE_FUNC(V3SandboxScene);
+    CREATE_FUNC(SandboxScene);
 
 private:
     void refreshAll();
@@ -27,7 +27,7 @@ private:
     void handlePlaybackTick(float dt);
     void updateAgentPanel();
 
-    V3LocalClient client_;
+    EngineLocalClient client_;
     pf::world::SandboxMapLayer* map_layer_{nullptr};
     pf::ui::ToolPalettePanel* tool_panel_{nullptr};
     pf::ui::AgentInfoPanel* agent_info_panel_{nullptr};

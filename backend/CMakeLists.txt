@@ -1243,34 +1243,5 @@ target_link_libraries(pathfinder_world_inventory_command PUBLIC
 )
 
 
-# V3 Sandbox library (V3.0 cognitive ecology prototype)
-add_library(pathfinder_v3_sandbox STATIC
-    src/v3_sandbox/v3_agent_decision.cpp
-    src/v3_sandbox/v3_sandbox_runtime.cpp
-)
-
-target_include_directories(pathfinder_v3_sandbox PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/nlohmann
-)
-
-target_compile_definitions(pathfinder_v3_sandbox PRIVATE
-    PATHFINDER_CONTENT_ROOT="${PATHFINDER_REPO_ROOT}/content"
-)
-
-target_link_libraries(pathfinder_v3_sandbox PUBLIC
-    pathfinder_foundation
-    pathfinder_content
-    pathfinder_knowledge
-)
-
-add_executable(pathfinder_v3_sandbox_cli
-    apps/v3_sandbox_cli_main.cpp
-)
-
-target_link_libraries(pathfinder_v3_sandbox_cli PRIVATE
-    pathfinder_v3_sandbox
-)
-
 # Tests
 add_subdirectory(tests)

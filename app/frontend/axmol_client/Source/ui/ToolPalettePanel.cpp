@@ -58,7 +58,7 @@ ax::Node* createToolIcon(const std::string& key, float size) {
 
 } // namespace
 
-ToolPalettePanel* ToolPalettePanel::create(pf::client::V3LocalClient* client,
+ToolPalettePanel* ToolPalettePanel::create(pf::client::EngineLocalClient* client,
                                             std::function<void(int)> on_tool_clicked) {
     auto* panel = new ToolPalettePanel();
     if (panel && panel->init(client, std::move(on_tool_clicked))) {
@@ -69,7 +69,7 @@ ToolPalettePanel* ToolPalettePanel::create(pf::client::V3LocalClient* client,
     return nullptr;
 }
 
-bool ToolPalettePanel::init(pf::client::V3LocalClient* client,
+bool ToolPalettePanel::init(pf::client::EngineLocalClient* client,
                              std::function<void(int)> on_tool_clicked) {
     if (!Node::init()) return false;
     client_ = client;

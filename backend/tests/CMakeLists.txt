@@ -5996,6 +5996,17 @@ add_test(
     COMMAND bash -c "! grep -rn 'cells_\.\\|entities_\.\\|actors_\.\\|resource_nodes_\.' ${CMAKE_CURRENT_SOURCE_DIR}/../src/world_map_interaction/"
 )
 
+# Architecture guard: Axmol client must not use deleted sandbox prototype or bypass available_commands.
+add_test(
+    NAME architecture_axmol_no_legacy_sandbox_runtime
+    COMMAND bash -c "! grep -RInE 'v3_sandbox|V3Sandbox|V3LocalClient|V3SandboxScene|pathfinder_v3_sandbox' ${CMAKE_CURRENT_SOURCE_DIR}/../../app/frontend/axmol_client/Source ${CMAKE_CURRENT_SOURCE_DIR}/../../app/frontend/axmol_client/CMakeLists.txt"
+)
+
+add_test(
+    NAME architecture_axmol_no_direct_world_command_submit
+    COMMAND bash -c "! grep -RInE 'ClientSubmitMode::WorldCommandDto|submitCommand|WorldCommandDto command|runtime_\\.submit' ${CMAKE_CURRENT_SOURCE_DIR}/../../app/frontend/axmol_client/Source"
+)
+
 # Camp Runtime tests (P65)
 add_executable(pathfinder_tests_camp_task_graph
     unit/camp/camp_task_graph_test.cpp
@@ -6008,25 +6019,3 @@ target_link_libraries(pathfinder_tests_camp_task_graph PRIVATE
 )
 
 add_test(NAME camp_task_graph_branch_projection COMMAND pathfinder_tests_camp_task_graph)
-
-# V3 Sandbox tests (V3.0)
-add_executable(pathfinder_tests_v3_sandbox
-    unit/v3_sandbox/v3_sandbox_test.cpp
-)
-
-target_compile_definitions(pathfinder_tests_v3_sandbox PRIVATE
-    PATHFINDER_CONTENT_ROOT="${CMAKE_CURRENT_SOURCE_DIR}/../../content"
-)
-
-target_link_libraries(pathfinder_tests_v3_sandbox PRIVATE
-    pathfinder_v3_sandbox
-    pathfinder_foundation
-)
-
-add_test(NAME v3_sandbox_place_and_paint COMMAND pathfinder_tests_v3_sandbox place_and_paint)
-add_test(NAME v3_sandbox_local_learning COMMAND pathfinder_tests_v3_sandbox local_learning)
-add_test(NAME v3_sandbox_rotten_personal COMMAND pathfinder_tests_v3_sandbox rotten_personal)
-add_test(NAME v3_sandbox_perception_no_god_view COMMAND pathfinder_tests_v3_sandbox perception_no_god_view)
-add_test(NAME v3_sandbox_stone_unlock COMMAND pathfinder_tests_v3_sandbox stone_unlock)
-add_test(NAME v3_sandbox_no_feedback_knowledge COMMAND pathfinder_tests_v3_sandbox no_feedback_knowledge)
-add_test(NAME v3_sandbox_agent_pickup_inventory COMMAND pathfinder_tests_v3_sandbox agent_pickup_inventory)

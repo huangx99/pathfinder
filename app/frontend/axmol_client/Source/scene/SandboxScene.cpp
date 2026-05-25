@@ -1,4 +1,4 @@
-#include "scene/V3SandboxScene.h"
+#include "scene/SandboxScene.h"
 #include "ui/AgentInfoPanel.h"
 #include "ui/EventLogPanel.h"
 #include "ui/PlaybackControlPanel.h"
@@ -12,11 +12,11 @@ constexpr float kMapX = 250.0F;
 constexpr float kMapY = 80.0F;
 }
 
-ax::Scene* V3SandboxScene::createScene() {
-    return V3SandboxScene::create();
+ax::Scene* SandboxScene::createScene() {
+    return SandboxScene::create();
 }
 
-bool V3SandboxScene::init() {
+bool SandboxScene::init() {
     if (!Scene::init()) return false;
 
     auto* bg = ax::DrawNode::create();
@@ -62,7 +62,7 @@ bool V3SandboxScene::init() {
     return true;
 }
 
-void V3SandboxScene::refreshAll() {
+void SandboxScene::refreshAll() {
     map_layer_->render(client_.snapshot(), selected_x_, selected_y_);
     tool_panel_->refresh();
     playback_panel_->setState(playing_, client_.snapshot().tick);
@@ -70,7 +70,7 @@ void V3SandboxScene::refreshAll() {
     updateAgentPanel();
 }
 
-void V3SandboxScene::handleCellClicked(int x, int y) {
+void SandboxScene::handleCellClicked(int x, int y) {
     selected_x_ = x;
     selected_y_ = y;
     if (const auto* agent = client_.agentAtCell(x, y)) {
@@ -83,7 +83,7 @@ void V3SandboxScene::handleCellClicked(int x, int y) {
     refreshAll();
 }
 
-void V3SandboxScene::handleToolClicked(int index) {
+void SandboxScene::handleToolClicked(int index) {
     if (index < 0) {
         client_.clearToolSelection();
         refreshAll();
@@ -95,7 +95,7 @@ void V3SandboxScene::handleToolClicked(int index) {
     refreshAll();
 }
 
-void V3SandboxScene::togglePlayback() {
+void SandboxScene::togglePlayback() {
     if (playing_) {
         stopPlayback();
     } else {
@@ -104,30 +104,30 @@ void V3SandboxScene::togglePlayback() {
     refreshAll();
 }
 
-void V3SandboxScene::stepOnce() {
+void SandboxScene::stepOnce() {
     client_.tick(1);
     refreshAll();
 }
 
-void V3SandboxScene::startPlayback() {
+void SandboxScene::startPlayback() {
     if (playing_) return;
     playing_ = true;
-    schedule([this](float dt) { handlePlaybackTick(dt); }, 0.75F, "v3_playback_tick");
+    schedule([this](float dt) { handlePlaybackTick(dt); }, 0.75F, "sandbox_playback_tick");
 }
 
-void V3SandboxScene::stopPlayback() {
+void SandboxScene::stopPlayback() {
     if (!playing_) return;
     playing_ = false;
-    unschedule("v3_playback_tick");
+    unschedule("sandbox_playback_tick");
 }
 
-void V3SandboxScene::handlePlaybackTick(float) {
+void SandboxScene::handlePlaybackTick(float) {
     client_.tick(1);
     refreshAll();
 }
 
-void V3SandboxScene::updateAgentPanel() {
-    const pathfinder::v3_sandbox::V3AgentView* agent = nullptr;
+void SandboxScene::updateAgentPanel() {
+    const pf::client::EngineAgentView* agent = nullptr;
     if (!selected_agent_id_.empty()) agent = client_.findAgent(selected_agent_id_);
     if (!agent) selected_agent_id_.clear();
     agent_info_panel_->setAgent(agent);

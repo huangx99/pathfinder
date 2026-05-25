@@ -20,11 +20,11 @@ set(AX_BUILD_TESTS OFF CACHE BOOL "Do not build Axmol tests for Pathfinder clien
 set(AX_ENABLE_EXT_LUA OFF CACHE BOOL "Disable Lua extension" FORCE)
 set(AX_ENABLE_EXT_LIVE2D OFF CACHE BOOL "Disable Live2D extension" FORCE)
 set(AX_ENABLE_EXT_EFFEKSEER OFF CACHE BOOL "Disable Effekseer extension" FORCE)
-set(AX_ENABLE_3D OFF CACHE BOOL "Pathfinder V3 sandbox is 2D only" FORCE)
-set(AX_ENABLE_AUDIO OFF CACHE BOOL "Disable audio for V3 MVP" FORCE)
-set(AX_ENABLE_HTTP OFF CACHE BOOL "V3 MVP runs local backend runtime directly" FORCE)
-set(AX_ENABLE_WEBSOCKET OFF CACHE BOOL "Disable websocket for V3 MVP" FORCE)
-set(AX_ENABLE_MEDIA OFF CACHE BOOL "Disable media for V3 MVP" FORCE)
+set(AX_ENABLE_3D OFF CACHE BOOL "Pathfinder sandbox is 2D only" FORCE)
+set(AX_ENABLE_AUDIO OFF CACHE BOOL "Disable audio for Sandbox client" FORCE)
+set(AX_ENABLE_HTTP OFF CACHE BOOL "Sandbox client runs local backend runtime directly" FORCE)
+set(AX_ENABLE_WEBSOCKET OFF CACHE BOOL "Disable websocket for Sandbox client" FORCE)
+set(AX_ENABLE_MEDIA OFF CACHE BOOL "Disable media for Sandbox client" FORCE)
 set(AX_ENABLE_PHYSICS_3D OFF CACHE BOOL "Disable 3D physics" FORCE)
 set(AX_ENABLE_NAVMESH OFF CACHE BOOL "NPC logic stays backend-owned" FORCE)
 
@@ -45,8 +45,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(PATHFINDER_AXMOL_SOURCES
     Source/app/AppDelegate.cpp
-    Source/runtime/V3LocalClient.cpp
-    Source/scene/V3SandboxScene.cpp
+    Source/runtime/EngineLocalClient.cpp
+    Source/scene/SandboxScene.cpp
     Source/world/SandboxMapLayer.cpp
     Source/ui/UiStyle.cpp
     Source/ui/ToolPalettePanel.cpp
@@ -71,7 +71,7 @@ add_executable(${APP_NAME} ${PATHFINDER_AXMOL_SOURCES})
 target_include_directories(${APP_NAME} PRIVATE Source)
 target_link_libraries(${APP_NAME} PRIVATE
     ${_AX_CORE_LIB}
-    pathfinder_v3_sandbox
+    pathfinder_client_runtime_host
 )
 target_compile_definitions(${APP_NAME} PRIVATE PATHFINDER_REPO_ROOT="${PATHFINDER_REPO_DIR}")
 

@@ -1,5 +1,5 @@
 #include "app/AppDelegate.h"
-#include "scene/V3SandboxScene.h"
+#include "scene/SandboxScene.h"
 
 using namespace ax;
 
@@ -25,9 +25,9 @@ bool AppDelegate::applicationDidFinishLaunching() {
     auto* render_view = director->getRenderView();
     if (!render_view) {
 #if (AX_TARGET_PLATFORM == AX_PLATFORM_WIN32) || (AX_TARGET_PLATFORM == AX_PLATFORM_MAC) || (AX_TARGET_PLATFORM == AX_PLATFORM_LINUX)
-        render_view = RenderViewImpl::createWithRect("Pathfinder V3 Sandbox", Rect(0, 0, kDesignWidth, kDesignHeight));
+        render_view = RenderViewImpl::createWithRect("Pathfinder Sandbox", Rect(0, 0, kDesignWidth, kDesignHeight));
 #else
-        render_view = RenderViewImpl::create("Pathfinder V3 Sandbox");
+        render_view = RenderViewImpl::create("Pathfinder Sandbox");
 #endif
         director->setRenderView(render_view);
     }
@@ -35,7 +35,7 @@ bool AppDelegate::applicationDidFinishLaunching() {
     director->setStatsDisplay(false);
     director->setAnimationInterval(1.0F / 60.0F);
     render_view->setDesignResolutionSize(kDesignWidth, kDesignHeight, ResolutionPolicy::SHOW_ALL);
-    director->runWithScene(pf::client::V3SandboxScene::createScene());
+    director->runWithScene(pf::client::SandboxScene::createScene());
     return true;
 }
 

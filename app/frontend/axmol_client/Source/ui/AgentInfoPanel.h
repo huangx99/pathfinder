@@ -1,7 +1,7 @@
 #pragma once
 
 #include "axmol/axmol.h"
-#include "pathfinder/v3_sandbox/v3_sandbox_types.h"
+#include "runtime/EngineLocalClient.h"
 
 #include <string>
 #include <vector>
@@ -12,15 +12,15 @@ class AgentInfoPanel final : public ax::Node {
 public:
     static AgentInfoPanel* create();
     bool init() override;
-    void setAgent(const pathfinder::v3_sandbox::V3AgentView* agent);
+    void setAgent(const pf::client::EngineAgentView* agent);
 
 private:
     void buildSkeleton();
-    void updateContent(const pathfinder::v3_sandbox::V3AgentView* agent);
+    void updateContent(const pf::client::EngineAgentView* agent);
     void updateHealth(double value);
     void updateHunger(double value);
-    void updateInventory(const std::vector<pathfinder::v3_sandbox::V3InventoryItemView>& inventory);
-    void updateKnowledge(const pathfinder::v3_sandbox::V3AgentView* agent);
+    void updateInventory(const std::vector<pf::client::EngineInventoryItemView>& inventory);
+    void updateKnowledge(const pf::client::EngineAgentView* agent);
     void onSlotTouched(int slot_index);
     void showTooltip(int slot_index);
     void hideTooltip();
@@ -50,8 +50,8 @@ private:
     // 状态
     std::string current_agent_id_;
     std::string selected_item_key_;
-    std::vector<pathfinder::v3_sandbox::V3InventoryItemView> current_inventory_;
-    pathfinder::v3_sandbox::V3AgentView current_agent_data_;
+    std::vector<pf::client::EngineInventoryItemView> current_inventory_;
+    pf::client::EngineAgentView current_agent_data_;
     bool has_agent_{false};
     int hovered_slot_{-1};
 };

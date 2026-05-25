@@ -2,16 +2,16 @@
 
 #include "axmol/axmol.h"
 #include "axmol/ui/UIScrollView.h"
-#include "runtime/V3LocalClient.h"
+#include "runtime/EngineLocalClient.h"
 #include <functional>
 
 namespace pf::ui {
 
 class ToolPalettePanel final : public ax::Node {
 public:
-    static ToolPalettePanel* create(pf::client::V3LocalClient* client,
+    static ToolPalettePanel* create(pf::client::EngineLocalClient* client,
                                      std::function<void(int)> on_tool_clicked);
-    bool init(pf::client::V3LocalClient* client,
+    bool init(pf::client::EngineLocalClient* client,
                std::function<void(int)> on_tool_clicked);
     void refresh();
 
@@ -20,7 +20,7 @@ private:
     void updateContent();
     void onToolClicked(int index);
 
-    pf::client::V3LocalClient* client_{nullptr};
+    pf::client::EngineLocalClient* client_{nullptr};
     std::function<void(int)> on_tool_clicked_;
 
     ax::Node* bg_{nullptr};

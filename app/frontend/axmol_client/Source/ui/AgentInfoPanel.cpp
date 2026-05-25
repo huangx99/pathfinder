@@ -254,7 +254,7 @@ void AgentInfoPanel::buildSkeleton() {
     root->forceDoLayout();
 }
 
-void AgentInfoPanel::setAgent(const pathfinder::v3_sandbox::V3AgentView* agent) {
+void AgentInfoPanel::setAgent(const pf::client::EngineAgentView* agent) {
     if (!agent) {
         has_agent_ = false;
         current_agent_id_.clear();
@@ -319,7 +319,7 @@ void AgentInfoPanel::updateHunger(double value) {
     hunger_text_->setString(std::to_string(static_cast<int>(std::round(std::clamp(value, 0.0, 100.0)))) + "%");
 }
 
-void AgentInfoPanel::updateInventory(const std::vector<pathfinder::v3_sandbox::V3InventoryItemView>& inventory) {
+void AgentInfoPanel::updateInventory(const std::vector<pf::client::EngineInventoryItemView>& inventory) {
     current_inventory_ = inventory;
 
     // 清除旧的图标子节点
@@ -436,9 +436,9 @@ void AgentInfoPanel::hideTooltip() {
     }
 }
 
-void AgentInfoPanel::updateKnowledge(const pathfinder::v3_sandbox::V3AgentView* agent) {
+void AgentInfoPanel::updateKnowledge(const pf::client::EngineAgentView* agent) {
     // 过滤知识
-    std::vector<pathfinder::v3_sandbox::V3KnowledgeClaimView> filtered;
+    std::vector<pf::client::EngineKnowledgeClaimView> filtered;
     for (const auto& claim : agent->knowledge) {
         if (!selected_item_key_.empty()) {
             if (claim.subject_object_key == selected_item_key_) {
