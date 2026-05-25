@@ -43,6 +43,10 @@ ax::ui::Layout* makeLayoutCell(const ax::Size& size, ax::Node* child) {
     return cell;
 }
 
+ax::Vec2 centeredArtPosition(float box_size, float art_size, float origin_y = 0.0F) {
+    return ax::Vec2((box_size - art_size) * 0.5F, origin_y + (box_size - art_size) * 0.5F);
+}
+
 ax::Node* createToolIcon(const std::string& key, float size) {
     if (key == "grass")  return pf::art::createGrassTile(size);
     if (key == "soil")   return pf::art::createSoilTile(size);
@@ -186,7 +190,7 @@ void ToolPalettePanel::updateContent() {
 
         auto* icon = createToolIcon(tools[index].key, kIconSize);
         if (icon) {
-            icon->setPosition(kSlotSize * 0.5F, kToolLabelHeight + kSlotSize * 0.5F + 4.0F);
+            icon->setPosition(centeredArtPosition(kSlotSize, kIconSize, kToolLabelHeight));
             item_cell->addChild(icon, 2);
         }
 

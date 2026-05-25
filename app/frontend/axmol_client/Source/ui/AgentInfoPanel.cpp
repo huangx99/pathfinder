@@ -80,6 +80,10 @@ ax::Color32 statusColor(const std::string& status) {
     return ax::Color32(148, 163, 184);
 }
 
+ax::Vec2 centeredArtPosition(float box_size, float art_size, float origin_y = 0.0F) {
+    return ax::Vec2((box_size - art_size) * 0.5F, origin_y + (box_size - art_size) * 0.5F);
+}
+
 ax::Node* createItemIconNode(const std::string& key, float size) {
     if (key == "red_berry") return pf::art::createRedBerry(size);
     if (key == "decayed_red_berry") return pf::art::createDecayedRedBerry(size);
@@ -126,6 +130,7 @@ void AgentInfoPanel::buildSkeleton() {
     root->addChild(name_cell);
 
     auto* stats_cell = makeLayoutCell(ax::Size(kContentWidth, kStatsHeight));
+    stats_container_ = stats_cell;
     stats_cell->setLayoutParameter(linearParam(0.0F, 10.0F));
     root->addChild(stats_cell);
 
@@ -286,16 +291,15 @@ void AgentInfoPanel::setAgent(const pathfinder::v3_sandbox::V3AgentView* agent) 
 
 void AgentInfoPanel::updateHealth(double value) {
     const float ratio = static_cast<float>(std::clamp(value, 0.0, 100.0) / 100.0);
-    // 重新创建进度条（因为 axmol DrawNode 不支持动态修改已有绘制）
     if (health_bar_) {
         health_bar_->removeFromParent();
     }
-    health_bar_ = pixelProgressBar(kWidth - 48.0F, 14.0F, ratio,
+    health_bar_ = pixelProgressBar(kContentWidth - kStatBarX, kStatBarHeight, ratio,
                                     PixelPalette::HealthFill,
                                     PixelPalette::PanelFill,
                                     PixelPalette::HealthBorder);
-    health_bar_->setPosition(40.0F, getContentSize().height - 52.0F);
-    addChild(health_bar_, 2);
+    health_bar_->setPosition(kStatBarX, kHealthRowCenterY - kStatBarHeight * 0.5F);
+    if (stats_container_) stats_container_->addChild(health_bar_, 2);
 
     health_text_->setString(std::to_string(static_cast<int>(std::round(std::clamp(value, 0.0, 100.0)))) + "%");
 }
@@ -305,12 +309,12 @@ void AgentInfoPanel::updateHunger(double value) {
     if (hunger_bar_) {
         hunger_bar_->removeFromParent();
     }
-    hunger_bar_ = pixelProgressBar(kWidth - 48.0F, 14.0F, ratio,
+    hunger_bar_ = pixelProgressBar(kContentWidth - kStatBarX, kStatBarHeight, ratio,
                                     PixelPalette::HungerFill,
                                     PixelPalette::PanelFill,
                                     PixelPalette::HungerBorder);
-    hunger_bar_->setPosition(40.0F, getContentSize().height - 80.0F);
-    addChild(hunger_bar_, 2);
+    hunger_bar_->setPosition(kStatBarX, kHungerRowCenterY - kStatBarHeight * 0.5F);
+    if (stats_container_) stats_container_->addChild(hunger_bar_, 2);
 
     hunger_text_->setString(std::to_string(static_cast<int>(std::round(std::clamp(value, 0.0, 100.0)))) + "%");
 }
@@ -329,7 +333,7 @@ void AgentInfoPanel::updateInventory(const std::vector<pathfinder::v3_sandbox::V
             const auto& item = inventory[i];
             auto* icon = createItemIconNode(item.object_key, kIconSize);
             if (icon) {
-                icon->setPosition(kSlotSize * 0.5F, kSlotSize * 0.5F);
+                icon->setPosition(centeredArtPosition(kSlotSize, kIconSize));
                 icon->setName("icon");
                 slot->addChild(icon, 1);
             }

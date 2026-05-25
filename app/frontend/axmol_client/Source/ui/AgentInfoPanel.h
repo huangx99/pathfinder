@@ -32,6 +32,7 @@ private:
     ax::Node* bg_{nullptr};
     ax::Node* health_bar_{nullptr};
     ax::Node* hunger_bar_{nullptr};
+    ax::Node* stats_container_{nullptr};
     ax::Node* inventory_container_{nullptr};
     ax::Node* knowledge_container_{nullptr};
     ax::Node* tooltip_{nullptr};
