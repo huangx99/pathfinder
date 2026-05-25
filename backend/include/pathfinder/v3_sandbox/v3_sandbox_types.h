@@ -100,6 +100,12 @@ struct V3KnowledgeClaimView {
     double risk_delta{0.0};
 };
 
+struct V3InventoryItemView {
+    std::string object_key;
+    std::string display_name;
+    int quantity{0};
+};
+
 struct V3AgentView {
     std::string agent_id;
     std::string name;
@@ -108,6 +114,7 @@ struct V3AgentView {
     double hunger{0.0};
     double health{100.0};
     std::string current_intent;
+    std::vector<V3InventoryItemView> inventory;
     std::vector<V3KnowledgeClaimView> knowledge;
     std::vector<std::string> recent_memory;
 };

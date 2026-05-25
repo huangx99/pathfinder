@@ -75,7 +75,15 @@ void AgentInfoPanel::setAgent(const pathfinder::v3_sandbox::V3AgentView* agent) 
     addMeter("饥饿", agent->hunger, color(251, 191, 36, 0.95F), y);
 
     addSectionTitle("背包", y);
-    addLine("空", y);
+    if (agent->inventory.empty()) {
+        addLine("空", y);
+    } else {
+        int shown = 0;
+        for (const auto& item : agent->inventory) {
+            addLine(shorten(item.display_name + " ×" + std::to_string(item.quantity), 24), y, 24.0F, 13.0F);
+            if (++shown >= 5) break;
+        }
+    }
 
     addSectionTitle("知识", y);
     if (agent->knowledge.empty()) {

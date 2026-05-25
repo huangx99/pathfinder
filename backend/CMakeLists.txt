@@ -1245,6 +1245,7 @@ target_link_libraries(pathfinder_world_inventory_command PUBLIC
 
 # V3 Sandbox library (V3.0 cognitive ecology prototype)
 add_library(pathfinder_v3_sandbox STATIC
+    src/v3_sandbox/v3_agent_decision.cpp
     src/v3_sandbox/v3_sandbox_runtime.cpp
 )
 

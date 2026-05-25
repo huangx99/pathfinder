@@ -54,7 +54,7 @@
   "effect.fire_is_dangerous.name": "火焰危险",
   "effect.fire_is_dangerous.fear": "对火焰感到恐惧。",
   "feedback.red_berry.eat.restore": "你吃下红果，饥饿感减轻了。这似乎是可以吃的。",
-  "feedback.decayed_red_berry.eat.no_effect": "你吃下腐烂的红果，除了恶心之外没有特别的感觉。也许不该吃了。",
+  "feedback.decayed_red_berry.eat.no_effect": "你吃下腐烂的红果，身体明显变差了。也许不该吃了。",
   "feedback.bitter_leaf.eat.no_effect": "你嚼了嚼苦叶，太苦了，似乎没什么用。",
   "feedback.stone_flake.use.hint": "你拿起石片看了看，它很锋利，也许可以用来切割什么东西。",
   "feedback.axe.use.cut_wood": "你用斧头砍木头，得到了一些加工过的木料。",

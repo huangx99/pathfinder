@@ -45,8 +45,8 @@ std::string statusForEvidence(int evidence_count) {
     return "candidate";
 }
 
-std::string keyFor(const std::string& object_key, const std::string& action_key) {
-    return object_key + "+" + action_key;
+std::string attemptKey(const std::string& object_key, const std::string& action_key) {
+    return object_key + "|" + action_key;
 }
 
 std::string defaultContentRoot() {
@@ -266,28 +266,51 @@ void V3SandboxRuntime::advanceAgent(AgentState& agent, std::vector<std::string>&
     }
 
     const auto perceived = perceivedObjectIds(agent);
-    if (agent.hunger >= config_.critical_hunger) {
-        if (const auto* food = findUsefulKnowledge(agent, "restore_hunger")) {
-            for (const auto& object_id : perceived) {
-                const auto object = objects_.find(object_id);
-                if (object != objects_.end() && object->second.object_key == food->subject_object_key) {
-                    if (applyObjectAction(agent, object_id, food->action_key, events)) return;
-                }
-            }
-            agent.current_intent = "饿了，但附近没有自己认识的食物。";
-        }
-    }
-
-    if (auto object_id = chooseObjectToTry(agent, perceived)) {
-        const auto object = objects_.find(*object_id);
-        if (object != objects_.end()) {
-            if (auto action = chooseActionToTry(agent, object->second)) {
-                if (applyObjectAction(agent, *object_id, *action, events)) return;
-            }
-        }
-    }
+    const V3AgentDecisionPolicy policy;
+    const auto decision = policy.decide(buildDecisionContext(agent, perceived));
+    if (executeDecision(agent, decision, events)) return;
 
     wander(agent, events);
+}
+
+V3DecisionContext V3SandboxRuntime::buildDecisionContext(const AgentState& agent, const std::vector<std::string>& perceived_object_ids) const {
+    V3DecisionContext context;
+    context.hunger = agent.hunger;
+    context.critical_hunger = config_.critical_hunger;
+    context.inventory_slots_used = static_cast<int>(agent.inventory.size());
+    context.inventory_capacity_slots = agent.inventory_capacity_slots;
+    context.attempted_actions = agent.attempted_actions;
+
+    for (const auto& claim : agent.knowledge) {
+        context.knowledge.push_back({claim.subject_object_key, claim.action_key, claim.effect_key, claim.evidence_count, claim.utility_delta, claim.risk_delta});
+    }
+
+    for (const auto& object_id : perceived_object_ids) {
+        auto object = objects_.find(object_id);
+        if (object == objects_.end()) continue;
+        const auto* definition = content_ ? content_->findObject(object->second.object_key) : nullptr;
+        if (!definition) continue;
+        context.visible_objects.push_back({object->second.instance_id, object->second.object_key, definition->kind, definition->allowed_actions, canPickupObject(object->second), false});
+    }
+
+    for (const auto& [object_key, quantity] : agent.inventory) {
+        if (quantity <= 0) continue;
+        const auto* definition = content_ ? content_->findObject(object_key) : nullptr;
+        if (!definition) continue;
+        context.carried_objects.push_back({"", object_key, definition->kind, definition->allowed_actions, false, true});
+    }
+
+    return context;
+}
+
+bool V3SandboxRuntime::executeDecision(AgentState& agent, const V3AgentDecision& decision, std::vector<std::string>& events) {
+    switch (decision.kind) {
+        case V3DecisionKind::TryVisibleObject: return applyObjectAction(agent, decision.object_instance_id, decision.action_key, events);
+        case V3DecisionKind::TryCarriedObject: return applyInventoryAction(agent, decision.object_key, decision.action_key, events);
+        case V3DecisionKind::PickupVisibleObject: return pickupObject(agent, decision.object_instance_id, events);
+        case V3DecisionKind::Wander: return false;
+    }
+    return false;
 }
 
 std::vector<std::string> V3SandboxRuntime::perceivedObjectIds(const AgentState& agent) const {
@@ -301,36 +324,6 @@ std::vector<std::string> V3SandboxRuntime::perceivedObjectIds(const AgentState& 
         }
     }
     return ids;
-}
-
-std::optional<std::string> V3SandboxRuntime::chooseObjectToTry(const AgentState& agent, const std::vector<std::string>& object_ids) const {
-    std::vector<std::string> candidates;
-    for (const auto& object_id : object_ids) {
-        auto object = objects_.find(object_id);
-        if (object == objects_.end()) continue;
-        const auto* definition = content_ ? content_->findObject(object->second.object_key) : nullptr;
-        if (!definition) continue;
-        bool has_unknown_action = false;
-        for (const auto& action : definition->allowed_actions) {
-            if (action == "inspect") continue;
-            if (!hasKnowledge(agent, object->second.object_key, action)) has_unknown_action = true;
-        }
-        if (has_unknown_action) candidates.push_back(object_id);
-    }
-    if (candidates.empty()) return std::nullopt;
-    return candidates.front();
-}
-
-std::optional<std::string> V3SandboxRuntime::chooseActionToTry(const AgentState& agent, const ObjectState& object) const {
-    const auto* definition = content_ ? content_->findObject(object.object_key) : nullptr;
-    if (!definition) return std::nullopt;
-    std::vector<std::string> actions = definition->allowed_actions;
-    if (agent.hunger >= config_.critical_hunger && contains(actions, "eat") && !hasKnowledge(agent, object.object_key, "eat")) return "eat";
-    for (const auto& action : actions) {
-        if (action == "inspect") continue;
-        if (!hasKnowledge(agent, object.object_key, action)) return action;
-    }
-    return std::nullopt;
 }
 
 std::optional<V3SandboxRuntime::FeedbackMatch> V3SandboxRuntime::findFeedback(const std::string& object_key, const std::string& action_key) const {
@@ -357,11 +350,14 @@ bool V3SandboxRuntime::applyObjectAction(AgentState& agent, const std::string& o
     auto object = objects_.find(object_id);
     if (object == objects_.end()) return false;
     if (distanceManhattan(agent.position, object->second.position) > config_.perception_radius) return false;
+    agent.attempted_actions.insert(attemptKey(object->second.object_key, action_key));
 
     auto feedback = findFeedback(object->second.object_key, action_key);
     if (!feedback) {
         agent.current_intent = "尝试" + action_key + " " + objectDisplayName(object->second.object_key) + "，但没有明显反馈。";
         remember(agent, agent.current_intent);
+        learnNoVisibleEffect(agent, object->second.object_key, action_key, events);
+        events.push_back(agent.name + " 记住了：" + object->second.object_key + " + " + action_key + " -> no_visible_effect。");
         return true;
     }
 
@@ -381,6 +377,66 @@ bool V3SandboxRuntime::applyObjectAction(AgentState& agent, const std::string& o
     remember(agent, text);
     events.push_back(text);
     return true;
+}
+
+bool V3SandboxRuntime::applyInventoryAction(AgentState& agent, const std::string& object_key, const std::string& action_key, std::vector<std::string>& events) {
+    auto carried = agent.inventory.find(object_key);
+    if (carried == agent.inventory.end() || carried->second <= 0) return false;
+    agent.attempted_actions.insert(attemptKey(object_key, action_key));
+
+    auto feedback = findFeedback(object_key, action_key);
+    if (!feedback) {
+        agent.current_intent = "从背包尝试" + action_key + " " + objectDisplayName(object_key) + "，但没有明显反馈。";
+        remember(agent, agent.current_intent);
+        learnNoVisibleEffect(agent, object_key, action_key, events);
+        events.push_back(agent.name + " 记住了：背包中的 " + object_key + " + " + action_key + " -> no_visible_effect。");
+        return true;
+    }
+
+    agent.current_intent = "从背包尝试" + feedback->action_key + " " + objectDisplayName(object_key) + "。";
+    agent.hunger = std::clamp(agent.hunger - feedback->utility_delta * 80.0, 0.0, 100.0);
+    if (feedback->risk_delta > 0.0) agent.health = std::max(0.0, agent.health - feedback->risk_delta * config_.health_damage_scale);
+    learn(agent, *feedback, events);
+
+    const bool consumed = feedback->action_key == "eat" || contains(feedback->outcome_signal_keys, "object_consumed");
+    if (consumed) {
+        --carried->second;
+        if (carried->second <= 0) agent.inventory.erase(carried);
+    }
+
+    const auto text = agent.name + " 使用背包中的 " + feedback->object_key + " 执行 " + feedback->action_key + "，得到反馈 " + feedback->effect_key + "。";
+    remember(agent, text);
+    events.push_back(text);
+    return true;
+}
+
+bool V3SandboxRuntime::pickupObject(AgentState& agent, const std::string& object_id, std::vector<std::string>& events) {
+    auto object = objects_.find(object_id);
+    if (object == objects_.end()) return false;
+    if (distanceManhattan(agent.position, object->second.position) > config_.perception_radius) return false;
+    if (!canPickupObject(object->second)) return false;
+    if (!agent.inventory.count(object->second.object_key) && static_cast<int>(agent.inventory.size()) >= agent.inventory_capacity_slots) return false;
+
+    const auto object_key = object->second.object_key;
+    agent.inventory[object_key] += std::max(1, object->second.quantity);
+    auto& cell = cellAt(object->second.position.x, object->second.position.y);
+    cell.object_instance_ids.erase(std::remove(cell.object_instance_ids.begin(), cell.object_instance_ids.end(), object_id), cell.object_instance_ids.end());
+    objects_.erase(object);
+
+    agent.current_intent = "捡起" + objectDisplayName(object_key) + "放进背包。";
+    remember(agent, agent.current_intent);
+    events.push_back(agent.name + " 捡起了 " + objectDisplayName(object_key) + "。");
+    return true;
+}
+
+void V3SandboxRuntime::learnNoVisibleEffect(AgentState& agent, const std::string& object_key, const std::string& action_key, std::vector<std::string>& events) {
+    FeedbackMatch feedback;
+    feedback.object_key = object_key;
+    feedback.action_key = action_key;
+    feedback.effect_key = "no_visible_effect";
+    feedback.utility_delta = 0.0;
+    feedback.risk_delta = 0.0;
+    learn(agent, feedback, events);
 }
 
 void V3SandboxRuntime::remember(AgentState& agent, const std::string& text) {
@@ -500,6 +556,14 @@ bool V3SandboxRuntime::isWalkable(int x, int y) const {
     return terrain == config_.terrains.end() || terrain->second.walkable;
 }
 
+bool V3SandboxRuntime::canPickupObject(const ObjectState& object) const {
+    const auto* definition = content_ ? content_->findObject(object.object_key) : nullptr;
+    if (!definition) return false;
+    if (definition->kind == "hazard") return false;
+    if (contains(definition->safe_tags, "creature") || contains(definition->safe_tags, "predator")) return false;
+    return true;
+}
+
 V3SandboxRuntime::CellState& V3SandboxRuntime::cellAt(int x, int y) {
     return cells_[static_cast<size_t>(y * config_.width + x)];
 }
@@ -527,16 +591,6 @@ bool V3SandboxRuntime::hasKnowledge(const AgentState& agent, const std::string& 
         if (claim.subject_object_key == object_key && claim.action_key == action_key) return true;
     }
     return false;
-}
-
-const V3SandboxRuntime::KnowledgeClaimState* V3SandboxRuntime::findUsefulKnowledge(const AgentState& agent, const std::string& effect_key) const {
-    const KnowledgeClaimState* best = nullptr;
-    for (const auto& claim : agent.knowledge) {
-        if (claim.effect_key != effect_key) continue;
-        if (claim.risk_delta > 0.15) continue;
-        if (!best || claim.evidence_count > best->evidence_count) best = &claim;
-    }
-    return best;
 }
 
 V3SandboxSnapshot V3SandboxRuntime::snapshot() const {
@@ -570,6 +624,9 @@ V3SandboxSnapshot V3SandboxRuntime::snapshot() const {
         agent_view.hunger = agent.hunger;
         agent_view.health = agent.health;
         agent_view.current_intent = agent.current_intent;
+        for (const auto& [object_key, quantity] : agent.inventory) {
+            if (quantity > 0) agent_view.inventory.push_back({object_key, objectDisplayName(object_key), quantity});
+        }
         agent_view.recent_memory = agent.recent_memory;
         for (const auto& claim : agent.knowledge) {
             agent_view.knowledge.push_back({claim.subject_object_key, claim.action_key, claim.effect_key, statusForEvidence(claim.evidence_count), claim.evidence_count, claim.utility_delta, claim.risk_delta});

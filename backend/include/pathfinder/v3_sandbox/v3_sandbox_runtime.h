@@ -2,6 +2,7 @@
 
 #include "pathfinder/content/content_registry.h"
 #include "pathfinder/knowledge/knowledge_repository.h"
+#include "pathfinder/v3_sandbox/v3_agent_decision.h"
 #include "pathfinder/v3_sandbox/v3_sandbox_types.h"
 
 #include <memory>
@@ -53,8 +54,11 @@ private:
         double hunger{35.0};
         double health{100.0};
         std::string current_intent{"刚被投放，正在观察附近。"};
+        std::map<std::string, int> inventory;
+        int inventory_capacity_slots{8};
         std::vector<KnowledgeClaimState> knowledge;
         std::vector<std::string> recent_memory;
+        std::set<std::string> attempted_actions;
         int exploration_cursor{0};
     };
 
@@ -77,11 +81,14 @@ private:
 
     void advanceOneTick(std::vector<std::string>& events);
     void advanceAgent(AgentState& agent, std::vector<std::string>& events);
+    V3DecisionContext buildDecisionContext(const AgentState& agent, const std::vector<std::string>& perceived_object_ids) const;
+    bool executeDecision(AgentState& agent, const V3AgentDecision& decision, std::vector<std::string>& events);
     std::vector<std::string> perceivedObjectIds(const AgentState& agent) const;
-    std::optional<std::string> chooseObjectToTry(const AgentState& agent, const std::vector<std::string>& object_ids) const;
-    std::optional<std::string> chooseActionToTry(const AgentState& agent, const ObjectState& object) const;
     std::optional<FeedbackMatch> findFeedback(const std::string& object_key, const std::string& action_key) const;
     bool applyObjectAction(AgentState& agent, const std::string& object_id, const std::string& action_key, std::vector<std::string>& events);
+    bool applyInventoryAction(AgentState& agent, const std::string& object_key, const std::string& action_key, std::vector<std::string>& events);
+    bool pickupObject(AgentState& agent, const std::string& object_id, std::vector<std::string>& events);
+    void learnNoVisibleEffect(AgentState& agent, const std::string& object_key, const std::string& action_key, std::vector<std::string>& events);
     void remember(AgentState& agent, const std::string& text);
     void learn(AgentState& agent, const FeedbackMatch& feedback, std::vector<std::string>& events);
     void mirrorKnowledgeClaim(const AgentState& agent, const KnowledgeClaimState& claim);
@@ -91,12 +98,12 @@ private:
 
     bool inBounds(int x, int y) const;
     bool isWalkable(int x, int y) const;
+    bool canPickupObject(const ObjectState& object) const;
     CellState& cellAt(int x, int y);
     const CellState& cellAt(int x, int y) const;
     std::string objectDisplayName(const std::string& object_key) const;
     std::string terrainDisplayName(const std::string& terrain_key) const;
     bool hasKnowledge(const AgentState& agent, const std::string& object_key, const std::string& action_key) const;
-    const KnowledgeClaimState* findUsefulKnowledge(const AgentState& agent, const std::string& effect_key) const;
 
     std::shared_ptr<const pathfinder::content::ContentRegistry> content_;
     V3SandboxConfig config_;

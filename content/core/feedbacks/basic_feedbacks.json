@@ -26,7 +26,7 @@
       "object_key": "decayed_red_berry",
       "action_key": "eat",
       "target_object_key": "",
-      "effect_key": "no_visible_effect",
+      "effect_key": "poison",
       "priority": 100,
       "conditions": [
         "condition:test:eq:object.quantity.decayed_red_berry.gte.1"
@@ -39,7 +39,7 @@
       "knowledge": {
         "subject_object_key": "decayed_red_berry",
         "action_key": "eat",
-        "effect_key": "no_visible_effect"
+        "effect_key": "poison"
       }
     },
     {
