@@ -172,6 +172,7 @@ ClientRuntimeHostFactory::ClientRuntimeHostFactory()
     knowledge_repository = std::make_shared<pathfinder::knowledge::KnowledgeRepository>();
     knowledge_learning_service = std::make_shared<pathfinder::world_learning::WorldKnowledgeLearningService>(
         *content_registry, *learning_service, *knowledge_repository);
+    projection_bridge->setKnowledgeServices(knowledge_repository.get(), content_registry);
     option_bridge->setKnowledgeServices(knowledge_repository.get(), content_registry);
     option_bridge->setMapEditServices(content_registry);
 

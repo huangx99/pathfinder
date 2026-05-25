@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <charconv>
+#include <cctype>
 #include <cstdlib>
 #include <sstream>
 
@@ -30,6 +31,16 @@ double doubleField(const std::map<std::string, std::string>& fields, const std::
 bool boolField(const std::map<std::string, std::string>& fields, const std::string& key) {
     auto it = fields.find(key);
     return it != fields.end() && it->second == "true";
+}
+
+std::string stringField(const std::map<std::string, std::string>& fields, const std::string& key) {
+    auto it = fields.find(key);
+    return it == fields.end() ? std::string{} : it->second;
+}
+
+std::string lowerAscii(std::string value) {
+    for (char& ch : value) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+    return value;
 }
 
 std::vector<std::string> splitCsv(const std::string& value) {
@@ -354,9 +365,51 @@ void EngineLocalClient::rebuildSnapshot(const pathfinder::client_protocol::Clien
         entity.blocks_movement = boolField(patch.fields, "blocks_movement");
         entity.resource_node = boolField(patch.fields, "resource_node");
         entity.remaining_charges = intField(patch.fields, "remaining_charges");
-        entity.numeric_states["health"] = doubleField(patch.fields, "numeric_health", 0.0);
-        entity.numeric_states["max_health"] = doubleField(patch.fields, "numeric_max_health", 0.0);
+        for (const auto& [key, value] : patch.fields) {
+            constexpr const char* prefix = "numeric_";
+            if (key.rfind(prefix, 0) != 0) continue;
+            entity.numeric_states[key.substr(std::string(prefix).size())] = doubleField(patch.fields, key, 0.0);
+        }
         snapshot_.entities.push_back(std::move(entity));
+    }
+
+    std::map<std::string, std::vector<EngineInventoryItemView>> inventory_by_actor;
+    for (const auto& patch : projection.inventories) {
+        const std::string owner_key = stringField(patch.fields, "owner_key");
+        if (owner_key.empty()) continue;
+        const int entry_count = intField(patch.fields, "entry_count");
+        auto& inventory = inventory_by_actor[owner_key];
+        for (int index = 0; index < entry_count; ++index) {
+            const std::string prefix = "entry_" + std::to_string(index) + "_";
+            EngineInventoryItemView item;
+            item.entry_id = stringField(patch.fields, prefix + "entry_id");
+            item.entity_id = stringField(patch.fields, prefix + "entity_id");
+            item.object_key = stringField(patch.fields, prefix + "entity_key");
+            item.display_name = displayNameForKey(item.object_key);
+            item.quantity = intField(patch.fields, prefix + "quantity", 1);
+            const int numeric_count = intField(patch.fields, prefix + "numeric_count");
+            (void)numeric_count;
+            for (const auto& [key, value] : patch.fields) {
+                const std::string numeric_prefix = prefix + "numeric_";
+                if (key.rfind(numeric_prefix, 0) != 0) continue;
+                item.numeric_states[key.substr(numeric_prefix.size())] = doubleField(patch.fields, key, 0.0);
+            }
+            if (!item.object_key.empty()) inventory.push_back(std::move(item));
+        }
+    }
+
+    std::map<std::string, std::vector<EngineKnowledgeClaimView>> knowledge_by_actor;
+    for (const auto& patch : projection.knowledge) {
+        if (patch.actor_key.empty()) continue;
+        EngineKnowledgeClaimView claim;
+        claim.subject_object_key = stringField(patch.fields, "subject_id");
+        claim.action_key = stringField(patch.fields, "action_key");
+        claim.effect_key = stringField(patch.fields, "effect_key");
+        claim.status = lowerAscii(stringField(patch.fields, "status"));
+        claim.evidence_count = intField(patch.fields, "evidence_count", 1);
+        if (!claim.subject_object_key.empty() && !claim.action_key.empty()) {
+            knowledge_by_actor[patch.actor_key].push_back(std::move(claim));
+        }
     }
 
     for (const auto& entity : snapshot_.entities) {
@@ -366,10 +419,17 @@ void EngineLocalClient::rebuildSnapshot(const pathfinder::client_protocol::Clien
         agent.name = entity.display_name.empty() ? displayNameForKey(entity.entity_key) : entity.display_name;
         agent.x = entity.x;
         agent.y = entity.y;
-        agent.health = entity.numeric_states.count("health") ? entity.numeric_states.at("health") : 10.0;
+        const double raw_health = entity.numeric_states.count("health") ? entity.numeric_states.at("health") : 10.0;
         agent.max_health = entity.numeric_states.count("max_health") ? entity.numeric_states.at("max_health") : 10.0;
+        agent.health = agent.max_health > 0.0 ? (raw_health / agent.max_health) * 100.0 : raw_health;
         agent.hunger = entity.numeric_states.count("hunger") ? entity.numeric_states.at("hunger") : 0.0;
         agent.current_intent = "正在探索世界";
+        if (auto inv_it = inventory_by_actor.find(agent.agent_id); inv_it != inventory_by_actor.end()) {
+            agent.inventory = inv_it->second;
+        }
+        if (auto know_it = knowledge_by_actor.find(agent.agent_id); know_it != knowledge_by_actor.end()) {
+            agent.knowledge = know_it->second;
+        }
         snapshot_.agents.push_back(std::move(agent));
     }
 }

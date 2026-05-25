@@ -231,6 +231,54 @@ void run_bootstrap_non_empty_tests() {
 }
 
 // ---------------------------------------------------------------------------
+// Sandbox clients are controller-style clients: the full sandbox board and NPCs
+// on sandbox cells must remain visible even outside the hidden player actor's
+// diamond-shaped personal vision radius.
+// ---------------------------------------------------------------------------
+void run_sandbox_projection_includes_full_board_and_far_npc_tests() {
+    RuntimeBackedFixture f;
+    spawnTestActor(f, "companion_far", "companion", {7, 7, "surface"});
+    spawnInventoryItem(f, "companion_far", "red_berry", 2, "far_inv_red_berry");
+
+    auto boot = f.harness.fakeBootstrap("client_1", "session_sandbox_full_projection", "player");
+    assert(boot.is_ok());
+
+    bool saw_min_corner = false;
+    bool saw_max_corner = false;
+    for (const auto& cell : boot.value().full_projection.visible_cells) {
+        auto x_it = cell.fields.find("x");
+        auto y_it = cell.fields.find("y");
+        if (x_it == cell.fields.end() || y_it == cell.fields.end()) continue;
+        if (x_it->second == "-8" && y_it->second == "-8") saw_min_corner = true;
+        if (x_it->second == "7" && y_it->second == "7") saw_max_corner = true;
+    }
+    assert(saw_min_corner);
+    assert(saw_max_corner);
+
+    bool saw_far_npc = false;
+    for (const auto& entity : boot.value().full_projection.visible_entities) {
+        auto actor_it = entity.fields.find("actor_key");
+        if (actor_it != entity.fields.end() && actor_it->second == "companion_far") {
+            saw_far_npc = true;
+            break;
+        }
+    }
+    assert(saw_far_npc);
+
+    bool saw_far_inventory = false;
+    for (const auto& inventory : boot.value().full_projection.inventories) {
+        auto owner_it = inventory.fields.find("owner_key");
+        if (owner_it != inventory.fields.end() && owner_it->second == "companion_far") {
+            saw_far_inventory = true;
+            break;
+        }
+    }
+    assert(saw_far_inventory);
+
+    std::cout << "client_runtime_bridge_sandbox_projection_includes_full_board_and_far_npc_tests: all passed" << std::endl;
+}
+
+// ---------------------------------------------------------------------------
 // Bootstrap creates hidden session actor without exposing a default player entity
 // ---------------------------------------------------------------------------
 void run_bootstrap_player_visible_tests() {
@@ -1132,6 +1180,22 @@ void run_idle_npc_tries_nearby_object_and_learns_tests() {
     }
     assert(!player_wrongly_learned);
 
+    auto refresh = f.harness.fakeRefresh("session_npc_object_try", "client_1", version);
+    assert(refresh.is_ok());
+    bool npc_knowledge_projected = false;
+    for (const auto& patch : refresh.value().full_projection.knowledge) {
+        if (patch.actor_key != "companion_taster") continue;
+        auto subject_it = patch.fields.find("subject_id");
+        auto action_it = patch.fields.find("action_key");
+        auto effect_it = patch.fields.find("effect_key");
+        if (subject_it != patch.fields.end() && action_it != patch.fields.end() && effect_it != patch.fields.end() &&
+            subject_it->second == "red_berry" && action_it->second == "eat" && effect_it->second == "restore_hunger") {
+            npc_knowledge_projected = true;
+            break;
+        }
+    }
+    assert(npc_knowledge_projected);
+
     std::cout << "client_runtime_bridge_idle_npc_tries_nearby_object_and_learns_tests: all passed" << std::endl;
 }
 
@@ -1209,6 +1273,7 @@ void run_wildlife_actor_chases_and_attacks_tests() {
 int main(int argc, char* argv[]) {
     if (argc < 2) {
         run_bootstrap_non_empty_tests();
+        run_sandbox_projection_includes_full_board_and_far_npc_tests();
         run_bootstrap_player_visible_tests();
         run_bootstrap_move_options_tests();
         run_move_changes_position_tests();
@@ -1236,6 +1301,7 @@ int main(int argc, char* argv[]) {
 
     std::string test_name = argv[1];
     if (test_name == "bootstrap_non_empty") run_bootstrap_non_empty_tests();
+    else if (test_name == "sandbox_projection_includes_full_board_and_far_npc") run_sandbox_projection_includes_full_board_and_far_npc_tests();
     else if (test_name == "bootstrap_player_visible") run_bootstrap_player_visible_tests();
     else if (test_name == "bootstrap_move_options") run_bootstrap_move_options_tests();
     else if (test_name == "move_changes_position") run_move_changes_position_tests();

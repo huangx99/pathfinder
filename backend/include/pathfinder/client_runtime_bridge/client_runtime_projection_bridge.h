@@ -5,6 +5,9 @@
 #include "pathfinder/world_runtime/world_projection_adapter.h"
 #include "pathfinder/world_inventory/inventory_projection_adapter.h"
 #include "pathfinder/world_inventory/iworld_inventory.h"
+#include "pathfinder/knowledge/knowledge_repository.h"
+#include "pathfinder/content/content_registry.h"
+#include <memory>
 
 namespace pathfinder::client_runtime_bridge {
 
@@ -36,9 +39,15 @@ public:
         const std::string& actor_key,
         const std::string& layer_key) const override;
 
+    void setKnowledgeServices(
+        const pathfinder::knowledge::KnowledgeRepository* knowledge_repository,
+        std::shared_ptr<const pathfinder::content::ContentRegistry> content_registry);
+
 private:
     pathfinder::world_runtime::IWorldRuntime& runtime_;
     pathfinder::world_inventory::IInventoryRuntime* inventory_runtime_{nullptr};
+    const pathfinder::knowledge::KnowledgeRepository* knowledge_repository_{nullptr};
+    std::shared_ptr<const pathfinder::content::ContentRegistry> content_registry_;
     pathfinder::world_runtime::WorldProjectionAdapter projection_adapter_;
     pathfinder::world_inventory::InventoryProjectionAdapter inventory_projection_adapter_;
     ClientRuntimeBridgeMode mode_;
@@ -52,6 +61,9 @@ private:
         const std::string& layer_key) const;
 
     pathfinder::foundation::Result<std::vector<pathfinder::world_command::InventoryPatchDto>> buildVisibleInventories(
+        const std::string& actor_key) const;
+
+    pathfinder::foundation::Result<std::vector<pathfinder::world_command::KnowledgePatchDto>> buildVisibleKnowledge(
         const std::string& actor_key) const;
 };
 
