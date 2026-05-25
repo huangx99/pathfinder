@@ -27,6 +27,12 @@ constexpr float kStatsHeight = 62.0F;
 constexpr float kSectionTitleHeight = 22.0F;
 constexpr float kSelectedItemHeight = 22.0F;
 constexpr float kKnowledgeLineHeight = 20.0F;
+constexpr float kStatIconSize = 20.0F;
+constexpr float kStatBarHeight = 14.0F;
+constexpr float kStatIconX = 2.0F;
+constexpr float kStatBarX = 30.0F;
+constexpr float kHealthRowCenterY = 48.0F;
+constexpr float kHungerRowCenterY = 20.0F;
 constexpr float kInventoryGridX = (kContentWidth - kGridWidth) * 0.5F;
 constexpr float kInventoryGridBottom = kHeight - 10.0F - kNameHeight - 4.0F - kStatsHeight - 10.0F - kSectionTitleHeight - 6.0F - kGridHeight;
 
@@ -123,36 +129,36 @@ void AgentInfoPanel::buildSkeleton() {
     stats_cell->setLayoutParameter(linearParam(0.0F, 10.0F));
     root->addChild(stats_cell);
 
-    auto* heart = createHeartIcon(20.0F);
-    heart->setPosition(0.0F, 38.0F);
+    auto* heart = createHeartIcon(kStatIconSize);
+    heart->setPosition(kStatIconX, kHealthRowCenterY - kStatIconSize * 0.5F);
     stats_cell->addChild(heart, 2);
 
-    health_bar_ = pixelProgressBar(kContentWidth - 28.0F, 14.0F, 1.0F,
+    health_bar_ = pixelProgressBar(kContentWidth - kStatBarX, kStatBarHeight, 1.0F,
                                     PixelPalette::HealthFill,
                                     PixelPalette::PanelFill,
                                     PixelPalette::HealthBorder);
-    health_bar_->setPosition(28.0F, 41.0F);
+    health_bar_->setPosition(kStatBarX, kHealthRowCenterY - kStatBarHeight * 0.5F);
     stats_cell->addChild(health_bar_, 2);
 
     health_text_ = pixelLabel("100%", 11.0F, ax::Vec2(40.0F, 14.0F), PixelPalette::TextPrimary);
     health_text_->setAlignment(ax::TextHAlignment::CENTER, ax::TextVAlignment::CENTER);
-    health_text_->setPosition(kContentWidth - 12.0F, 48.0F);
+    health_text_->setPosition(kContentWidth - 12.0F, kHealthRowCenterY);
     stats_cell->addChild(health_text_, 3);
 
-    auto* hunger = createHungerIcon(20.0F);
-    hunger->setPosition(0.0F, 10.0F);
+    auto* hunger = createHungerIcon(kStatIconSize);
+    hunger->setPosition(kStatIconX, kHungerRowCenterY - kStatIconSize * 0.5F);
     stats_cell->addChild(hunger, 2);
 
-    hunger_bar_ = pixelProgressBar(kContentWidth - 28.0F, 14.0F, 1.0F,
+    hunger_bar_ = pixelProgressBar(kContentWidth - kStatBarX, kStatBarHeight, 1.0F,
                                     PixelPalette::HungerFill,
                                     PixelPalette::PanelFill,
                                     PixelPalette::HungerBorder);
-    hunger_bar_->setPosition(28.0F, 13.0F);
+    hunger_bar_->setPosition(kStatBarX, kHungerRowCenterY - kStatBarHeight * 0.5F);
     stats_cell->addChild(hunger_bar_, 2);
 
     hunger_text_ = pixelLabel("100%", 11.0F, ax::Vec2(40.0F, 14.0F), PixelPalette::TextPrimary);
     hunger_text_->setAlignment(ax::TextHAlignment::CENTER, ax::TextVAlignment::CENTER);
-    hunger_text_->setPosition(kContentWidth - 12.0F, 20.0F);
+    hunger_text_->setPosition(kContentWidth - 12.0F, kHungerRowCenterY);
     stats_cell->addChild(hunger_text_, 3);
 
     auto* inv_title = pixelPanelLabel("背包", 14.0F, ax::Vec2(kContentWidth, kSectionTitleHeight), PixelPalette::TextSecondary);
