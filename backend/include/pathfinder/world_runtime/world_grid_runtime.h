@@ -41,7 +41,7 @@ public:
         bool is_player_controlled = false,
         const std::vector<std::string>& tag_keys = {},
         const std::map<std::string, double>& numeric_states = {},
-        const std::string& entity_id_override = "");
+        const std::string& entity_id_override = "") override;
     foundation::Result<MoveActorResult> moveActor(const std::string& actor_key, const WorldCellCoord& target) override;
     foundation::Result<ActorHealthChangeResult> applyActorHealthDelta(
         const std::string& actor_key,

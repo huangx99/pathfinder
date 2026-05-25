@@ -24,6 +24,7 @@ struct EngineCellView {
 struct EngineEntityView {
     std::string entity_id;
     std::string entity_key;
+    std::string actor_key;
     std::string display_name;
     int x{0};
     int y{0};

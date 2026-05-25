@@ -134,7 +134,7 @@ void SandboxMapLayer::render(const pf::client::EngineSnapshot& snapshot, int sel
     }
 
     for (const auto& entity : snapshot.entities) {
-        if (entity.entity_key == "player") continue;
+        if (entity.entity_key == "player" || !entity.actor_key.empty()) continue;
         auto* art = createObjectArt(entity.entity_key);
         art->setPosition(cellToPosition(entity.x, entity.y, snapshot) + ax::Vec2(-5.0F, -3.0F));
         object_layer_->addChild(art, 4);

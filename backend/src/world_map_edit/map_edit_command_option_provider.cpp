@@ -50,6 +50,7 @@ std::vector<WorldCommandOptionDto> MapEditCommandOptionProvider::buildOptions(
 
     const auto terrains = buildPaintableTerrains();
     const auto objects = buildRawPlaceableObjects(content_registry_);
+    const auto agents = buildPlaceableAgents(content_registry_);
     for (const auto& [cell_id, cell] : snap_res.value().cells) {
         if (!canEditCell(actor, cell)) continue;
 
@@ -81,6 +82,19 @@ std::vector<WorldCommandOptionDto> MapEditCommandOptionProvider::buildOptions(
                 opt.target.target_item_key = object.object_key;
                 opt.enabled = true;
                 opt.priority = 31;
+                options.push_back(std::move(opt));
+            }
+            for (const auto& agent : agents) {
+                WorldCommandOptionDto opt;
+                opt.option_id = makeOptionId("opt_place_agent");
+                opt.command_kind = WorldCommandKind::SpawnEntity;
+                opt.command_key = "place_agent";
+                opt.label_text = "投放" + agent.display_name;
+                opt.target.target_kind = WorldCommandTargetKind::Coordinate;
+                opt.target.target_coord = pathfinder::world_command::WorldCoordinateDto{cell.coord.x, cell.coord.y, cell.coord.layer_key};
+                opt.target.target_item_key = agent.agent_key;
+                opt.enabled = true;
+                opt.priority = 32;
                 options.push_back(std::move(opt));
             }
         }

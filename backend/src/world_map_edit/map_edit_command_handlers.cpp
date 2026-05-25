@@ -30,6 +30,12 @@ std::string makePlacedEntityId(const std::string& object_key, const WorldCellCoo
         std::to_string(++g_spawn_counter);
 }
 
+std::string makePlacedActorKey(const std::string& agent_key, const WorldCellCoord& coord) {
+    return "placed_actor_" + agent_key + "_" + coord.layer_key + "_" +
+        std::to_string(coord.x) + "_" + std::to_string(coord.y) + "_" +
+        std::to_string(++g_spawn_counter);
+}
+
 const PaintableTerrainDefinition* findTerrain(const std::string& terrain_key) {
     static const auto terrains = buildPaintableTerrains();
     auto it = std::find_if(terrains.begin(), terrains.end(), [&](const auto& terrain) {
@@ -135,21 +141,9 @@ public:
         WorldCommandContext& context,
         const WorldCommandDto& command) const override {
         WorldCommandExecutionResult result;
-        if (command.command_key != "place_raw_object") {
-            result.result_kind = WorldCommandResultKind::Blocked;
-            result.failure_reason_keys.push_back("map_edit_wrong_spawn_command_key");
-            return Result<WorldCommandExecutionResult>::ok(std::move(result));
-        }
         if (!command.target.target_coord || command.target.target_item_key.empty()) {
             result.result_kind = WorldCommandResultKind::Failed;
             result.failure_reason_keys.push_back("map_edit_missing_spawn_target");
-            return Result<WorldCommandExecutionResult>::ok(std::move(result));
-        }
-
-        const auto* object = content_registry_.findObject(command.target.target_item_key);
-        if (!object || !isRawPlaceableObject(*object)) {
-            result.result_kind = WorldCommandResultKind::Blocked;
-            result.failure_reason_keys.push_back("object_not_raw_placeable");
             return Result<WorldCommandExecutionResult>::ok(std::move(result));
         }
 
@@ -158,6 +152,31 @@ public:
         if (cell_res.is_error() || cell_res.value()->blocks_movement) {
             result.result_kind = WorldCommandResultKind::Blocked;
             result.failure_reason_keys.push_back("spawn_cell_not_available");
+            return Result<WorldCommandExecutionResult>::ok(std::move(result));
+        }
+
+        if (command.command_key == "place_raw_object") {
+            return executePlaceObject(context, command, coord);
+        }
+        if (command.command_key == "place_agent") {
+            return executePlaceAgent(context, command, coord);
+        }
+
+        result.result_kind = WorldCommandResultKind::Blocked;
+        result.failure_reason_keys.push_back("map_edit_wrong_spawn_command_key");
+        return Result<WorldCommandExecutionResult>::ok(std::move(result));
+    }
+
+private:
+    Result<WorldCommandExecutionResult> executePlaceObject(
+        WorldCommandContext& context,
+        const WorldCommandDto& command,
+        const WorldCellCoord& coord) const {
+        WorldCommandExecutionResult result;
+        const auto* object = content_registry_.findObject(command.target.target_item_key);
+        if (!object || !isRawPlaceableObject(*object)) {
+            result.result_kind = WorldCommandResultKind::Blocked;
+            result.failure_reason_keys.push_back("object_not_raw_placeable");
             return Result<WorldCommandExecutionResult>::ok(std::move(result));
         }
 
@@ -211,7 +230,72 @@ public:
         return Result<WorldCommandExecutionResult>::ok(std::move(result));
     }
 
-private:
+    Result<WorldCommandExecutionResult> executePlaceAgent(
+        WorldCommandContext& context,
+        const WorldCommandDto& command,
+        const WorldCellCoord& coord) const {
+        WorldCommandExecutionResult result;
+        const auto agents = buildPlaceableAgents(content_registry_);
+        auto agent_it = std::find_if(agents.begin(), agents.end(), [&](const auto& agent) {
+            return agent.agent_key == command.target.target_item_key;
+        });
+        if (agent_it == agents.end()) {
+            result.result_kind = WorldCommandResultKind::Blocked;
+            result.failure_reason_keys.push_back("agent_not_placeable");
+            return Result<WorldCommandExecutionResult>::ok(std::move(result));
+        }
+
+        const auto actor_key = makePlacedActorKey(agent_it->agent_key, coord);
+        const auto entity_id = makePlacedEntityId(agent_it->agent_key, coord);
+        auto spawn_res = world_runtime_.spawnActor(
+            actor_key,
+            agent_it->agent_key,
+            agent_it->display_key,
+            coord,
+            agent_it->vision_radius,
+            false,
+            agent_it->tag_keys,
+            agent_it->numeric_states,
+            entity_id);
+        if (spawn_res.is_error()) {
+            result.result_kind = WorldCommandResultKind::Failed;
+            result.failure_reason_keys.push_back("spawn_agent_failed");
+            return Result<WorldCommandExecutionResult>::ok(std::move(result));
+        }
+
+        result.result_kind = WorldCommandResultKind::Succeeded;
+        result.changed_cell_ids.push_back(coord.cellId());
+        result.changed_entity_ids.push_back(entity_id);
+
+        WorldProjectionPatchDto patch;
+        WorldEntityPatchDto entity;
+        entity.entity_id = entity_id;
+        entity.op = PatchOp::Add;
+        entity.fields["entity_id"] = entity_id;
+        entity.fields["entity_key"] = agent_it->agent_key;
+        entity.fields["actor_key"] = actor_key;
+        entity.fields["display_name_key"] = agent_it->display_key;
+        entity.fields["x"] = std::to_string(coord.x);
+        entity.fields["y"] = std::to_string(coord.y);
+        entity.fields["layer_key"] = coord.layer_key;
+        entity.fields["location_kind"] = "on_map";
+        entity.fields["visible"] = "true";
+        entity.fields["blocks_movement"] = "false";
+        patch.changed_entities.push_back(std::move(entity));
+        result.projection_patch_override = std::move(patch);
+
+        WorldEventDto event;
+        event.event_id = command.command_id + "_agent";
+        event.event_kind = "AgentSpawnedByMapEdit";
+        event.tick = context.currentTick();
+        event.title_text = "投放小人";
+        event.body_text = "投放了" + agent_it->display_name + "。";
+        event.actor_key = command.actor_key;
+        event.coord = command.target.target_coord;
+        result.events.push_back(std::move(event));
+        return Result<WorldCommandExecutionResult>::ok(std::move(result));
+    }
+
     pathfinder::world_runtime::IWorldRuntime& world_runtime_;
     pathfinder::world_inventory::IWorldEntityLocationPort& location_port_;
     const pathfinder::content::ContentRegistry& content_registry_;

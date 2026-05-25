@@ -57,7 +57,7 @@ ax::Node* createToolIcon(const std::string& key, float size) {
     if (key == "dry_grass" || key == "reed" || key == "vine") return pf::art::createBitterLeaf(size);
     if (key == "flint" || key == "clay") return pf::art::createLooseStone(size);
     if (key == "mushroom" || key == "poison_mushroom") return pf::art::createRedBerry(size);
-    if (key == "basic_npc")        return pf::art::createPlayer(size);
+    if (key == "basic_npc" || key == "companion") return pf::art::createPlayer(size);
     return nullptr;
 }
 

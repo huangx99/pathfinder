@@ -1,7 +1,6 @@
 #include "pathfinder/client_runtime_host/client_runtime_host_factory.h"
 #include "pathfinder/client_http/client_http_gateway.h"
 #include "pathfinder/world_generation/world_generation_service.h"
-#include "pathfinder/world_generation/world_generation_applier.h"
 #include "pathfinder/world_generation/world_region_ensure_service.h"
 #include "pathfinder/world_generation/move_target_region_guard.h"
 #include "pathfinder/client_runtime_bridge/client_world_region_ensure_adapter.h"
@@ -14,7 +13,6 @@
 #include "pathfinder/world_harvest/harvest_projection_bridge.h"
 #include "pathfinder/foundation/error.h"
 #include "pathfinder/content/json_content_loader.h"
-#include "pathfinder/world_modules/bootstrap/default_playable_world_bootstrap.h"
 #include "pathfinder/world_modules/core/default_world_modules.h"
 #include <iostream>
 #include <filesystem>
@@ -32,49 +30,42 @@ using namespace pathfinder::client_runtime_bridge;
 namespace {
 
 
-pathfinder::foundation::Result<void> initializePlayableWorld(
+pathfinder::foundation::Result<void> initializeSandboxWorld(
     WorldGridRuntime& runtime,
     pathfinder::world_inventory::WorldInventoryRuntime& inventory_runtime,
-    pathfinder::world_generation::WorldGenerationService& worldgen_service,
     pathfinder::world_region_state::InMemoryWorldRegionStateStore* region_store,
-    pathfinder::world_map_interaction::RegionActivityWindowService* activity_window_service,
-    const pathfinder::content::ContentRegistry* content_registry) {
+    pathfinder::world_map_interaction::RegionActivityWindowService* activity_window_service) {
 
     WorldRuntimeConfig config;
     config.world_id = "world_default";
     config.seed = 1;
     config.region_size = 16;
     config.default_vision_radius = 10;
+    config.worldgen_profile_key = "sandbox_blank";
 
     auto init_res = runtime.initialize(config);
     if (init_res.is_error()) {
         return init_res;
     }
 
-    world_generation::WorldGenerationRequest wg_request;
-    wg_request.world_id = config.world_id;
-    wg_request.world_seed = config.seed;
-    wg_request.generator_version = "1.0.0";
-    wg_request.content_version = "1.0.0";
-    wg_request.worldgen_profile_key = "first_world";
-    wg_request.region_coord = world_generation::WorldRegionCoord{0, 0};
-    wg_request.region_size = config.region_size;
-    wg_request.enabled_layer_keys = std::vector<std::string>{"surface"};
-
-    auto wg_result = worldgen_service.generate(wg_request);
-    if (!wg_result.ok || wg_result.cell_drafts.empty()) {
-        return pathfinder::foundation::Result<void>::fail(
-            pathfinder::foundation::makeError(pathfinder::foundation::ErrorCode::state_change_invalid,
-                "origin_region_generation_failed", "Failed to generate origin region"));
+    const std::string region_id = config.world_id + ":surface:region:0:0:" + std::to_string(config.region_size);
+    const int min_coord = -(config.region_size / 2);
+    const int max_coord = (config.region_size / 2) - 1;
+    for (int y = min_coord; y <= max_coord; ++y) {
+        for (int x = min_coord; x <= max_coord; ++x) {
+            auto cell_res = runtime.createOrUpdateGeneratedCell(
+                WorldCellCoord{x, y, "surface"},
+                "plain",
+                region_id,
+                false,
+                1,
+                {"plain", "sandbox"});
+            if (cell_res.is_error()) {
+                return cell_res;
+            }
+        }
     }
-
-    world_generation::WorldGenerationApplier applier(runtime, runtime);
-    auto apply_result = applier.apply(wg_result);
-    if (!apply_result.ok) {
-        return pathfinder::foundation::Result<void>::fail(
-            pathfinder::foundation::makeError(pathfinder::foundation::ErrorCode::state_change_invalid,
-                "origin_region_apply_failed", "Failed to apply origin region"));
-    }
+    runtime.markRegionGenerated(region_id);
 
     auto player_res = runtime.setupPlayerActor(config);
     if (player_res.is_error()) {
@@ -84,14 +75,6 @@ pathfinder::foundation::Result<void> initializePlayableWorld(
     auto inv_init = inventory_runtime.initialize();
     if (inv_init.is_error()) {
         return inv_init;
-    }
-
-    if (content_registry) {
-        auto bootstrap_res = pathfinder::world_modules::spawnDefaultPlayableWorldEntities(
-            runtime, *content_registry, config);
-        if (bootstrap_res.is_error()) {
-            return bootstrap_res;
-        }
     }
 
     pathfinder::world_modules::clearDefaultWorldModuleRuntimeState();
@@ -299,7 +282,7 @@ ClientRuntimeHostFactory::ClientRuntimeHostFactory()
 
     auto world_reset_res = resetWorld();
     if (world_reset_res.is_error()) {
-        std::cerr << "[P60] Initial playable world reset failed\n";
+        std::cerr << "[P60] Initial sandbox world reset failed\n";
     }
 
     // P60: Create map selection service
@@ -333,13 +316,11 @@ pathfinder::foundation::Result<void> ClientRuntimeHostFactory::resetWorld() {
     if (knowledge_repository) {
         knowledge_repository->clear();
     }
-    return initializePlayableWorld(
+    return initializeSandboxWorld(
         *world_runtime,
         *inventory_runtime,
-        *worldgen_service,
         region_store.get(),
-        activity_window_service.get(),
-        content_registry.get());
+        activity_window_service.get());
 }
 
 } // namespace pathfinder::client_runtime_host

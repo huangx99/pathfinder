@@ -18,6 +18,15 @@ std::string translateObjectName(
     return translated == key ? object_key : translated;
 }
 
+std::string translateAgentName(
+    const pathfinder::content::ContentRegistry& content_registry,
+    const std::string& agent_key) {
+    const auto* agent = content_registry.findAgent(agent_key);
+    const auto key = agent && !agent->display_key.empty() ? agent->display_key : "agent." + agent_key + ".name";
+    auto translated = content_registry.translate("zh_cn", key);
+    return translated == key ? agent_key : translated;
+}
+
 bool isRawPlaceableObject(const pathfinder::content::ObjectDefinitionContent& object) {
     if (hasTag(object.safe_tags, "crafted") || hasTag(object.safe_tags, "manufactured")) return false;
     if (object.kind == "tool" || object.kind == "weapon") return false;
@@ -39,6 +48,32 @@ std::vector<PlaceableObjectDefinition> buildRawPlaceableObjects(
     }
     std::sort(result.begin(), result.end(), [](const auto& lhs, const auto& rhs) {
         return lhs.object_key < rhs.object_key;
+    });
+    return result;
+}
+
+std::vector<PlaceableAgentDefinition> buildPlaceableAgents(
+    const pathfinder::content::ContentRegistry& content_registry) {
+    std::vector<PlaceableAgentDefinition> result;
+    for (const auto* agent : content_registry.allAgents()) {
+        if (!agent || agent->embodiment != "humanoid") continue;
+        PlaceableAgentDefinition def;
+        def.agent_key = agent->key.value();
+        def.display_name = translateAgentName(content_registry, def.agent_key);
+        def.display_key = agent->display_key;
+        def.embodiment = agent->embodiment;
+        def.cognition_band = agent->cognition_band;
+        def.vision_radius = 3;
+        def.numeric_states["fear"] = agent->default_fear;
+        def.numeric_states["hunger"] = agent->default_hunger;
+        def.numeric_states["trust"] = agent->default_trust;
+        def.tag_keys = {"actor", "npc", agent->embodiment, agent->cognition_band};
+        if (agent->can_learn) def.tag_keys.push_back("can_learn");
+        if (agent->can_teach) def.tag_keys.push_back("can_teach");
+        result.push_back(std::move(def));
+    }
+    std::sort(result.begin(), result.end(), [](const auto& lhs, const auto& rhs) {
+        return lhs.agent_key < rhs.agent_key;
     });
     return result;
 }

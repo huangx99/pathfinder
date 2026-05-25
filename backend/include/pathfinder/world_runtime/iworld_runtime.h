@@ -26,6 +26,16 @@ public:
     virtual foundation::Result<const WorldActorRuntime*> findActor(const std::string& actor_key) const = 0;
 
     virtual foundation::Result<void> generateInitialWorld(const WorldRuntimeConfig& config) = 0;
+    virtual foundation::Result<void> spawnActor(
+        const std::string& actor_key,
+        const std::string& entity_key,
+        const std::string& display_name_key,
+        const WorldCellCoord& coord,
+        int vision_radius,
+        bool is_player_controlled = false,
+        const std::vector<std::string>& tag_keys = {},
+        const std::map<std::string, double>& numeric_states = {},
+        const std::string& entity_id_override = "") = 0;
     virtual foundation::Result<MoveActorResult> moveActor(const std::string& actor_key, const WorldCellCoord& target) = 0;
     virtual foundation::Result<ActorHealthChangeResult> applyActorHealthDelta(
         const std::string& actor_key,

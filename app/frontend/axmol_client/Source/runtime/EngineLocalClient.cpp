@@ -44,6 +44,8 @@ std::vector<std::string> splitCsv(const std::string& value) {
 
 std::string displayNameForKey(const std::string& key) {
     if (key == "player") return "探索者";
+    if (key == "companion") return "同伴";
+    if (key == "beast_shadow") return "野兽暗影";
     if (key == "red_berry") return "红果";
     if (key == "decayed_red_berry") return "腐烂红果";
     if (key == "bitter_leaf") return "苦叶";
@@ -265,7 +267,6 @@ void EngineLocalClient::applyCommand(const pathfinder::client_protocol::ClientCo
     } else {
         refresh();
     }
-    snapshot_.available_commands = response.available_commands.empty() ? snapshot_.available_commands : response.available_commands;
     for (const auto& event : response.event_feed) snapshot_.events.push_back(eventText(event));
     for (const auto& experience : response.experiences) {
         snapshot_.events.push_back("经验：" + experience.command_key + " → " + experience.effect_key);
@@ -326,6 +327,7 @@ void EngineLocalClient::rebuildSnapshot(const pathfinder::client_protocol::Clien
         EngineEntityView entity;
         entity.entity_id = patch.entity_id;
         if (auto it = patch.fields.find("entity_key"); it != patch.fields.end()) entity.entity_key = it->second;
+        if (auto it = patch.fields.find("actor_key"); it != patch.fields.end()) entity.actor_key = it->second;
         if (auto it = patch.fields.find("display_name_key"); it != patch.fields.end()) entity.display_name = displayNameForKey(entity.entity_key.empty() ? it->second : entity.entity_key);
         if (entity.display_name.empty()) entity.display_name = displayNameForKey(entity.entity_key);
         entity.x = intField(patch.fields, "x");
@@ -378,6 +380,19 @@ void EngineLocalClient::rebuildSnapshot(const pathfinder::client_protocol::Clien
         if (!claim.subject_object_key.empty() || !claim.effect_key.empty()) player.knowledge.push_back(std::move(claim));
     }
 
+    for (const auto& entity : snapshot_.entities) {
+        if (entity.actor_key.empty() || entity.actor_key == actor_key_) continue;
+        EngineAgentView agent;
+        agent.agent_id = entity.actor_key;
+        agent.name = entity.display_name.empty() ? displayNameForKey(entity.entity_key) : entity.display_name;
+        agent.x = entity.x;
+        agent.y = entity.y;
+        agent.health = entity.numeric_states.count("health") ? entity.numeric_states.at("health") : 10.0;
+        agent.max_health = entity.numeric_states.count("max_health") ? entity.numeric_states.at("max_health") : 10.0;
+        agent.hunger = entity.numeric_states.count("hunger") ? entity.numeric_states.at("hunger") : 0.0;
+        agent.current_intent = "正在探索世界";
+        snapshot_.agents.push_back(std::move(agent));
+    }
     snapshot_.agents.push_back(std::move(player));
 }
 

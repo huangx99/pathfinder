@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cassert>
 #include <iostream>
 #include <functional>
@@ -95,6 +96,37 @@ static void spawnMapItem(RuntimeBackedFixture& f,
     assert(res.is_ok());
 }
 
+
+static void spawnTestActor(RuntimeBackedFixture& f,
+                           const std::string& actor_key,
+                           const std::string& entity_key,
+                           const pathfinder::world_runtime::WorldCellCoord& coord,
+                           const std::string& entity_id_override = "") {
+    const auto* agent = f.factory.content_registry->findAgent(entity_key);
+    const auto* object = f.factory.content_registry->findObject(entity_key);
+    std::string display_key = agent ? agent->display_key : object ? object->display_key : "entity." + entity_key;
+    std::vector<std::string> tags = object ? object->safe_tags : std::vector<std::string>{"actor"};
+    std::map<std::string, double> numeric = object ? object->default_numeric : std::map<std::string, double>{};
+    if (agent) {
+        if (std::find(tags.begin(), tags.end(), "actor") == tags.end()) tags.push_back("actor");
+        if (!agent->embodiment.empty()) tags.push_back(agent->embodiment);
+        if (!agent->cognition_band.empty()) tags.push_back(agent->cognition_band);
+        numeric["fear"] = agent->default_fear;
+        numeric["hunger"] = agent->default_hunger;
+        numeric["trust"] = agent->default_trust;
+    }
+    auto res = f.factory.world_runtime->spawnActor(
+        actor_key,
+        entity_key,
+        display_key,
+        coord,
+        10,
+        false,
+        tags,
+        numeric,
+        entity_id_override);
+    assert(res.is_ok());
+}
 
 static void spawnResourceNode(RuntimeBackedFixture& f,
                               const std::string& node_id,
@@ -601,6 +633,7 @@ void run_negative_cross_region_move_tests() {
 // ---------------------------------------------------------------------------
 void run_npc_order_crafts_axe_after_teaching_tests() {
     RuntimeBackedFixture f;
+    spawnTestActor(f, "companion", "companion", {1, 0, "surface"});
 
     auto boot = f.harness.fakeBootstrap("client_1", "session_npc_axe", "player");
     assert(boot.is_ok());
@@ -706,6 +739,8 @@ void run_npc_order_crafts_axe_after_teaching_tests() {
 // ---------------------------------------------------------------------------
 void run_npc_order_torch_counters_threat_after_teaching_tests() {
     RuntimeBackedFixture f;
+    spawnTestActor(f, "companion", "companion", {1, 0, "surface"});
+    spawnTestActor(f, "beast_shadow", "beast_shadow", {4, 1, "surface"}, "scenario_beast_shadow");
 
     auto boot = f.harness.fakeBootstrap("client_1", "session_npc_torch", "player");
     assert(boot.is_ok());
@@ -818,6 +853,7 @@ void run_pickup_options_exclude_predator_tests() {
 // ---------------------------------------------------------------------------
 void run_npc_follow_command_moves_companion_tests() {
     RuntimeBackedFixture f;
+    spawnTestActor(f, "companion", "companion", {1, 0, "surface"});
 
     auto boot = f.harness.fakeBootstrap("client_1", "session_npc_follow", "player");
     assert(boot.is_ok());
@@ -879,6 +915,7 @@ void run_map_edit_options_respect_raw_policy_tests() {
     bool has_crafted_axe = false;
     bool has_crafted_torch = false;
     bool has_camp_fire = false;
+    bool has_place_companion = false;
     for (const auto& option : boot.value().available_commands) {
         if (option.command_kind == WorldCommandKind::PaintTerrain &&
             option.command_key == "paint_terrain" &&
@@ -893,6 +930,11 @@ void run_map_edit_options_respect_raw_policy_tests() {
             if (option.target.target_item_key == "torch") has_crafted_torch = true;
             if (option.target.target_item_key == "camp_fire") has_camp_fire = true;
         }
+        if (option.command_kind == WorldCommandKind::SpawnEntity &&
+            option.command_key == "place_agent" &&
+            option.target.target_item_key == "companion") {
+            has_place_companion = true;
+        }
     }
 
     assert(has_paint);
@@ -901,6 +943,7 @@ void run_map_edit_options_respect_raw_policy_tests() {
     assert(!has_crafted_axe);
     assert(!has_crafted_torch);
     assert(!has_camp_fire);
+    assert(has_place_companion);
 
     std::cout << "client_runtime_bridge_map_edit_options_respect_raw_policy_tests: all passed" << std::endl;
 }
@@ -965,6 +1008,38 @@ void run_map_edit_commands_execute_through_pipeline_tests() {
     }
     assert(found_flint);
 
+    version = place_response.value().new_projection_version;
+    auto after_place_refresh = f.harness.fakeRefresh("session_map_edit_execute", "client_1", version);
+    assert(after_place_refresh.is_ok());
+    version = after_place_refresh.value().projection_version;
+
+    const auto* place_agent = findOption(after_place_refresh.value().available_commands, [](const auto& option) {
+        return option.command_kind == WorldCommandKind::SpawnEntity &&
+               option.command_key == "place_agent" &&
+               option.target.target_item_key == "companion" &&
+               option.target.target_coord;
+    });
+    assert(place_agent != nullptr);
+    const auto placed_agent_coord = *place_agent->target.target_coord;
+
+    auto agent_response = f.harness.fakeSubmitOption("session_map_edit_execute", "client_1", 3, version, place_agent->option_id);
+    assert(agent_response.is_ok());
+    assert(agent_response.value().result.result_kind == WorldCommandResultKind::Succeeded);
+
+    snap = f.factory.world_runtime->snapshotForDebug();
+    assert(snap.is_ok());
+    bool found_placed_companion = false;
+    for (const auto& [actor_key, actor] : snap.value().actors) {
+        if (actor_key.find("placed_actor_companion_") == 0 &&
+            actor.coord.x == placed_agent_coord.x &&
+            actor.coord.y == placed_agent_coord.y &&
+            actor.coord.layer_key == placed_agent_coord.layer_key) {
+            found_placed_companion = true;
+            break;
+        }
+    }
+    assert(found_placed_companion);
+
     std::cout << "client_runtime_bridge_map_edit_commands_execute_through_pipeline_tests: all passed" << std::endl;
 }
 
@@ -974,6 +1049,8 @@ void run_map_edit_commands_execute_through_pipeline_tests() {
 // ---------------------------------------------------------------------------
 void run_wildlife_actor_chases_and_attacks_tests() {
     RuntimeBackedFixture f;
+    spawnTestActor(f, "companion", "companion", {1, 0, "surface"});
+    spawnTestActor(f, "beast_shadow", "beast_shadow", {4, 1, "surface"}, "scenario_beast_shadow");
 
     auto boot = f.harness.fakeBootstrap("client_1", "session_wildlife", "player");
     assert(boot.is_ok());
