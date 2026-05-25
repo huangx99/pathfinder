@@ -1,13 +1,16 @@
 # Frontend Boundary
 
-V3.0 客户端将重新基于 Axmol 构建。
-
-当前目录约定：
+V3.0 客户端重新基于 Axmol 构建：
 
 ```text
+app/frontend/axmol_client
 app/frontend/third_party/axmol
 ```
 
-保留为 Axmol 第三方引擎依赖。
+边界规则：
 
-旧的 H5 客户端和旧的 Axmol 原型客户端已经废弃并删除，后续不要基于旧客户端继续改造。新的 V3.0 客户端应重新建立独立工程目录，并只通过后端 Command / Projection 协议交互，不能在前端写玩法规则。
+- `third_party/axmol` 只作为第三方引擎依赖保留。
+- `axmol_client` 是 V3.0 新客户端，不恢复旧 H5/旧 Axmol 玩法架构。
+- 前端只负责输入、展示和表现，不能写玩法规则，不能绕过后端 Command/Runtime。
+- 界面必须模块化：地图、工具面板、观察面板、事件面板分别独立类。
+- 程序化绘制放在 `Source/procedural/`，一个物品或地形一个文件，后续方便替换美术。

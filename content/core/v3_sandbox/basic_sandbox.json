@@ -1,0 +1,39 @@
+{
+  "schema_version": "v3_sandbox_1",
+  "map": {
+    "width": 16,
+    "height": 12,
+    "default_terrain": "grass"
+  },
+  "terrains": [
+    { "terrain_key": "grass", "display_name": "草地", "walkable": true },
+    { "terrain_key": "soil", "display_name": "泥土", "walkable": true },
+    { "terrain_key": "water", "display_name": "浅水", "walkable": false }
+  ],
+  "initial_unlocks": {
+    "terrains": ["grass", "soil", "water"],
+    "objects": ["red_berry", "decayed_red_berry", "stone_flake"],
+    "agents": ["basic_npc"]
+  },
+  "unlock_rules": [
+    {
+      "unlock_key": "unlock_bitter_leaf_after_first_food_knowledge",
+      "when_any_effect_known": "restore_hunger",
+      "unlock_object": "bitter_leaf",
+      "event_text": "观察者解锁了新的投放对象：苦叶。"
+    },
+    {
+      "unlock_key": "unlock_wood_after_tool_hint",
+      "when_any_effect_known": "use_hint",
+      "unlock_object": "wood",
+      "event_text": "观察者解锁了新的投放对象：木头。"
+    }
+  ],
+  "npc_policy": {
+    "perception_radius": 1,
+    "hunger_per_tick": 8.0,
+    "curiosity_chance_percent": 65,
+    "critical_hunger": 60.0,
+    "health_damage_scale": 20.0
+  }
+}
