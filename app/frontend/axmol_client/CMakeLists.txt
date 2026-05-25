@@ -69,6 +69,15 @@ set(PATHFINDER_AXMOL_SOURCES
     Source/procedural/Axe.cpp
     Source/procedural/FireThings.cpp
     Source/procedural/NatureObjects.cpp
+    Source/procedural/DryGrass.cpp
+    Source/procedural/Flint.cpp
+    Source/procedural/Clay.cpp
+    Source/procedural/Reed.cpp
+    Source/procedural/Vine.cpp
+    Source/procedural/Mushroom.cpp
+    Source/procedural/PoisonMushroom.cpp
+    Source/procedural/AgentSprites.cpp
+    Source/procedural/ObjectArtCatalog.cpp
     proj.linux/main.cpp
 )
 

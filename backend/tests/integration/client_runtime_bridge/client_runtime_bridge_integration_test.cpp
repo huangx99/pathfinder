@@ -1043,6 +1043,39 @@ void run_map_edit_commands_execute_through_pipeline_tests() {
 }
 
 // ---------------------------------------------------------------------------
+// Idle humanoid NPCs should advance through backend autonomous wander ticks on Wait.
+// ---------------------------------------------------------------------------
+void run_idle_npc_wanders_on_wait_tests() {
+    RuntimeBackedFixture f;
+    spawnTestActor(f, "companion_idle", "companion", {1, 0, "surface"});
+
+    auto boot = f.harness.fakeBootstrap("client_1", "session_idle_wander", "player");
+    assert(boot.is_ok());
+    uint64_t version = boot.value().projection_version;
+    uint64_t sequence = 1;
+
+    auto before = f.factory.world_runtime->findActor("companion_idle");
+    assert(before.is_ok());
+    const auto start = before.value()->coord;
+
+    bool moved = false;
+    bool saw_event = false;
+    for (int step = 0; step < 5 && !moved; ++step) {
+        auto response = submitWait(f, "session_idle_wander", version, sequence);
+        for (const auto& event : response.event_feed) {
+            if (event.event_kind == "NpcWanderStep") saw_event = true;
+        }
+        auto after = f.factory.world_runtime->findActor("companion_idle");
+        assert(after.is_ok());
+        moved = after.value()->coord.x != start.x || after.value()->coord.y != start.y;
+    }
+
+    assert(moved);
+    assert(saw_event);
+    std::cout << "client_runtime_bridge_idle_npc_wanders_on_wait_tests: all passed" << std::endl;
+}
+
+// ---------------------------------------------------------------------------
 // P63: wildlife is a real actor; waiting lets it move through BeastDecision and
 // eventually attack through the Attack command handler with projected health.
 // ---------------------------------------------------------------------------
@@ -1135,6 +1168,7 @@ int main(int argc, char* argv[]) {
         run_npc_follow_command_moves_companion_tests();
         run_map_edit_options_respect_raw_policy_tests();
         run_map_edit_commands_execute_through_pipeline_tests();
+        run_idle_npc_wanders_on_wait_tests();
         run_wildlife_actor_chases_and_attacks_tests();
         return 0;
     }
@@ -1160,6 +1194,7 @@ int main(int argc, char* argv[]) {
     else if (test_name == "npc_follow_command_moves_companion") run_npc_follow_command_moves_companion_tests();
     else if (test_name == "map_edit_options_respect_raw_policy") run_map_edit_options_respect_raw_policy_tests();
     else if (test_name == "map_edit_commands_execute_through_pipeline") run_map_edit_commands_execute_through_pipeline_tests();
+    else if (test_name == "idle_npc_wanders_on_wait") run_idle_npc_wanders_on_wait_tests();
     else if (test_name == "wildlife_actor_chases_and_attacks") run_wildlife_actor_chases_and_attacks_tests();
     else {
         std::cerr << "Unknown test: " << test_name << std::endl;

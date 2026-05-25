@@ -1,9 +1,11 @@
 #include "world/SandboxMapLayer.h"
 #include "procedural/ProceduralArt.h"
+#include "procedural/ObjectArtCatalog.h"
 #include "ui/PixelUI.h"
 #include "pathfinder/logging/logger.h"
 
 #include <algorithm>
+#include <set>
 
 namespace pf::world {
 namespace {
@@ -16,13 +18,6 @@ ax::Node* createTerrainArt(const std::string& key) {
     return pf::art::createGrassTile(kTileSize);
 }
 
-ax::Node* createObjectArt(const std::string& key) {
-    if (key == "red_berry" || key == "berry_bush") return pf::art::createRedBerry(kTileSize * 0.78F);
-    if (key == "decayed_red_berry") return pf::art::createDecayedRedBerry(kTileSize * 0.78F);
-    if (key == "bitter_leaf") return pf::art::createBitterLeaf(kTileSize * 0.74F);
-    if (key == "wood" || key == "young_tree") return pf::art::createWood(kTileSize * 0.74F);
-    return pf::art::createStoneFlake(kTileSize * 0.70F);
-}
 
 } // namespace
 
@@ -76,6 +71,8 @@ void SandboxMapLayer::render(const pf::client::EngineSnapshot& snapshot, int sel
         pathfinder::logging::log(pathfinder::logging::tag::Map, "map layer rebuilt width=" + std::to_string(snapshot.width) + " height=" + std::to_string(snapshot.height) + " min_x=" + std::to_string(snapshot.min_x) + " min_y=" + std::to_string(snapshot.min_y));
         removeAllChildren();
         cache_.clear();
+        object_nodes_.clear();
+        agent_nodes_.clear();
         cache_.resize(std::max(0, snapshot.width * snapshot.height));
         cached_width_ = snapshot.width;
         cached_height_ = snapshot.height;
@@ -108,9 +105,6 @@ void SandboxMapLayer::render(const pf::client::EngineSnapshot& snapshot, int sel
         addChild(agent_layer_, 6);
         selection_layer_ = ax::Node::create();
         addChild(selection_layer_, 8);
-    } else {
-        object_layer_->removeAllChildren();
-        agent_layer_->removeAllChildren();
     }
 
     for (const auto& cell : snapshot.cells) {
@@ -133,17 +127,45 @@ void SandboxMapLayer::render(const pf::client::EngineSnapshot& snapshot, int sel
         cached.entity_ids = cell.entity_ids;
     }
 
+    std::set<std::string> visible_objects;
     for (const auto& entity : snapshot.entities) {
         if (entity.entity_key == "player" || !entity.actor_key.empty()) continue;
-        auto* art = createObjectArt(entity.entity_key);
+        visible_objects.insert(entity.entity_id);
+        auto* art = object_nodes_[entity.entity_id];
+        if (!art) {
+            art = pf::art::createWorldObjectIcon(entity.entity_key, kTileSize * 0.78F);
+            object_nodes_[entity.entity_id] = art;
+            object_layer_->addChild(art, 4);
+        }
         art->setPosition(cellToPosition(entity.x, entity.y, snapshot) + ax::Vec2(-5.0F, -3.0F));
-        object_layer_->addChild(art, 4);
+    }
+    for (auto it = object_nodes_.begin(); it != object_nodes_.end();) {
+        if (visible_objects.count(it->first)) {
+            ++it;
+        } else {
+            it->second->removeFromParentAndCleanup(true);
+            it = object_nodes_.erase(it);
+        }
     }
 
+    std::set<std::string> visible_agents;
     for (const auto& agent : snapshot.agents) {
-        auto* actor = pf::art::createPlayer(kTileSize * 0.86F);
+        visible_agents.insert(agent.agent_id);
+        auto* actor = agent_nodes_[agent.agent_id];
+        if (!actor) {
+            actor = pf::art::createWorldAgentIcon(agent.agent_id.find("beast_shadow") != std::string::npos ? "beast_shadow" : "companion", kTileSize * 0.86F);
+            agent_nodes_[agent.agent_id] = actor;
+            agent_layer_->addChild(actor, 6);
+        }
         actor->setPosition(cellToPosition(agent.x, agent.y, snapshot) + ax::Vec2(4.0F, 2.0F));
-        agent_layer_->addChild(actor, 6);
+    }
+    for (auto it = agent_nodes_.begin(); it != agent_nodes_.end();) {
+        if (visible_agents.count(it->first)) {
+            ++it;
+        } else {
+            it->second->removeFromParentAndCleanup(true);
+            it = agent_nodes_.erase(it);
+        }
     }
 
     selection_layer_->removeAllChildren();

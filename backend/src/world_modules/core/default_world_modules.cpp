@@ -1,5 +1,6 @@
 #include "pathfinder/world_modules/core/default_world_modules.h"
 #include "pathfinder/world_beast_ecology/beast_runtime_module.h"
+#include "pathfinder/world_modules/agent_wander/world_agent_wander_module.h"
 #include "pathfinder/world_command/world_command_handlers.h"
 #include "pathfinder/world_modules/follow/world_follow_module.h"
 #include "pathfinder/world_generation/world_generation_command_handler.h"
@@ -121,6 +122,23 @@ void registerPostCommandHooks(WorldModuleContext& context) {
             [](const std::string& actor_key) {
                 return pathfinder::world_npc_work::isNpcWorkActive(actor_key);
             });
+    });
+
+    context.post_command_hooks.addHook("world_agent_wander", [world_runtime,
+                                                               content_registry,
+                                                               pipeline](
+        const pathfinder::world_command::WorldCommandDto& command,
+        pathfinder::client_protocol::ClientCommandResponse& response) {
+        if (command.command_kind != pathfinder::world_command::WorldCommandKind::Wait) return;
+        pathfinder::world_agent_wander::runAgentWanderTicks(
+            *world_runtime,
+            *content_registry,
+            *pipeline,
+            [](const std::string& actor_key) {
+                return pathfinder::world_npc_work::isNpcWorkActive(actor_key) ||
+                       pathfinder::world_follow::isFollowingActor(actor_key);
+            },
+            response);
     });
 
     context.post_command_hooks.addHook("world_beast_ecology", [world_runtime,

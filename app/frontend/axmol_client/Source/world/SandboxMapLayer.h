@@ -3,6 +3,7 @@
 #include "axmol/axmol.h"
 #include "runtime/EngineLocalClient.h"
 #include <functional>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -37,6 +38,8 @@ private:
     ax::Node* agent_layer_{nullptr};
     ax::DrawNode* grid_layer_{nullptr};
     ax::Node* selection_layer_{nullptr};
+    std::map<std::string, ax::Node*> object_nodes_;
+    std::map<std::string, ax::Node*> agent_nodes_;
 };
 
 } // namespace pf::world

@@ -1,6 +1,7 @@
 #include "ui/ToolPalettePanel.h"
 #include "ui/PixelUI.h"
 #include "procedural/ProceduralArt.h"
+#include "procedural/ObjectArtCatalog.h"
 
 #include "axmol/ui/UILayout.h"
 #include "axmol/ui/UILayoutParameter.h"
@@ -49,16 +50,8 @@ ax::Node* createToolIcon(const std::string& key, float size) {
     if (key == "water" || key == "water_edge") return pf::art::createWaterTile(size);
     if (key == "forest") return pf::art::createForestTile(size);
     if (key == "stone_field") return pf::art::createRockyTile(size);
-    if (key == "red_berry")        return pf::art::createRedBerry(size);
-    if (key == "decayed_red_berry") return pf::art::createDecayedRedBerry(size);
-    if (key == "stone_flake")      return pf::art::createStoneFlake(size);
-    if (key == "bitter_leaf")      return pf::art::createBitterLeaf(size);
-    if (key == "wood")             return pf::art::createWood(size);
-    if (key == "dry_grass" || key == "reed" || key == "vine") return pf::art::createBitterLeaf(size);
-    if (key == "flint" || key == "clay") return pf::art::createLooseStone(size);
-    if (key == "mushroom" || key == "poison_mushroom") return pf::art::createRedBerry(size);
-    if (key == "basic_npc" || key == "companion") return pf::art::createPlayer(size);
-    return nullptr;
+    if (key == "basic_npc" || key == "companion") return pf::art::createWorldAgentIcon("companion", size);
+    return pf::art::createWorldObjectIcon(key, size);
 }
 
 } // namespace

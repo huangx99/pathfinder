@@ -1169,6 +1169,7 @@ add_library(pathfinder_world_modules STATIC
     src/world_beast_ecology/beast_runtime_module.cpp
     src/world_modules/follow/world_follow_module.cpp
     src/world_modules/npc_work/world_npc_work_module.cpp
+    src/world_modules/agent_wander/world_agent_wander_module.cpp
 )
 
 target_include_directories(pathfinder_world_modules PUBLIC

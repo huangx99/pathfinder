@@ -18,6 +18,7 @@ bool runFollowTicks(
     pathfinder::client_protocol::ClientCommandResponse& response,
     const std::function<bool(const std::string&)>& is_actor_busy = {});
 
+bool isFollowingActor(const std::string& actor_key);
 void clearFollowingActors();
 
 } // namespace pathfinder::world_follow

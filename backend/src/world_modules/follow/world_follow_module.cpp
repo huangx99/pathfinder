@@ -134,6 +134,10 @@ bool runFollowTicks(
     return true;
 }
 
+bool isFollowingActor(const std::string& actor_key) {
+    return followingActorKeys().find(actor_key) != followingActorKeys().end();
+}
+
 void clearFollowingActors() {
     followingActorKeys().clear();
 }
