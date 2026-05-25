@@ -9,8 +9,8 @@
 
 namespace pf::client {
 namespace {
-constexpr float kMapX = 250.0F;
-constexpr float kMapY = 80.0F;
+constexpr float kMapCenterX = 618.0F;
+constexpr float kMapCenterY = 378.0F;
 }
 
 ax::Scene* SandboxScene::createScene() {
@@ -47,7 +47,6 @@ bool SandboxScene::init() {
     // 地图（中央）
     map_layer_ = pf::world::SandboxMapLayer::create(
         [this](int x, int y) { handleCellClicked(x, y); });
-    map_layer_->setPosition(kMapX, kMapY);
     addChild(map_layer_, 4);
 
     // Agent 信息（右侧）
@@ -66,6 +65,8 @@ bool SandboxScene::init() {
 
 void SandboxScene::refreshAll() {
     map_layer_->render(client_.snapshot(), selected_x_, selected_y_);
+    const auto map_size = map_layer_->getContentSize();
+    map_layer_->setPosition(kMapCenterX - map_size.width * 0.5F, kMapCenterY - map_size.height * 0.5F);
     tool_panel_->refresh();
     playback_panel_->setState(playing_, client_.snapshot().tick);
     event_log_panel_->setEvents(client_.snapshot().events, client_.lastError());

@@ -41,7 +41,7 @@ pathfinder::foundation::Result<void> initializeSandboxWorld(
     config.world_id = "world_default";
     config.seed = 1;
     config.region_size = 16;
-    config.default_vision_radius = 32;
+    config.default_vision_radius = 10;
     config.worldgen_profile_key = "sandbox_blank";
     config.create_player_entity = false;
     config.player_is_controlled = false;
@@ -265,7 +265,7 @@ ClientRuntimeHostFactory::ClientRuntimeHostFactory()
     // P60: Create region activity window service
     {
         world_map_interaction::RegionActivityWindowService::Config aw_config;
-        aw_config.vision_radius_cells = 32;
+        aw_config.vision_radius_cells = 10;
         aw_config.preload_margin_regions = 1;
         // Local clients may advance the world automatically at a high frequency.
         // Keep generated runtime regions stable for the playable prototype so

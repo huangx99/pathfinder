@@ -8,7 +8,7 @@
 namespace pf::world {
 namespace {
 
-constexpr float kTileSize = 44.0F;
+constexpr float kTileSize = 30.0F;
 
 ax::Node* createTerrainArt(const std::string& key) {
     if (key == "water_edge" || key == "deep_water") return pf::art::createWaterTile(kTileSize);
@@ -83,7 +83,7 @@ void SandboxMapLayer::render(const pf::client::EngineSnapshot& snapshot, int sel
         auto* bg = ax::DrawNode::create();
         bg->drawSolidRect(ax::Vec2::ZERO,
                           ax::Vec2(getContentSize().width, getContentSize().height),
-                          pf::ui::pixelColor(7, 13, 23));
+                          pf::ui::pixelColor(24, 58, 38));
         addChild(bg, 0);
 
         terrain_layer_ = ax::Node::create();
