@@ -49,6 +49,12 @@ private:
         HotbarSlot,
         InventoryItem,
         CraftOption,
+        ManageKnowledgeCards,
+        CloseKnowledgeCardPanel,
+        KnowledgeCardCategory,
+        ClearKnowledgeCardSearch,
+        AssignKnowledgeCard,
+        RecoverKnowledgeCard,
     };
 
     struct UiHitBox {
@@ -60,6 +66,7 @@ private:
     void bootstrapLocalRuntime();
     void renderWorld();
     void renderTerrain();
+    void renderCampAtmosphere();
     void renderWaterAnimation(float delta);
     void renderPath();
     void renderEntities();
@@ -68,6 +75,8 @@ private:
     void renderInventoryBar();
     void renderInventoryPanel();
     void renderContextPanel();
+    void renderTaskGraphCanvas(const pf::client::LocalActorTaskView* task_view, const ax::Rect& rect);
+    void renderKnowledgeCardPanel();
     void updateHud();
     void updateSelectionPanel();
     void syncPlayerCoord();
@@ -103,6 +112,7 @@ private:
     bool onMouseUp(ax::EventMouse* event);
     bool onMouseMove(ax::EventMouse* event);
     bool onMouseScroll(ax::EventMouse* event);
+    void onKeyPressed(ax::EventKeyboard::KeyCode key_code, ax::Event* event);
 
     ax::Node* world_layer_{nullptr};
     ax::Node* terrain_layer_{nullptr};
@@ -125,6 +135,7 @@ private:
     std::vector<UiHitBox> ui_hit_boxes_;
     std::vector<ax::Rect> ui_blocking_rects_;
     std::vector<std::string> hotbar_item_keys_;
+    std::vector<std::string> knowledge_card_panel_card_ids_;
     Coord player_coord_{0, 0};
     Coord selected_coord_{0, 0};
     bool has_selection_{true};
@@ -143,15 +154,24 @@ private:
 
     ax::Vec2 world_origin_{0.0F, 0.0F};
     ax::Vec2 camera_offset_{0.0F, 0.0F};
+    ax::Vec2 npc_panel_offset_{0.0F, 0.0F};
+    ax::Vec2 npc_panel_drag_start_{0.0F, 0.0F};
     ax::Vec2 mouse_down_pos_{0.0F, 0.0F};
     bool dragging_{false};
+    bool dragging_npc_panel_{false};
     bool mouse_down_{false};
     bool mouse_down_on_ui_{false};
     bool inventory_panel_open_{false};
+    bool knowledge_card_panel_open_{false};
+    std::string knowledge_card_panel_actor_key_;
+    std::string knowledge_card_search_text_;
+    int knowledge_card_category_index_{0};
+    int knowledge_card_scroll_row_{0};
     InventoryPanelTab inventory_panel_tab_{InventoryPanelTab::Inventory};
     int selected_hotbar_slot_{-1};
     int selected_inventory_index_{-1};
     int inventory_scroll_row_{0};
+    float task_graph_zoom_{1.0F};
     float zoom_{1.0F};
     double last_click_seconds_{0.0};
     Coord last_click_coord_{0, 0};

@@ -6,8 +6,10 @@
 #include <array>
 #include <cmath>
 #include <chrono>
+#include <cctype>
 #include <cstdlib>
 #include <string>
+#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
@@ -20,13 +22,19 @@ constexpr float kMaxZoom = 2.0F;
 constexpr double kDoubleClickSeconds = 0.32;
 constexpr float kPathStepSeconds = 0.16F;
 constexpr float kPlayerMoveTweenSeconds = 0.14F;
-constexpr float kWorldAutoTickSeconds = 0.10F;
+constexpr float kWorldAutoTickSeconds = 0.35F;
 constexpr int kEntityMoveActionTag = 6101;
 constexpr int kRenderMarginTiles = 4;
 constexpr float kInventorySlotSize = 42.0F;
 constexpr float kInventorySlotGap = 4.0F;
 constexpr int kInventoryHotbarSlots = 9;
 constexpr int kHotbarItemSlots = 8;
+constexpr float kNpcPanelWidth = 740.0F;
+constexpr float kNpcPanelMaxHeight = 620.0F;
+constexpr float kNpcPanelTopMargin = 36.0F;
+constexpr float kNpcPanelBottomMargin = 36.0F;
+constexpr float kNpcPanelHeaderHeight = 92.0F;
+constexpr float kNpcTaskGraphHeight = 250.0F;
 
 Color32 bgColor() { return Color32(9, 20, 35, 255); }
 Color gridColor() { return Color(15 / 255.0F, 23 / 255.0F, 42 / 255.0F, 0.18F); }
@@ -99,6 +107,88 @@ Label* createUiLabel(float font_size, const Vec2& dimensions = Vec2::ZERO) {
         }
     }
     return Label::createWithSystemFont("", "Noto Sans CJK SC", font_size, dimensions, TextHAlignment::LEFT, TextVAlignment::TOP);
+}
+
+
+std::string shortenText(const std::string& text, size_t max_chars) {
+    size_t bytes = 0;
+    size_t chars = 0;
+    while (bytes < text.size() && chars < max_chars) {
+        const unsigned char lead = static_cast<unsigned char>(text[bytes]);
+        size_t step = 1;
+        if ((lead & 0x80U) == 0U) step = 1;
+        else if ((lead & 0xE0U) == 0xC0U) step = 2;
+        else if ((lead & 0xF0U) == 0xE0U) step = 3;
+        else if ((lead & 0xF8U) == 0xF0U) step = 4;
+        if (bytes + step > text.size()) break;
+        bytes += step;
+        ++chars;
+    }
+    if (bytes >= text.size()) return text;
+    if (max_chars <= 3) return text.substr(0, bytes);
+    return text.substr(0, bytes) + "...";
+}
+
+std::string lowerAscii(std::string text) {
+    for (auto& ch : text) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+    return text;
+}
+
+bool fuzzyContainsAscii(const std::string& haystack, const std::string& needle) {
+    if (needle.empty()) return true;
+    return lowerAscii(haystack).find(lowerAscii(needle)) != std::string::npos;
+}
+
+std::string cardSearchText(const pf::client::LocalKnowledgeCardView& card) {
+    return card.card_id + " " + card.knowledge_key + " " + card.name + " " + card.summary + " " + card.category + " " + card.assigned_actor_name;
+}
+
+char keyCodeToSearchChar(EventKeyboard::KeyCode key_code) {
+    using KeyCode = EventKeyboard::KeyCode;
+    if (key_code >= KeyCode::KEY_A && key_code <= KeyCode::KEY_Z) {
+        return static_cast<char>('a' + static_cast<int>(key_code) - static_cast<int>(KeyCode::KEY_A));
+    }
+    if (key_code >= KeyCode::KEY_0 && key_code <= KeyCode::KEY_9) {
+        return static_cast<char>('0' + static_cast<int>(key_code) - static_cast<int>(KeyCode::KEY_0));
+    }
+    if (key_code == KeyCode::KEY_SPACE) return ' ';
+    if (key_code == KeyCode::KEY_MINUS) return '-';
+    if (key_code == KeyCode::KEY_UNDERSCORE) return '_';
+    if (key_code == KeyCode::KEY_PERIOD) return '.';
+    return '\0';
+}
+
+std::string compactActorStatus(const std::string& status) {
+    if (status.empty()) return {};
+    if (status == "待命") return "待命";
+    const auto percent_pos = status.rfind('%');
+    if (percent_pos != std::string::npos) {
+        size_t begin = percent_pos;
+        while (begin > 0 && std::isdigit(static_cast<unsigned char>(status[begin - 1]))) --begin;
+        const std::string percent = begin < percent_pos ? status.substr(begin, percent_pos - begin + 1) : std::string{};
+        const auto gap = status.find("  ");
+        const std::string task = gap == std::string::npos ? status.substr(0, begin) : status.substr(0, gap);
+        return shortenText(task, 4) + (percent.empty() ? std::string{} : " " + percent);
+    }
+    if (status.find("返回家园") != std::string::npos) return "返家";
+    if (status.find("缺少") != std::string::npos) return "缺少条件";
+    return shortenText(status, 6);
+}
+
+std::string cardStatusText(const std::string& status) {
+    if (status == "active") return "已验证";
+    if (status == "hypothesis") return "听说";
+    if (status == "shared") return "共享";
+    return status.empty() ? "未知" : status;
+}
+
+int percentFromStatus(const std::string& text) {
+    const auto pos = text.rfind('%');
+    if (pos == std::string::npos) return 0;
+    size_t begin = pos;
+    while (begin > 0 && std::isdigit(static_cast<unsigned char>(text[begin - 1]))) --begin;
+    if (begin == pos) return 0;
+    try { return std::clamp(std::stoi(text.substr(begin, pos - begin)), 0, 100); } catch (...) { return 0; }
 }
 
 std::string commandKindLabel(pathfinder::world_command::WorldCommandKind kind) {
@@ -318,6 +408,10 @@ bool MainScene::init() {
     mouse->onMouseScroll = AX_CALLBACK_1(MainScene::onMouseScroll, this);
     _eventDispatcher->addEventListenerWithSceneGraphPriority(mouse, this);
 
+    auto keyboard = EventListenerKeyboard::create();
+    keyboard->onKeyPressed = AX_CALLBACK_2(MainScene::onKeyPressed, this);
+    _eventDispatcher->addEventListenerWithSceneGraphPriority(keyboard, this);
+
     bootstrapLocalRuntime();
     scheduleUpdate();
     return true;
@@ -350,7 +444,7 @@ void MainScene::bootstrapLocalRuntime() {
     syncPlayerCoord();
     selected_coord_ = player_coord_;
     has_selection_ = true;
-    status_text_ = "本地 Runtime 已连接：地图/实体/命令来自后端";
+    status_text_ = "安全圈营地已启动：你是控制者，资源统一进入营地仓库";
     renderWorld();
 }
 
@@ -358,6 +452,7 @@ void MainScene::renderWorld() {
     syncPlayerCoord();
     repaintForCurrentViewport();
     renderTerrain();
+    renderCampAtmosphere();
     renderWaterAnimation(0.0F);
     renderPath();
     renderEntities();
@@ -448,6 +543,35 @@ void MainScene::renderTerrain() {
         terrain_layer_->addChild(grid_batch, 1);
     }
 }
+
+void MainScene::renderCampAtmosphere() {
+    if (!overlay_layer_) return;
+    auto* ring = DrawNode::create();
+    const Vec2 center = worldToLocal({0, 0});
+    const float radius = kTileSize * 3.25F;
+    ring->drawSolidCircle(center, radius, 0.0F, 72, Color(250 / 255.0F, 204 / 255.0F, 21 / 255.0F, 0.055F));
+    for (int i = 0; i < 36; ++i) {
+        const float a = static_cast<float>(i) * 6.2831853F / 36.0F;
+        const float x = center.x + std::cos(a) * radius;
+        const float y = center.y + std::sin(a) * radius;
+        ring->drawSolidRect(Vec2(x - 3.0F, y - 3.0F), Vec2(x + 3.0F, y + 3.0F), Color(250 / 255.0F, 204 / 255.0F, 21 / 255.0F, 0.46F));
+    }
+    overlay_layer_->addChild(ring, 1);
+
+    auto add_world_label = [&](const std::string& text, Coord coord, const Color32& color) {
+        auto* label = createUiLabel(12.0F, Vec2(150.0F, 20.0F));
+        label->setAnchorPoint(Vec2(0.5F, 0.5F));
+        label->setAlignment(TextHAlignment::CENTER, TextVAlignment::CENTER);
+        label->setTextColor(color);
+        label->setString(text);
+        label->setPosition(worldToLocal(coord) + Vec2(0.0F, 32.0F));
+        overlay_layer_->addChild(label, 3);
+    };
+    add_world_label("安全圈", {0, 1}, Color32(250, 204, 21, 230));
+    add_world_label("圈外资源", {-4, 1}, Color32(187, 247, 208, 230));
+    add_world_label("圈外风险", {5, -2}, Color32(252, 165, 165, 230));
+}
+
 
 void MainScene::renderWaterAnimation(float delta) {
     if (!water_layer_) return;
@@ -544,13 +668,19 @@ void MainScene::renderEntities() {
             if (!entity.actor_key.empty() && entity.actor_key != "player") {
                 auto status_it = local_runtime_->snapshot().actor_work_status.find(entity.actor_key);
                 if (status_it != local_runtime_->snapshot().actor_work_status.end() && !status_it->second.empty()) {
-                    auto* label = createUiLabel(11.0F, Vec2(92.0F, 18.0F));
-                    label->setAnchorPoint(Vec2(0.5F, 0.5F));
-                    label->setAlignment(TextHAlignment::CENTER, TextVAlignment::CENTER);
-                    label->setTextColor(Color32(248, 250, 252, 255));
-                    label->setString(status_it->second);
-                    label->setPosition(Vec2(0.0F, kTileSize * 0.62F));
-                    state.node->addChild(label, 31);
+                    const std::string compact_status = compactActorStatus(status_it->second);
+                    if (!compact_status.empty()) {
+                        auto* label_bg = DrawNode::create();
+                        label_bg->drawSolidRect(Vec2(-31.0F, kTileSize * 0.72F), Vec2(31.0F, kTileSize * 0.72F + 12.0F), Color(15 / 255.0F, 23 / 255.0F, 42 / 255.0F, 0.72F));
+                        state.node->addChild(label_bg, 31);
+                        auto* label = createUiLabel(8.0F, Vec2(62.0F, 12.0F));
+                        label->setAnchorPoint(Vec2(0.5F, 0.5F));
+                        label->setAlignment(TextHAlignment::CENTER, TextVAlignment::CENTER);
+                        label->setTextColor(Color32(226, 232, 240, 255));
+                        label->setString(compact_status);
+                        label->setPosition(Vec2(0.0F, kTileSize * 0.72F + 6.0F));
+                        state.node->addChild(label, 32);
+                    }
                 }
             }
             it = entity_nodes_.emplace(render_key, state).first;
@@ -626,6 +756,7 @@ void MainScene::renderUi() {
     renderInventoryBar();
     renderContextPanel();
     renderInventoryPanel();
+    renderKnowledgeCardPanel();
 }
 
 void MainScene::renderInventoryBar() {
@@ -749,7 +880,7 @@ void MainScene::renderInventoryPanel() {
         label->setPosition(Vec2(x, y));
         context_panel_layer_->addChild(label, 31);
     };
-    add_label("背包", inv_tab.getMidX(), inv_tab.getMidY(), 14.0F, Color32(248, 250, 252, 255));
+    add_label("仓库", inv_tab.getMidX(), inv_tab.getMidY(), 14.0F, Color32(248, 250, 252, 255));
     add_label("合成", craft_tab.getMidX(), craft_tab.getMidY(), 14.0F, Color32(248, 250, 252, 255));
     add_label("知识", knowledge_tab.getMidX(), knowledge_tab.getMidY(), 14.0F, Color32(248, 250, 252, 255));
     add_label("×", close_rect.getMidX(), close_rect.getMidY(), 18.0F, Color32(248, 250, 252, 255));
@@ -811,14 +942,14 @@ void MainScene::renderInventoryPanel() {
             hint->setAnchorPoint(Vec2(0.5F, 0.5F));
             hint->setAlignment(TextHAlignment::CENTER, TextVAlignment::CENTER);
             hint->setTextColor(Color32(203, 213, 225, 255));
-            hint->setString("还没有形成知识。\n执行吃、采集、合成等后端命令后，经验会进入知识学习。 ");
+            hint->setString("还没有知识卡。\n与学者互动或完成经验后，会进入营地知识卡库。 ");
             hint->setPosition(Vec2(panel_x + panel_width * 0.5F, panel_y + panel_height * 0.5F));
             context_panel_layer_->addChild(hint, 31);
         } else {
             auto* title = createUiLabel(14.0F, Vec2(panel_width - 40.0F, 24.0F));
             title->setAnchorPoint(Vec2(0.0F, 0.5F));
             title->setTextColor(Color32(203, 213, 225, 255));
-            title->setString("你已经记住的知识：");
+            title->setString("营地知识卡库：");
             title->setPosition(Vec2(panel_x + 20.0F, panel_y + panel_height - 66.0F));
             context_panel_layer_->addChild(title, 31);
 
@@ -865,7 +996,7 @@ void MainScene::renderInventoryPanel() {
     auto* capacity = createUiLabel(13.0F, Vec2(116.0F, 24.0F));
     capacity->setAnchorPoint(Vec2(1.0F, 0.5F));
     capacity->setTextColor(Color32(203, 213, 225, 255));
-    capacity->setString("容量 " + std::to_string(items.size()) + " / " + std::to_string(capacity_slots));
+    capacity->setString("仓库 " + std::to_string(items.size()) + " / " + std::to_string(capacity_slots));
     capacity->setPosition(Vec2(panel_x + panel_width - 18.0F, panel_y + panel_height - 58.0F));
     context_panel_layer_->addChild(capacity, 31);
 
@@ -949,9 +1080,318 @@ void MainScene::renderInventoryPanel() {
     auto* tip = createUiLabel(13.0F, Vec2(panel_width - 32.0F, 24.0F));
     tip->setAnchorPoint(Vec2(0.0F, 0.5F));
     tip->setTextColor(Color32(148, 163, 184, 255));
-    tip->setString("滚轮翻背包；点物品再点操作栏可放入；容量扩展由后端物品/命令提供。");
+    tip->setString("滚轮翻仓库；NPC 出门必须先从仓库取到自己背包，不能隔空使用。 ");
     tip->setPosition(Vec2(panel_x + 18.0F, panel_y + 22.0F));
     context_panel_layer_->addChild(tip, 31);
+}
+
+void MainScene::renderKnowledgeCardPanel() {
+    if (!context_panel_layer_ || !knowledge_card_panel_open_ || !local_runtime_) return;
+    const auto visible_size = Director::getInstance()->getVisibleSize();
+    const auto origin = Director::getInstance()->getVisibleOrigin();
+    const auto& snapshot = local_runtime_->snapshot();
+
+    std::string actor_name = knowledge_card_panel_actor_key_;
+    for (const auto& entity : snapshot.entities) {
+        if (entity.actor_key == knowledge_card_panel_actor_key_) {
+            actor_name = entity.display_name_key.empty() ? entity.entity_key : entity.display_name_key;
+            break;
+        }
+    }
+
+    const float panel_width = 620.0F;
+    const float panel_height = 430.0F;
+    const float panel_x = origin.x + (visible_size.width - panel_width) * 0.5F;
+    const float panel_y = origin.y + (visible_size.height - panel_height) * 0.5F;
+    ui_blocking_rects_.push_back(Rect(panel_x, panel_y, panel_width, panel_height));
+    knowledge_card_panel_card_ids_.clear();
+
+    auto* panel = DrawNode::create();
+    panel->drawSolidRect(Vec2(panel_x, panel_y), Vec2(panel_x + panel_width, panel_y + panel_height), Color(6 / 255.0F, 10 / 255.0F, 24 / 255.0F, 0.97F));
+    panel->drawSolidRect(Vec2(panel_x, panel_y + panel_height - 4.0F), Vec2(panel_x + panel_width, panel_y + panel_height), Color(168 / 255.0F, 85 / 255.0F, 247 / 255.0F, 0.9F));
+    panel->drawSolidRect(Vec2(panel_x, panel_y), Vec2(panel_x + panel_width, panel_y + 3.0F), Color(56 / 255.0F, 189 / 255.0F, 248 / 255.0F, 0.65F));
+    context_panel_layer_->addChild(panel, 80);
+
+    auto* title = createUiLabel(22.0F, Vec2(440.0F, 30.0F));
+    title->setAnchorPoint(Vec2(0.0F, 1.0F));
+    title->setTextColor(Color32(248, 250, 252, 255));
+    title->setString("知识卡库 → " + actor_name);
+    title->setPosition(Vec2(panel_x + 22.0F, panel_y + panel_height - 18.0F));
+    context_panel_layer_->addChild(title, 82);
+
+    const Rect close_rect(panel_x + panel_width - 44.0F, panel_y + panel_height - 42.0F, 28.0F, 28.0F);
+    panel->drawSolidRect(Vec2(close_rect.getMinX(), close_rect.getMinY()), Vec2(close_rect.getMaxX(), close_rect.getMaxY()), Color(127 / 255.0F, 29 / 255.0F, 29 / 255.0F, 0.86F));
+    auto* close = createUiLabel(18.0F, Vec2(28.0F, 28.0F));
+    close->setAnchorPoint(Vec2(0.5F, 0.5F));
+    close->setAlignment(TextHAlignment::CENTER, TextVAlignment::CENTER);
+    close->setTextColor(Color32(255, 255, 255, 255));
+    close->setString("×");
+    close->setPosition(Vec2(close_rect.getMidX(), close_rect.getMidY()));
+    context_panel_layer_->addChild(close, 83);
+    ui_hit_boxes_.push_back(UiHitBox{close_rect, UiHitKind::CloseKnowledgeCardPanel, -1});
+
+    const std::array<std::string, 7> categories{"全部", "采集", "制作", "避险", "治疗", "未分配", "已分配"};
+    knowledge_card_category_index_ = std::clamp(knowledge_card_category_index_, 0, static_cast<int>(categories.size()) - 1);
+    const float tab_x = panel_x + 20.0F;
+    const float tab_y = panel_y + panel_height - 76.0F;
+    for (int i = 0; i < static_cast<int>(categories.size()); ++i) {
+        const Rect tab(tab_x + static_cast<float>(i) * 82.0F, tab_y, 74.0F, 28.0F);
+        const bool selected = i == knowledge_card_category_index_;
+        panel->drawSolidRect(Vec2(tab.getMinX(), tab.getMinY()), Vec2(tab.getMaxX(), tab.getMaxY()), selected ? Color(88 / 255.0F, 28 / 255.0F, 135 / 255.0F, 0.95F) : Color(30 / 255.0F, 41 / 255.0F, 59 / 255.0F, 0.86F));
+        auto* label = createUiLabel(13.0F, Vec2(tab.size.width, tab.size.height));
+        label->setAnchorPoint(Vec2(0.5F, 0.5F));
+        label->setAlignment(TextHAlignment::CENTER, TextVAlignment::CENTER);
+        label->setTextColor(selected ? Color32(253, 244, 255, 255) : Color32(203, 213, 225, 255));
+        label->setString(categories[static_cast<size_t>(i)]);
+        label->setPosition(Vec2(tab.getMidX(), tab.getMidY()));
+        context_panel_layer_->addChild(label, 83);
+        ui_hit_boxes_.push_back(UiHitBox{tab, UiHitKind::KnowledgeCardCategory, i});
+    }
+
+    const Rect search_rect(panel_x + 24.0F, panel_y + panel_height - 116.0F, panel_width - 98.0F, 30.0F);
+    auto* search_bg = DrawNode::create();
+    search_bg->drawSolidRect(Vec2(search_rect.getMinX(), search_rect.getMinY()), Vec2(search_rect.getMaxX(), search_rect.getMaxY()), Color(15 / 255.0F, 23 / 255.0F, 42 / 255.0F, 0.92F));
+    search_bg->drawSolidRect(Vec2(search_rect.getMinX(), search_rect.getMinY()), Vec2(search_rect.getMaxX(), search_rect.getMinY() + 2.0F), Color(56 / 255.0F, 189 / 255.0F, 248 / 255.0F, 0.45F));
+    context_panel_layer_->addChild(search_bg, 82);
+    auto* search_label = createUiLabel(13.0F, Vec2(search_rect.size.width - 18.0F, search_rect.size.height));
+    search_label->setAnchorPoint(Vec2(0.0F, 0.5F));
+    search_label->setAlignment(TextHAlignment::LEFT, TextVAlignment::CENTER);
+    search_label->setTextColor(knowledge_card_search_text_.empty() ? Color32(100, 116, 139, 255) : Color32(226, 232, 240, 255));
+    search_label->setString(knowledge_card_search_text_.empty() ? "直接键盘输入搜索：名称 / key / 摘要，Backspace 删除" : ("搜索：" + knowledge_card_search_text_));
+    search_label->setPosition(Vec2(search_rect.getMinX() + 10.0F, search_rect.getMidY()));
+    context_panel_layer_->addChild(search_label, 83);
+
+    const Rect clear_rect(panel_x + panel_width - 62.0F, search_rect.getMinY(), 38.0F, search_rect.size.height);
+    auto* clear_bg = DrawNode::create();
+    clear_bg->drawSolidRect(Vec2(clear_rect.getMinX(), clear_rect.getMinY()), Vec2(clear_rect.getMaxX(), clear_rect.getMaxY()), Color(51 / 255.0F, 65 / 255.0F, 85 / 255.0F, 0.78F));
+    context_panel_layer_->addChild(clear_bg, 82);
+    auto* clear_label = createUiLabel(13.0F, Vec2(clear_rect.size.width, clear_rect.size.height));
+    clear_label->setAnchorPoint(Vec2(0.5F, 0.5F));
+    clear_label->setAlignment(TextHAlignment::CENTER, TextVAlignment::CENTER);
+    clear_label->setTextColor(Color32(226, 232, 240, 255));
+    clear_label->setString("清空");
+    clear_label->setPosition(Vec2(clear_rect.getMidX(), clear_rect.getMidY()));
+    context_panel_layer_->addChild(clear_label, 83);
+    ui_hit_boxes_.push_back(UiHitBox{clear_rect, UiHitKind::ClearKnowledgeCardSearch, -1});
+
+    std::vector<const pf::client::LocalKnowledgeCardView*> filtered;
+    const std::string selected_category = categories[static_cast<size_t>(knowledge_card_category_index_)];
+    for (const auto& card : snapshot.knowledge_cards) {
+        bool match = selected_category == "全部" || card.category == selected_category;
+        if (selected_category == "未分配") match = card.assigned_actor_key.empty();
+        if (selected_category == "已分配") match = !card.assigned_actor_key.empty();
+        if (match && !fuzzyContainsAscii(cardSearchText(card), knowledge_card_search_text_)) match = false;
+        if (match) filtered.push_back(&card);
+    }
+
+    const int rows = 5;
+    const int max_scroll = std::max(0, static_cast<int>(filtered.size()) - rows);
+    knowledge_card_scroll_row_ = std::clamp(knowledge_card_scroll_row_, 0, max_scroll);
+    const float list_x = panel_x + 24.0F;
+    const float list_top = panel_y + panel_height - 132.0F;
+    const float row_h = 52.0F;
+    for (int row = 0; row < rows; ++row) {
+        const int index = knowledge_card_scroll_row_ + row;
+        if (index >= static_cast<int>(filtered.size())) break;
+        const auto& card = *filtered[static_cast<size_t>(index)];
+        const float y = list_top - static_cast<float>(row) * (row_h + 7.0F);
+        const Rect rect(list_x, y - row_h, panel_width - 48.0F, row_h);
+        auto* row_node = DrawNode::create();
+        row_node->drawSolidRect(Vec2(rect.getMinX(), rect.getMinY()), Vec2(rect.getMaxX(), rect.getMaxY()), Color(15 / 255.0F, 23 / 255.0F, 42 / 255.0F, 0.78F));
+        row_node->drawSolidRect(Vec2(rect.getMinX(), rect.getMaxY() - 2.0F), Vec2(rect.getMaxX(), rect.getMaxY()), Color(56 / 255.0F, 189 / 255.0F, 248 / 255.0F, 0.45F));
+        context_panel_layer_->addChild(row_node, 82);
+
+        auto* name = createUiLabel(15.0F, Vec2(190.0F, 20.0F));
+        name->setAnchorPoint(Vec2(0.0F, 1.0F));
+        name->setTextColor(Color32(248, 250, 252, 255));
+        name->setString(shortenText(card.name, 14));
+        name->setPosition(Vec2(rect.getMinX() + 12.0F, rect.getMaxY() - 6.0F));
+        context_panel_layer_->addChild(name, 83);
+
+        const std::string owner = card.assigned_actor_key.empty() ? "卡库" : card.assigned_actor_name;
+        auto* meta = createUiLabel(12.0F, Vec2(250.0F, 18.0F));
+        meta->setAnchorPoint(Vec2(0.0F, 1.0F));
+        meta->setTextColor(Color32(125, 211, 252, 255));
+        meta->setString(card.category + " · " + cardStatusText(card.status) + " · " + owner);
+        meta->setPosition(Vec2(rect.getMinX() + 210.0F, rect.getMaxY() - 7.0F));
+        context_panel_layer_->addChild(meta, 83);
+
+        auto* summary = createUiLabel(12.0F, Vec2(448.0F, 20.0F));
+        summary->setAnchorPoint(Vec2(0.0F, 0.0F));
+        summary->setTextColor(Color32(148, 163, 184, 255));
+        summary->setString(shortenText(card.summary, 36));
+        summary->setPosition(Vec2(rect.getMinX() + 12.0F, rect.getMinY() + 6.0F));
+        context_panel_layer_->addChild(summary, 83);
+
+        const bool assigned_here = card.assigned_actor_key == knowledge_card_panel_actor_key_;
+        const bool can_assign = card.assigned_actor_key.empty();
+        const bool can_recover = assigned_here && card.recoverable && !card.locked;
+        const Rect button(rect.getMaxX() - 92.0F, rect.getMinY() + 7.0F, 78.0F, 28.0F);
+        auto* button_node = DrawNode::create();
+        const auto button_color = can_assign ? Color(22 / 255.0F, 101 / 255.0F, 52 / 255.0F, 0.9F) : (can_recover ? Color(146 / 255.0F, 64 / 255.0F, 14 / 255.0F, 0.9F) : Color(51 / 255.0F, 65 / 255.0F, 85 / 255.0F, 0.7F));
+        button_node->drawSolidRect(Vec2(button.getMinX(), button.getMinY()), Vec2(button.getMaxX(), button.getMaxY()), button_color);
+        context_panel_layer_->addChild(button_node, 83);
+        auto* button_label = createUiLabel(13.0F, Vec2(button.size.width, button.size.height));
+        button_label->setAnchorPoint(Vec2(0.5F, 0.5F));
+        button_label->setAlignment(TextHAlignment::CENTER, TextVAlignment::CENTER);
+        button_label->setTextColor(Color32(248, 250, 252, 255));
+        button_label->setString(can_assign ? "分配" : (can_recover ? "收回" : "占用"));
+        button_label->setPosition(Vec2(button.getMidX(), button.getMidY()));
+        context_panel_layer_->addChild(button_label, 84);
+        knowledge_card_panel_card_ids_.push_back(card.card_id);
+        const int card_index = static_cast<int>(knowledge_card_panel_card_ids_.size()) - 1;
+        if (can_assign) ui_hit_boxes_.push_back(UiHitBox{button, UiHitKind::AssignKnowledgeCard, card_index});
+        if (can_recover) ui_hit_boxes_.push_back(UiHitBox{button, UiHitKind::RecoverKnowledgeCard, card_index});
+    }
+
+ }
+
+void MainScene::renderTaskGraphCanvas(const pf::client::LocalActorTaskView* task_view, const Rect& rect) {
+    if (!context_panel_layer_) return;
+    auto* canvas = DrawNode::create();
+    canvas->drawSolidRect(Vec2(rect.getMinX(), rect.getMinY()), Vec2(rect.getMaxX(), rect.getMaxY()), Color(2 / 255.0F, 6 / 255.0F, 23 / 255.0F, 0.76F));
+    for (float x = rect.getMinX() + 18.0F; x < rect.getMaxX(); x += 24.0F) {
+        canvas->drawSegment(Vec2(x, rect.getMinY() + 6.0F), Vec2(x, rect.getMaxY() - 26.0F), 0.6F, Color(30 / 255.0F, 41 / 255.0F, 59 / 255.0F, 0.28F));
+    }
+    for (float y = rect.getMinY() + 18.0F; y < rect.getMaxY() - 24.0F; y += 24.0F) {
+        canvas->drawSegment(Vec2(rect.getMinX() + 6.0F, y), Vec2(rect.getMaxX() - 6.0F, y), 0.6F, Color(30 / 255.0F, 41 / 255.0F, 59 / 255.0F, 0.28F));
+    }
+    canvas->drawSolidRect(Vec2(rect.getMinX(), rect.getMaxY() - 2.0F), Vec2(rect.getMaxX(), rect.getMaxY()), Color(56 / 255.0F, 189 / 255.0F, 248 / 255.0F, 0.38F));
+    canvas->drawSolidRect(Vec2(rect.getMinX(), rect.getMinY()), Vec2(rect.getMaxX(), rect.getMinY() + 2.0F), Color(168 / 255.0F, 85 / 255.0F, 247 / 255.0F, 0.28F));
+    context_panel_layer_->addChild(canvas, 2);
+
+    auto* title = createUiLabel(12.0F, Vec2(rect.size.width - 24.0F, 18.0F));
+    title->setAnchorPoint(Vec2(0.0F, 1.0F));
+    title->setTextColor(Color32(125, 211, 252, 255));
+    title->setString("任务图  " + std::to_string(static_cast<int>(std::round(task_graph_zoom_ * 100.0F))) + "%");
+    title->setPosition(Vec2(rect.getMinX() + 10.0F, rect.getMaxY() - 8.0F));
+    context_panel_layer_->addChild(title, 4);
+
+    if (!task_view || task_view->task_graph.nodes.empty()) {
+        auto* empty = createUiLabel(14.0F, Vec2(rect.size.width, rect.size.height));
+        empty->setAnchorPoint(Vec2(0.5F, 0.5F));
+        empty->setAlignment(TextHAlignment::CENTER, TextVAlignment::CENTER);
+        empty->setTextColor(Color32(148, 163, 184, 255));
+        empty->setString("当前没有执行中的任务图");
+        empty->setPosition(Vec2(rect.getMidX(), rect.getMidY()));
+        context_panel_layer_->addChild(empty, 4);
+        return;
+    }
+
+    const auto& graph = task_view->task_graph;
+    float min_x = graph.nodes.front().x;
+    float max_x = graph.nodes.front().x;
+    float min_y = graph.nodes.front().y;
+    float max_y = graph.nodes.front().y;
+    for (const auto& node : graph.nodes) {
+        min_x = std::min(min_x, node.x);
+        max_x = std::max(max_x, node.x);
+        min_y = std::min(min_y, node.y);
+        max_y = std::max(max_y, node.y);
+    }
+    const float graph_w = std::max(1.0F, max_x - min_x);
+    const float graph_h = std::max(1.0F, max_y - min_y);
+    const float usable_w = rect.size.width - 88.0F;
+    const float usable_h = rect.size.height - 70.0F;
+    const float base_scale = std::min(usable_w / graph_w, usable_h / graph_h);
+    const float scale = std::clamp(base_scale * 0.74F * task_graph_zoom_, 48.0F, 118.0F);
+    const Vec2 center(rect.getMidX(), rect.getMidY() - 8.0F);
+    const Vec2 graph_center((min_x + max_x) * 0.5F, (min_y + max_y) * 0.5F);
+    auto map_pos = [&](float x, float y) {
+        return Vec2(center.x + (x - graph_center.x) * scale, center.y - (y - graph_center.y) * scale);
+    };
+
+    std::unordered_map<std::string, Vec2> positions;
+    positions.reserve(graph.nodes.size());
+    for (const auto& node : graph.nodes) positions[node.node_id] = map_pos(node.x, node.y);
+
+    auto edge_color = [](const std::string& status, const std::string& type) {
+        if (status == "completed") return Color(250 / 255.0F, 204 / 255.0F, 21 / 255.0F, 0.74F);
+        if (status == "active") return Color(56 / 255.0F, 189 / 255.0F, 248 / 255.0F, 0.82F);
+        if (type == "return") return Color(248 / 255.0F, 113 / 255.0F, 113 / 255.0F, 0.42F);
+        return Color(71 / 255.0F, 85 / 255.0F, 105 / 255.0F, 0.48F);
+    };
+
+    auto* edges = DrawNode::create();
+    for (const auto& edge : graph.edges) {
+        auto from_it = positions.find(edge.from_node_id);
+        auto to_it = positions.find(edge.to_node_id);
+        if (from_it == positions.end() || to_it == positions.end()) continue;
+        const Vec2 from = from_it->second;
+        const Vec2 to = to_it->second;
+        const Color color = edge_color(edge.status, edge.edge_type);
+        if (edge.edge_type == "branch") {
+            const float branch_lane_y = std::max(from.y, to.y) + 18.0F;
+            const Vec2 p1(from.x, branch_lane_y);
+            const Vec2 p2(to.x, branch_lane_y);
+            edges->drawSegment(from, p1, 2.2F, color);
+            edges->drawSegment(p1, p2, 2.2F, color);
+            edges->drawSegment(p2, to, 2.2F, color);
+        } else if (edge.edge_type == "merge") {
+            const float merge_lane_y = std::min(from.y, to.y) - 18.0F;
+            const float merge_lane_x = std::max(from.x, to.x) + 28.0F;
+            const Vec2 p1(merge_lane_x, from.y);
+            const Vec2 p2(merge_lane_x, merge_lane_y);
+            const Vec2 p3(to.x, merge_lane_y);
+            edges->drawSegment(from, p1, 2.2F, color);
+            edges->drawSegment(p1, p2, 2.2F, color);
+            edges->drawSegment(p2, p3, 2.2F, color);
+            edges->drawSegment(p3, to, 2.2F, color);
+        } else if (edge.edge_type == "return") {
+            const float return_lane_y = std::max(from.y, to.y) + 34.0F;
+            const float return_lane_x = std::min(from.x, to.x) - 34.0F;
+            const Vec2 p1(from.x, return_lane_y);
+            const Vec2 p2(return_lane_x, return_lane_y);
+            const Vec2 p3(return_lane_x, to.y);
+            edges->drawSegment(from, p1, 2.2F, color);
+            edges->drawSegment(p1, p2, 2.2F, color);
+            edges->drawSegment(p2, p3, 2.2F, color);
+            edges->drawSegment(p3, to, 2.2F, color);
+        } else {
+            edges->drawSegment(from, to, 2.4F, color);
+        }
+    }
+    context_panel_layer_->addChild(edges, 3);
+
+    auto node_fill = [](const std::string& status, const std::string& type) {
+        if (status == "active") return Color(8 / 255.0F, 145 / 255.0F, 178 / 255.0F, 0.96F);
+        if (status == "completed") return Color(133 / 255.0F, 77 / 255.0F, 14 / 255.0F, 0.94F);
+        if (type == "event") return Color(127 / 255.0F, 29 / 255.0F, 29 / 255.0F, 0.78F);
+        if (type == "decision") return Color(88 / 255.0F, 28 / 255.0F, 135 / 255.0F, 0.74F);
+        if (type == "recovery") return Color(22 / 255.0F, 101 / 255.0F, 52 / 255.0F, 0.76F);
+        if (type == "fail") return Color(153 / 255.0F, 27 / 255.0F, 27 / 255.0F, 0.78F);
+        return Color(30 / 255.0F, 41 / 255.0F, 59 / 255.0F, 0.88F);
+    };
+
+    for (const auto& node : graph.nodes) {
+        const auto pos_it = positions.find(node.node_id);
+        if (pos_it == positions.end()) continue;
+        const Vec2 pos = pos_it->second;
+        const float box_w = 76.0F * std::clamp(task_graph_zoom_, 0.85F, 1.16F);
+        const float box_h = 30.0F * std::clamp(task_graph_zoom_, 0.85F, 1.12F);
+        auto* box = DrawNode::create();
+        const Color fill = node_fill(node.status, node.node_type);
+        const Color border = node.status == "active" ? Color(125 / 255.0F, 211 / 255.0F, 252 / 255.0F, 0.96F) : Color(148 / 255.0F, 163 / 255.0F, 184 / 255.0F, 0.38F);
+        box->drawSolidRect(Vec2(pos.x - box_w * 0.5F, pos.y - box_h * 0.5F), Vec2(pos.x + box_w * 0.5F, pos.y + box_h * 0.5F), fill);
+        box->drawSolidRect(Vec2(pos.x - box_w * 0.5F, pos.y + box_h * 0.5F - 2.0F), Vec2(pos.x + box_w * 0.5F, pos.y + box_h * 0.5F), border);
+        box->drawSolidRect(Vec2(pos.x - box_w * 0.5F, pos.y - box_h * 0.5F), Vec2(pos.x + box_w * 0.5F, pos.y - box_h * 0.5F + 2.0F), border);
+        context_panel_layer_->addChild(box, 4);
+
+        auto* label = createUiLabel(10.0F * std::clamp(task_graph_zoom_, 0.9F, 1.08F), Vec2(box_w - 8.0F, box_h - 4.0F));
+        label->setAnchorPoint(Vec2(0.5F, 0.5F));
+        label->setAlignment(TextHAlignment::CENTER, TextVAlignment::CENTER);
+        label->setTextColor(node.status == "locked" ? Color32(148, 163, 184, 255) : Color32(248, 250, 252, 255));
+        label->setString(shortenText(node.label, 8));
+        label->setPosition(pos);
+        context_panel_layer_->addChild(label, 5);
+
+        if (node.status == "active") {
+            auto* pulse = DrawNode::create();
+            pulse->drawSolidRect(Vec2(pos.x - box_w * 0.5F - 4.0F, pos.y - box_h * 0.5F - 4.0F), Vec2(pos.x + box_w * 0.5F + 4.0F, pos.y - box_h * 0.5F - 2.0F), Color(125 / 255.0F, 211 / 255.0F, 252 / 255.0F, 0.55F));
+            pulse->drawSolidRect(Vec2(pos.x - box_w * 0.5F - 4.0F, pos.y + box_h * 0.5F + 2.0F), Vec2(pos.x + box_w * 0.5F + 4.0F, pos.y + box_h * 0.5F + 4.0F), Color(125 / 255.0F, 211 / 255.0F, 252 / 255.0F, 0.55F));
+            context_panel_layer_->addChild(pulse, 3);
+        }
+    }
 }
 
 void MainScene::renderContextPanel() {
@@ -979,6 +1419,129 @@ void MainScene::renderContextPanel() {
         for (const auto& item : snapshot.knowledge_items) {
             if (item.actor_key == entity->actor_key) npc_knowledge.push_back(item);
         }
+    }
+
+    if (is_npc) {
+        const float panel_width = std::min(kNpcPanelWidth, visible_size.width - 24.0F);
+        const float panel_height = std::min(kNpcPanelMaxHeight, visible_size.height - kNpcPanelTopMargin - kNpcPanelBottomMargin);
+        const float base_panel_x = origin.x + visible_size.width - panel_width - 18.0F;
+        const float base_panel_y = origin.y + kNpcPanelBottomMargin;
+        const float panel_x = std::clamp(base_panel_x + npc_panel_offset_.x, origin.x + 10.0F, origin.x + visible_size.width - panel_width - 10.0F);
+        const float panel_y = std::clamp(base_panel_y + npc_panel_offset_.y, origin.y + 10.0F, origin.y + visible_size.height - panel_height - 10.0F);
+        ui_blocking_rects_.push_back(Rect(panel_x, panel_y, panel_width, panel_height));
+
+        auto* panel = DrawNode::create();
+        const auto bg = Color(8 / 255.0F, 13 / 255.0F, 28 / 255.0F, 0.95F);
+        const auto edge = Color(56 / 255.0F, 189 / 255.0F, 248 / 255.0F, 0.72F);
+        const auto glow = Color(14 / 255.0F, 165 / 255.0F, 233 / 255.0F, 0.16F);
+        panel->drawSolidRect(Vec2(panel_x, panel_y), Vec2(panel_x + panel_width, panel_y + panel_height), bg);
+        panel->drawSolidRect(Vec2(panel_x + 4.0F, panel_y + panel_height - 96.0F), Vec2(panel_x + panel_width - 4.0F, panel_y + panel_height - 4.0F), glow);
+        panel->drawSolidRect(Vec2(panel_x, panel_y + panel_height - 3.0F), Vec2(panel_x + panel_width, panel_y + panel_height), edge);
+        panel->drawSolidRect(Vec2(panel_x, panel_y), Vec2(panel_x + panel_width, panel_y + 3.0F), edge);
+        panel->drawSolidRect(Vec2(panel_x, panel_y), Vec2(panel_x + 3.0F, panel_y + panel_height), edge);
+        panel->drawSolidRect(Vec2(panel_x + panel_width - 3.0F, panel_y), Vec2(panel_x + panel_width, panel_y + panel_height), edge);
+        context_panel_layer_->addChild(panel, 0);
+
+        const auto work_it = snapshot.actor_work_status.find(entity->actor_key);
+        const std::string work_status = work_it == snapshot.actor_work_status.end() ? "待命" : work_it->second;
+        const auto task_it = snapshot.actor_tasks.find(entity->actor_key);
+        const pf::client::LocalActorTaskView* task_view = task_it == snapshot.actor_tasks.end() ? nullptr : &task_it->second;
+        auto* title = createUiLabel(22.0F, Vec2(360.0F, 30.0F));
+        title->setAnchorPoint(Vec2(0.0F, 1.0F));
+        title->setTextColor(Color32(248, 250, 252, 255));
+        title->setString(entity->display_name_key.empty() ? entity->entity_key : entity->display_name_key);
+        title->setPosition(Vec2(panel_x + 22.0F, panel_y + panel_height - 18.0F));
+        context_panel_layer_->addChild(title, 2);
+
+        auto* status = createUiLabel(14.0F, Vec2(500.0F, 24.0F));
+        status->setAnchorPoint(Vec2(0.0F, 1.0F));
+        status->setTextColor(Color32(125, 211, 252, 255));
+        status->setString("当前：" + shortenText(work_status, 72));
+        status->setPosition(Vec2(panel_x + 22.0F, panel_y + panel_height - 62.0F));
+        context_panel_layer_->addChild(status, 2);
+
+        const Rect graph_rect(panel_x + 20.0F, panel_y + panel_height - kNpcPanelHeaderHeight - kNpcTaskGraphHeight - 12.0F, panel_width - 40.0F, kNpcTaskGraphHeight);
+        renderTaskGraphCanvas(task_view, graph_rect);
+
+        const float left_x = panel_x + 20.0F;
+        const float right_x = panel_x + panel_width * 0.52F;
+        const float top_y = graph_rect.getMinY() - 20.0F;
+        auto add_section = [&](const std::string& text, float x, float y) {
+            auto* label = createUiLabel(14.0F, Vec2(230.0F, 20.0F));
+            label->setAnchorPoint(Vec2(0.0F, 1.0F));
+            label->setTextColor(Color32(125, 211, 252, 255));
+            label->setString(text);
+            label->setPosition(Vec2(x, y));
+            context_panel_layer_->addChild(label, 4);
+        };
+        add_section("可执行命令", left_x, top_y);
+        add_section("携带物品 / 持有知识", right_x, top_y);
+
+        auto* cards = DrawNode::create();
+        cards->drawSolidRect(Vec2(left_x, panel_y + 24.0F), Vec2(right_x - 14.0F, top_y - 26.0F), Color(15 / 255.0F, 23 / 255.0F, 42 / 255.0F, 0.62F));
+        cards->drawSolidRect(Vec2(right_x, panel_y + 24.0F), Vec2(panel_x + panel_width - 20.0F, top_y - 26.0F), Color(15 / 255.0F, 23 / 255.0F, 42 / 255.0F, 0.62F));
+        context_panel_layer_->addChild(cards, 1);
+
+        std::vector<pf::client::LocalCommandOptionView> visible_actions;
+        for (const auto& action : actions) {
+            if (action.command_kind == pathfinder::world_command::WorldCommandKind::Move) continue;
+            visible_actions.push_back(action);
+        }
+        const float row_h = 36.0F;
+        for (int i = 0; i < std::min<int>(4, visible_actions.size()); ++i) {
+            const auto& action = visible_actions[static_cast<size_t>(i)];
+            const float y = top_y - 38.0F - static_cast<float>(i) * (row_h + 6.0F);
+            const Rect rect(left_x + 10.0F, y - row_h, right_x - left_x - 34.0F, row_h);
+            auto* row = DrawNode::create();
+            const bool manage = action.command_key == "camp.manage_knowledge_cards";
+            const auto fill = manage ? Color(88 / 255.0F, 28 / 255.0F, 135 / 255.0F, 0.82F) : Color(30 / 255.0F, 64 / 255.0F, 175 / 255.0F, 0.74F);
+            row->drawSolidRect(Vec2(rect.getMinX(), rect.getMinY()), Vec2(rect.getMaxX(), rect.getMaxY()), fill);
+            row->drawSolidRect(Vec2(rect.getMinX(), rect.getMaxY() - 2.0F), Vec2(rect.getMaxX(), rect.getMaxY()), Color(125 / 255.0F, 211 / 255.0F, 252 / 255.0F, 0.7F));
+            context_panel_layer_->addChild(row, 2);
+            auto* label = createUiLabel(12.0F, Vec2(rect.size.width - 12.0F, row_h - 4.0F));
+            label->setAnchorPoint(Vec2(0.5F, 0.5F));
+            label->setAlignment(TextHAlignment::CENTER, TextVAlignment::CENTER);
+            label->setTextColor(Color32(248, 250, 252, 255));
+            label->setString(shortenText(action.label_text.empty() ? commandKindLabel(action.command_kind) : action.label_text, 42));
+            label->setPosition(Vec2(rect.getMidX(), rect.getMidY()));
+            context_panel_layer_->addChild(label, 3);
+            action_hit_boxes_.push_back(ActionHitBox{rect, action});
+        }
+
+        auto add_info = [&](const std::string& text, float x, float y, const Color32& color) {
+            auto* label = createUiLabel(12.0F, Vec2(panel_x + panel_width - right_x - 34.0F, 24.0F));
+            label->setAnchorPoint(Vec2(0.0F, 1.0F));
+            label->setTextColor(color);
+            label->setString(shortenText(text, 54));
+            label->setPosition(Vec2(x, y));
+            context_panel_layer_->addChild(label, 3);
+        };
+        float info_y = top_y - 42.0F;
+        add_info("物品", right_x + 10.0F, info_y, Color32(254, 240, 138, 255));
+        info_y -= 24.0F;
+        if (npc_items.empty()) {
+            add_info("空", right_x + 10.0F, info_y, Color32(148, 163, 184, 255));
+            info_y -= 28.0F;
+        } else {
+            for (int i = 0; i < std::min<int>(4, npc_items.size()); ++i) {
+                const auto& item = npc_items[static_cast<size_t>(i)];
+                add_info("• " + item.display_name + " ×" + std::to_string(item.quantity), right_x + 10.0F, info_y, Color32(226, 232, 240, 255));
+                info_y -= 24.0F;
+            }
+        }
+        info_y -= 10.0F;
+        add_info("知识卡", right_x + 10.0F, info_y, Color32(254, 240, 138, 255));
+        info_y -= 24.0F;
+        if (npc_knowledge.empty()) {
+            add_info("未持有知识卡", right_x + 10.0F, info_y, Color32(148, 163, 184, 255));
+        } else {
+            for (int i = 0; i < std::min<int>(5, npc_knowledge.size()); ++i) {
+                const auto& k = npc_knowledge[static_cast<size_t>(i)];
+                add_info("◆ " + (k.subject_name.empty() ? k.subject_id : k.subject_name), right_x + 10.0F, info_y, Color32(226, 232, 240, 255));
+                info_y -= 24.0F;
+            }
+        }
+        return;
     }
 
     const float panel_width = is_npc ? 340.0F : 260.0F;
@@ -1112,7 +1675,7 @@ void MainScene::updateHud() {
         status_label_->setVisible(true);
     }
     if (selection_label_) {
-        selection_label_->setString("双击地块寻路；点击目标查看操作；世界会自动推进。");
+        selection_label_->setString("点击 NPC 分配知识卡和派工；仓库是公共资源，NPC 出门要自带工具。 ");
         selection_label_->setVisible(true);
     }
     renderUi();
@@ -1280,6 +1843,16 @@ bool MainScene::handleActionPanelClick(const Vec2& screen) {
     if (command_pending_) return !action_hit_boxes_.empty();
     for (const auto& hit : action_hit_boxes_) {
         if (!hit.rect.containsPoint(screen)) continue;
+        if (hit.option.command_key == "camp.manage_knowledge_cards") {
+            knowledge_card_panel_open_ = true;
+            knowledge_card_panel_actor_key_ = hit.option.target_actor_key;
+            knowledge_card_category_index_ = 0;
+            knowledge_card_scroll_row_ = 0;
+            knowledge_card_search_text_.clear();
+            inventory_panel_open_ = false;
+            renderWorld();
+            return true;
+        }
         submitOptionAndRender(hit.option);
         active_path_.clear();
         path_queue_.clear();
@@ -1329,6 +1902,39 @@ bool MainScene::handleUiClick(const Vec2& screen) {
                 if (it->index >= 0 && it->index < static_cast<int>(local_runtime_->snapshot().options.size())) {
                     submitOptionAndRender(local_runtime_->snapshot().options[static_cast<size_t>(it->index)]);
                 }
+                return true;
+            case UiHitKind::ManageKnowledgeCards:
+                return true;
+            case UiHitKind::CloseKnowledgeCardPanel:
+                knowledge_card_panel_open_ = false;
+                knowledge_card_panel_actor_key_.clear();
+                renderWorld();
+                return true;
+            case UiHitKind::KnowledgeCardCategory:
+                knowledge_card_category_index_ = std::max(0, it->index);
+                knowledge_card_scroll_row_ = 0;
+                renderWorld();
+                return true;
+            case UiHitKind::ClearKnowledgeCardSearch:
+                knowledge_card_search_text_.clear();
+                knowledge_card_scroll_row_ = 0;
+                renderWorld();
+                return true;
+            case UiHitKind::AssignKnowledgeCard:
+                if (it->index >= 0 && it->index < static_cast<int>(knowledge_card_panel_card_ids_.size())) {
+                    if (!local_runtime_->assignKnowledgeCard(knowledge_card_panel_actor_key_, knowledge_card_panel_card_ids_[static_cast<size_t>(it->index)])) {
+                        status_text_ = "知识卡分配失败: " + local_runtime_->lastError();
+                    }
+                }
+                renderWorld();
+                return true;
+            case UiHitKind::RecoverKnowledgeCard:
+                if (it->index >= 0 && it->index < static_cast<int>(knowledge_card_panel_card_ids_.size())) {
+                    if (!local_runtime_->recoverKnowledgeCard(knowledge_card_panel_actor_key_, knowledge_card_panel_card_ids_[static_cast<size_t>(it->index)])) {
+                        status_text_ = "知识卡收回失败: " + local_runtime_->lastError();
+                    }
+                }
+                renderWorld();
                 return true;
             case UiHitKind::HotbarSlot:
                 if (it->index < 0 || it->index >= kHotbarItemSlots) return true;
@@ -1507,12 +2113,38 @@ bool MainScene::onMouseDown(EventMouse* event) {
     dragging_ = false;
     mouse_down_pos_ = event->getLocation();
     mouse_down_on_ui_ = isUiPointBlocked(mouse_down_pos_);
+    dragging_npc_panel_ = false;
+    if (local_runtime_ && has_selection_) {
+        const auto selected_entity = entityAt(selected_coord_);
+        if (selected_entity && !selected_entity->actor_key.empty() && selected_entity->actor_key != "player") {
+            const auto visible_size = Director::getInstance()->getVisibleSize();
+            const auto origin = Director::getInstance()->getVisibleOrigin();
+            const float panel_width = std::min(kNpcPanelWidth, visible_size.width - 24.0F);
+            const float panel_height = std::min(kNpcPanelMaxHeight, visible_size.height - kNpcPanelTopMargin - kNpcPanelBottomMargin);
+            const float base_panel_x = origin.x + visible_size.width - panel_width - 18.0F;
+            const float base_panel_y = origin.y + kNpcPanelBottomMargin;
+            const float panel_x = std::clamp(base_panel_x + npc_panel_offset_.x, origin.x + 10.0F, origin.x + visible_size.width - panel_width - 10.0F);
+            const float panel_y = std::clamp(base_panel_y + npc_panel_offset_.y, origin.y + 10.0F, origin.y + visible_size.height - panel_height - 10.0F);
+            const Rect header_rect(panel_x, panel_y + panel_height - kNpcPanelHeaderHeight, panel_width, kNpcPanelHeaderHeight);
+            if (header_rect.containsPoint(mouse_down_pos_)) {
+                dragging_npc_panel_ = true;
+                npc_panel_drag_start_ = npc_panel_offset_;
+                mouse_down_on_ui_ = true;
+            }
+        }
+    }
     return true;
 }
 
 bool MainScene::onMouseUp(EventMouse* event) {
     const auto location = event->getLocation();
     mouse_down_ = false;
+    if (dragging_npc_panel_) {
+        dragging_npc_panel_ = false;
+        mouse_down_on_ui_ = false;
+        renderWorld();
+        return true;
+    }
     if (dragging_) {
         dragging_ = false;
         mouse_down_on_ui_ = false;
@@ -1520,7 +2152,7 @@ bool MainScene::onMouseUp(EventMouse* event) {
         return true;
     }
 
-    if (inventory_panel_open_ && handleUiClick(location)) {
+    if ((inventory_panel_open_ || knowledge_card_panel_open_) && handleUiClick(location)) {
         mouse_down_on_ui_ = false;
         return true;
     }
@@ -1559,6 +2191,23 @@ bool MainScene::onMouseUp(EventMouse* event) {
 
 bool MainScene::onMouseMove(EventMouse* event) {
     if (!mouse_down_) return true;
+    if (dragging_npc_panel_) {
+        const auto visible_size = Director::getInstance()->getVisibleSize();
+        const auto origin = Director::getInstance()->getVisibleOrigin();
+        const auto drag_delta = event->getLocation() - mouse_down_pos_;
+        const float panel_width = std::min(kNpcPanelWidth, visible_size.width - 24.0F);
+        const float panel_height = std::min(kNpcPanelMaxHeight, visible_size.height - kNpcPanelTopMargin - kNpcPanelBottomMargin);
+        const float base_panel_x = origin.x + visible_size.width - panel_width - 18.0F;
+        const float base_panel_y = origin.y + kNpcPanelBottomMargin;
+        const float min_offset_x = origin.x + 10.0F - base_panel_x;
+        const float max_offset_x = origin.x + visible_size.width - panel_width - 10.0F - base_panel_x;
+        const float min_offset_y = origin.y + 10.0F - base_panel_y;
+        const float max_offset_y = origin.y + visible_size.height - panel_height - 10.0F - base_panel_y;
+        npc_panel_offset_.x = std::clamp(npc_panel_drag_start_.x + drag_delta.x, min_offset_x, max_offset_x);
+        npc_panel_offset_.y = std::clamp(npc_panel_drag_start_.y + drag_delta.y, min_offset_y, max_offset_y);
+        renderWorld();
+        return true;
+    }
     if (mouse_down_on_ui_) return true;
     const auto delta = event->getDelta();
     if (!dragging_ && (std::abs(event->getLocation().x - mouse_down_pos_.x) > 4.0F || std::abs(event->getLocation().y - mouse_down_pos_.y) > 4.0F)) {
@@ -1572,6 +2221,55 @@ bool MainScene::onMouseMove(EventMouse* event) {
 }
 
 bool MainScene::onMouseScroll(EventMouse* event) {
+    if (knowledge_card_panel_open_ && local_runtime_) {
+        const auto visible_size = Director::getInstance()->getVisibleSize();
+        const auto origin = Director::getInstance()->getVisibleOrigin();
+        const float panel_width = 620.0F;
+        const float panel_height = 430.0F;
+        const float panel_x = origin.x + (visible_size.width - panel_width) * 0.5F;
+        const float panel_y = origin.y + (visible_size.height - panel_height) * 0.5F;
+        const Rect panel_rect(panel_x, panel_y, panel_width, panel_height);
+        if (panel_rect.containsPoint(event->getLocation())) {
+            const std::array<std::string, 7> categories{"全部", "采集", "制作", "避险", "治疗", "未分配", "已分配"};
+            const std::string selected_category = categories[static_cast<size_t>(std::clamp(knowledge_card_category_index_, 0, static_cast<int>(categories.size()) - 1))];
+            int filtered_count = 0;
+            for (const auto& card : local_runtime_->snapshot().knowledge_cards) {
+                bool match = selected_category == "全部" || card.category == selected_category;
+                if (selected_category == "未分配") match = card.assigned_actor_key.empty();
+                if (selected_category == "已分配") match = !card.assigned_actor_key.empty();
+                if (match && !fuzzyContainsAscii(cardSearchText(card), knowledge_card_search_text_)) match = false;
+                if (match) ++filtered_count;
+            }
+            const int max_scroll = std::max(0, filtered_count - 5);
+            const int direction = event->getScrollY() > 0.0F ? -1 : 1;
+            const int old_row = knowledge_card_scroll_row_;
+            knowledge_card_scroll_row_ = std::clamp(knowledge_card_scroll_row_ + direction, 0, max_scroll);
+            if (old_row != knowledge_card_scroll_row_) renderWorld();
+            return true;
+        }
+    }
+
+    if (local_runtime_ && has_selection_) {
+        const auto selected_entity = entityAt(selected_coord_);
+        if (selected_entity && !selected_entity->actor_key.empty() && selected_entity->actor_key != "player") {
+            const auto visible_size = Director::getInstance()->getVisibleSize();
+            const auto origin = Director::getInstance()->getVisibleOrigin();
+            const float panel_width = std::min(kNpcPanelWidth, visible_size.width - 24.0F);
+            const float panel_height = std::min(kNpcPanelMaxHeight, visible_size.height - kNpcPanelTopMargin - kNpcPanelBottomMargin);
+            const float base_panel_x = origin.x + visible_size.width - panel_width - 18.0F;
+            const float base_panel_y = origin.y + kNpcPanelBottomMargin;
+            const float panel_x = std::clamp(base_panel_x + npc_panel_offset_.x, origin.x + 10.0F, origin.x + visible_size.width - panel_width - 10.0F);
+            const float panel_y = std::clamp(base_panel_y + npc_panel_offset_.y, origin.y + 10.0F, origin.y + visible_size.height - panel_height - 10.0F);
+            const Rect graph_rect(panel_x + 20.0F, panel_y + panel_height - kNpcPanelHeaderHeight - kNpcTaskGraphHeight - 12.0F, panel_width - 40.0F, kNpcTaskGraphHeight);
+            if (graph_rect.containsPoint(event->getLocation())) {
+                const float old_graph_zoom = task_graph_zoom_;
+                task_graph_zoom_ = std::clamp(task_graph_zoom_ + event->getScrollY() * 0.08F, 0.72F, 1.55F);
+                if (old_graph_zoom != task_graph_zoom_) renderWorld();
+                return true;
+            }
+        }
+    }
+
     if (inventory_panel_open_ && local_runtime_) {
         const auto visible_size = Director::getInstance()->getVisibleSize();
         const auto origin = Director::getInstance()->getVisibleOrigin();
@@ -1600,4 +2298,29 @@ bool MainScene::onMouseScroll(EventMouse* event) {
     zoom_ = std::clamp(zoom_ + event->getScrollY() * 0.08F, kMinZoom, kMaxZoom);
     if (old_zoom != zoom_) renderWorld();
     return true;
+}
+
+void MainScene::onKeyPressed(EventKeyboard::KeyCode key_code, Event*) {
+    if (!knowledge_card_panel_open_) return;
+    using KeyCode = EventKeyboard::KeyCode;
+    if (key_code == KeyCode::KEY_ESCAPE) {
+        knowledge_card_panel_open_ = false;
+        knowledge_card_panel_actor_key_.clear();
+        renderWorld();
+        return;
+    }
+    if (key_code == KeyCode::KEY_BACKSPACE || key_code == KeyCode::KEY_DELETE) {
+        if (!knowledge_card_search_text_.empty()) {
+            knowledge_card_search_text_.pop_back();
+            knowledge_card_scroll_row_ = 0;
+            renderWorld();
+        }
+        return;
+    }
+    const char ch = keyCodeToSearchChar(key_code);
+    if (ch == '\0') return;
+    if (knowledge_card_search_text_.size() >= 32) return;
+    knowledge_card_search_text_.push_back(ch);
+    knowledge_card_scroll_row_ = 0;
+    renderWorld();
 }

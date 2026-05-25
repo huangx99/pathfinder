@@ -1025,6 +1025,33 @@ target_link_libraries(pathfinder_world_learning PUBLIC
     pathfinder_condition
 )
 
+# Camp Runtime library (P66)
+add_library(pathfinder_camp STATIC
+    src/camp/camp_content.cpp
+    src/camp/camp_runtime.cpp
+    src/camp/register_camp_core_rules.cpp
+    src/camp/rules/wait_tick_rule.cpp
+    src/camp/rules/player_resource_rule.cpp
+    src/camp/rules/knowledge_card_rule.cpp
+    src/camp/rules/npc_task_rule.cpp
+    src/camp/rules/scholar_event_rule.cpp
+)
+
+target_include_directories(pathfinder_camp PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/nlohmann
+)
+
+get_filename_component(PATHFINDER_REPO_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/.." ABSOLUTE)
+target_compile_definitions(pathfinder_camp PRIVATE
+    PATHFINDER_CONTENT_ROOT="${PATHFINDER_REPO_ROOT}/content"
+)
+
+target_link_libraries(pathfinder_camp PUBLIC
+    pathfinder_foundation
+    pathfinder_world_command
+)
+
 # Client Runtime Bridge library (P56)
 add_library(pathfinder_client_runtime_bridge STATIC
     src/client_runtime_bridge/client_runtime_bridge_types.cpp

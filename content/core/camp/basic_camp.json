@@ -1,0 +1,357 @@
+{
+  "schema_version": "camp_content_1",
+  "status_text": "你是营地控制者：分配知识卡，调度 NPC，管理营地仓库。",
+  "initial_events": [
+    "安全圈营地建立完成。圈外有资源，也有危险。"
+  ],
+  "initial_inventory": [
+    {
+      "item_key": "red_berry",
+      "quantity": 3
+    },
+    {
+      "item_key": "torch",
+      "quantity": 1
+    }
+  ],
+  "items": [
+    {
+      "key": "wood",
+      "display_name": "木头"
+    },
+    {
+      "key": "stone_flake",
+      "display_name": "石片"
+    },
+    {
+      "key": "axe",
+      "display_name": "斧头",
+      "numeric_states": {
+        "durability": 50,
+        "max_durability": 50
+      }
+    },
+    {
+      "key": "torch",
+      "display_name": "火把"
+    },
+    {
+      "key": "red_berry",
+      "display_name": "红果"
+    }
+  ],
+  "static_entities": [
+    {
+      "entity_id": "camp_fire",
+      "entity_key": "camp_fire",
+      "display_name": "安全圈火堆",
+      "x": 0,
+      "y": 1
+    },
+    {
+      "entity_id": "wandering_scholar",
+      "entity_key": "npc_scholar",
+      "display_name": "流浪学者",
+      "x": 0,
+      "y": -3
+    }
+  ],
+  "resources": [
+    {
+      "key": "nearby_woods",
+      "name": "附近树林",
+      "current": 6,
+      "max": 6,
+      "regen_per_day": 1,
+      "entity_id": "nearby_woods",
+      "entity_key": "tree",
+      "x": -4,
+      "y": 1,
+      "gather_command_key": "camp.camp_gather_wood",
+      "gather_label": "营地收集木头到仓库",
+      "output_items": [
+        {
+          "item_key": "wood",
+          "quantity": 1
+        }
+      ],
+      "npc_output_items": [
+        {
+          "item_key": "wood",
+          "quantity": 2
+        }
+      ],
+      "depleted_text": "附近树林已经采空",
+      "completion_event": "带回木头 ×2。"
+    },
+    {
+      "key": "stone_field",
+      "name": "碎石坡",
+      "current": 4,
+      "max": 4,
+      "regen_per_day": 1,
+      "entity_id": "stone_field",
+      "entity_key": "loose_stone_node",
+      "x": 4,
+      "y": 1,
+      "gather_command_key": "camp.camp_gather_stone",
+      "gather_label": "营地收集石片到仓库",
+      "output_items": [
+        {
+          "item_key": "stone_flake",
+          "quantity": 1
+        }
+      ],
+      "npc_output_items": [
+        {
+          "item_key": "stone_flake",
+          "quantity": 2
+        }
+      ],
+      "depleted_text": "碎石坡已经采空",
+      "completion_event": "带回石片 ×2。"
+    }
+  ],
+  "actors": [
+    {
+      "actor_key": "npc_amu",
+      "name": "阿木",
+      "x": 1,
+      "y": 0,
+      "health": 10,
+      "max_health": 10,
+      "entity_key": "npc_companion"
+    },
+    {
+      "actor_key": "npc_lin",
+      "name": "林",
+      "x": -1,
+      "y": 0,
+      "health": 10,
+      "max_health": 10,
+      "entity_key": "npc_companion"
+    }
+  ],
+  "knowledge_cards": [
+    {
+      "card_id": "card_chop_wood",
+      "knowledge_key": "chop_wood",
+      "name": "砍伐木头",
+      "summary": "能理解树木/木材采集任务",
+      "status": "active",
+      "initial": true,
+      "category": "采集"
+    },
+    {
+      "card_id": "card_gather_stone",
+      "knowledge_key": "gather_stone",
+      "name": "采集石片",
+      "summary": "能从碎石坡采集可用石片",
+      "status": "active",
+      "initial": true,
+      "category": "采集"
+    },
+    {
+      "card_id": "card_craft_axe",
+      "knowledge_key": "craft_axe",
+      "name": "制作斧头",
+      "summary": "知道木头 + 石片可以制作斧头",
+      "status": "active",
+      "initial": true,
+      "category": "制作"
+    },
+    {
+      "card_id": "card_craft_torch",
+      "knowledge_key": "craft_torch",
+      "name": "制作火把",
+      "summary": "知道木头可以制作临时火把",
+      "status": "active",
+      "initial": true,
+      "category": "制作"
+    },
+    {
+      "card_id": "card_repel_beast",
+      "knowledge_key": "repel_beast",
+      "name": "火把驱赶野兽",
+      "summary": "遇到野兽时能用火把反制，而不是只会逃回家",
+      "status": "active",
+      "initial": true,
+      "category": "避险"
+    },
+    {
+      "card_id": "card_herb_heal",
+      "knowledge_key": "herb_heal",
+      "name": "草药治疗",
+      "summary": "能在受伤时使用草药降低风险",
+      "status": "hypothesis",
+      "initial": false,
+      "category": "治疗"
+    }
+  ],
+  "scholar_reward_card_id": "card_herb_heal",
+  "primary_threat_key": "boundary_beast",
+  "threats": [
+    {
+      "key": "boundary_beast",
+      "name": "圈外野兽",
+      "entity_id": "boundary_wolf",
+      "entity_key": "beast_wolf",
+      "x": 5,
+      "y": -2,
+      "health": 6,
+      "max_health": 8,
+      "initial_level": 1,
+      "max_level": 3,
+      "trigger_level": 2,
+      "increase_interval_ticks": 6,
+      "repel_amount": 2,
+      "encounter_percent": 55,
+      "handle_duration": 12,
+      "return_duration": 9,
+      "counter_knowledge_key": "repel_beast",
+      "counter_item_key": "torch",
+      "counter_item_quantity": 1,
+      "encounter_label": "遭遇野兽",
+      "success_reason_label": "推理火把",
+      "failure_reason_without_item_label": "缺少火把",
+      "failure_reason_without_knowledge_label": "缺少知识",
+      "success_action_label": "驱赶野兽",
+      "failure_action_label": "返家决策",
+      "resolved_node_label": "风险已处理",
+      "return_node_label": "返回家园",
+      "risk_text": "遭遇风险：圈外野兽",
+      "resolved_text": "风险已处理：圈外野兽",
+      "missing_item_blocked_reason": "返回家园：缺少火把",
+      "missing_knowledge_blocked_reason": "返回家园：缺少驱狼知识卡",
+      "success_reasoning_text": "推理：火把可驱赶野兽",
+      "missing_item_reasoning_text": "推理：知道火把反制，但没有火把",
+      "missing_knowledge_reasoning_text": "推理：没有驱狼知识卡，无法处理风险",
+      "repel_command_key": "camp.camp_repel_boundary_beast",
+      "repel_label": "营地守火驱赶圈外野兽"
+    }
+  ],
+  "recipes": [
+    {
+      "key": "craft_axe",
+      "command_key": "camp.camp_craft_axe",
+      "label": "营地制作斧头（木头×1 + 石片×1）",
+      "work_label": "制作斧头",
+      "target_entity_id": "camp_fire",
+      "required_card_key": "craft_axe",
+      "duration": 16,
+      "inputs": [
+        {
+          "item_key": "wood",
+          "quantity": 1
+        },
+        {
+          "item_key": "stone_flake",
+          "quantity": 1
+        }
+      ],
+      "outputs": [
+        {
+          "item_key": "axe",
+          "quantity": 1
+        }
+      ],
+      "missing_material_text": "制作斧头材料不足",
+      "completion_event": "制作完成斧头，并放入营地仓库。"
+    },
+    {
+      "key": "craft_torch",
+      "command_key": "camp.camp_craft_torch",
+      "label": "营地制作火把（木头×1）",
+      "work_label": "制作火把",
+      "target_entity_id": "camp_fire",
+      "required_card_key": "craft_torch",
+      "duration": 12,
+      "inputs": [
+        {
+          "item_key": "wood",
+          "quantity": 1
+        }
+      ],
+      "outputs": [
+        {
+          "item_key": "torch",
+          "quantity": 1
+        }
+      ],
+      "missing_material_text": "制作火把材料不足",
+      "completion_event": "制作完成火把，并放入营地仓库。"
+    }
+  ],
+  "tasks": [
+    {
+      "key": "gather_wood",
+      "command_key": "camp.npc_gather_wood",
+      "label": "采集木头",
+      "duration": 20,
+      "outside_safe_zone": true,
+      "required_card_key": "chop_wood",
+      "resource_key": "nearby_woods",
+      "threat_key": "boundary_beast",
+      "nodes": [
+        "接令",
+        "检查知识",
+        "前往圈外",
+        "执行",
+        "返回交付"
+      ]
+    },
+    {
+      "key": "gather_stone",
+      "command_key": "camp.npc_gather_stone",
+      "label": "采集石片",
+      "duration": 18,
+      "outside_safe_zone": true,
+      "required_card_key": "gather_stone",
+      "resource_key": "stone_field",
+      "threat_key": "boundary_beast",
+      "nodes": [
+        "接令",
+        "检查知识",
+        "前往圈外",
+        "执行",
+        "返回交付"
+      ]
+    },
+    {
+      "key": "craft_axe",
+      "command_key": "camp.npc_craft_axe",
+      "label": "制作斧头",
+      "duration": 16,
+      "outside_safe_zone": false,
+      "required_card_key": "craft_axe",
+      "recipe_key": "craft_axe",
+      "nodes": [
+        "接令",
+        "检查知识",
+        "准备材料",
+        "制作",
+        "交付"
+      ]
+    },
+    {
+      "key": "craft_torch",
+      "command_key": "camp.npc_craft_torch",
+      "label": "制作火把",
+      "duration": 12,
+      "outside_safe_zone": false,
+      "required_card_key": "craft_torch",
+      "recipe_key": "craft_torch",
+      "nodes": [
+        "接令",
+        "检查知识",
+        "准备材料",
+        "制作",
+        "交付"
+      ]
+    }
+  ],
+  "player_inventory_capacity_slots": 18,
+  "actor_inventory_capacity_slots": 9,
+  "scholar_entity_id": "wandering_scholar",
+  "scholar_repeat_event": "流浪学者提醒：知识卡要分配给合适的人。"
+}

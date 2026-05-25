@@ -5995,3 +5995,16 @@ add_test(
     NAME architecture_p60_no_direct_runtime_array_modification
     COMMAND bash -c "! grep -rn 'cells_\.\\|entities_\.\\|actors_\.\\|resource_nodes_\.' ${CMAKE_CURRENT_SOURCE_DIR}/../src/world_map_interaction/"
 )
+
+# Camp Runtime tests (P65)
+add_executable(pathfinder_tests_camp_task_graph
+    unit/camp/camp_task_graph_test.cpp
+)
+
+target_link_libraries(pathfinder_tests_camp_task_graph PRIVATE
+    pathfinder_camp
+    pathfinder_world_command
+    pathfinder_foundation
+)
+
+add_test(NAME camp_task_graph_branch_projection COMMAND pathfinder_tests_camp_task_graph)

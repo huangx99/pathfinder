@@ -73,27 +73,151 @@ std::filesystem::path repoRoot() {
 LocalClientRuntime::LocalClientRuntime() = default;
 LocalClientRuntime::~LocalClientRuntime() = default;
 
+void LocalClientRuntime::applyCampSnapshot(const pathfinder::camp::CampSnapshot& camp) {
+    snapshot_ = LocalClientSnapshot{};
+    snapshot_.projection_version = camp.projection_version;
+    snapshot_.status_text = camp.status_text;
+    snapshot_.inventory_capacity_slots = camp.player_inventory_capacity_slots;
+    snapshot_.actor_inventory_capacity_slots = camp.actor_inventory_capacity_slots;
+    snapshot_.actor_work_status = camp.actor_work_status;
+    snapshot_.events = camp.event_feed;
+    for (const auto& [actor_key, task] : camp.actor_tasks) {
+        LocalActorTaskView view;
+        view.active = task.active;
+        view.task_key = task.task_key;
+        view.label = task.label;
+        view.nodes = task.nodes;
+        view.node_index = task.node_index;
+        view.progress = task.progress;
+        view.duration = task.duration;
+        view.percent = task.percent;
+        view.outside_safe_zone = task.outside_safe_zone;
+        view.handling_threat = task.handling_threat;
+        view.returning_home = task.returning_home;
+        view.risk_encountered = task.risk_encountered;
+        view.required_card_key = task.required_card_key;
+        view.blocked_reason = task.blocked_reason;
+        view.risk_text = task.risk_text;
+        view.reasoning_text = task.reasoning_text;
+        view.task_graph.active_node_id = task.task_graph.active_node_id;
+        view.task_graph.graph_mode = task.task_graph.graph_mode;
+        for (const auto& node : task.task_graph.nodes) {
+            LocalTaskGraphNodeView local_node;
+            local_node.node_id = node.node_id;
+            local_node.label = node.label;
+            local_node.node_type = node.node_type;
+            local_node.status = node.status;
+            local_node.x = node.x;
+            local_node.y = node.y;
+            view.task_graph.nodes.push_back(std::move(local_node));
+        }
+        for (const auto& edge : task.task_graph.edges) {
+            LocalTaskGraphEdgeView local_edge;
+            local_edge.edge_id = edge.edge_id;
+            local_edge.from_node_id = edge.from_node_id;
+            local_edge.to_node_id = edge.to_node_id;
+            local_edge.edge_type = edge.edge_type;
+            local_edge.status = edge.status;
+            view.task_graph.edges.push_back(std::move(local_edge));
+        }
+        snapshot_.actor_tasks[actor_key] = std::move(view);
+    }
+
+    for (const auto& cell : camp.cells) {
+        LocalCellView view;
+        view.cell_id = cell.cell_id;
+        view.x = cell.x;
+        view.y = cell.y;
+        view.terrain_key = cell.terrain_key;
+        view.blocks_movement = cell.blocks_movement;
+        view.visibility = "visible";
+        snapshot_.cells.push_back(std::move(view));
+    }
+
+    for (const auto& entity : camp.entities) {
+        LocalEntityView view;
+        view.entity_id = entity.entity_id;
+        view.entity_key = entity.entity_key;
+        view.display_name_key = entity.display_name;
+        view.actor_key = entity.actor_key;
+        view.x = entity.x;
+        view.y = entity.y;
+        view.is_resource_node = entity.is_resource_node;
+        view.health = entity.health;
+        view.max_health = entity.max_health;
+        view.alive = entity.alive;
+        snapshot_.entities.push_back(std::move(view));
+    }
+
+    for (const auto& option : camp.options) {
+        LocalCommandOptionView view;
+        view.option_id = option.option_id;
+        view.command_key = option.command_key;
+        view.label_text = option.label_text;
+        view.command_kind = option.command_kind;
+        view.enabled = option.enabled;
+        view.target_x = option.target_x;
+        view.target_y = option.target_y;
+        view.target_entity_id = option.target_entity_id;
+        view.target_actor_key = option.target_actor_key;
+        view.knowledge_key = option.knowledge_key;
+        snapshot_.options.push_back(std::move(view));
+    }
+
+    auto map_item = [](const pathfinder::camp::CampInventoryItemView& item) {
+        LocalInventoryItemView view;
+        view.entry_id = item.entry_id;
+        view.entity_id = item.entry_id;
+        view.entity_key = item.entity_key;
+        view.stack_key = item.entity_key;
+        view.display_name = item.display_name;
+        view.quantity = item.quantity;
+        view.numeric_states = item.numeric_states;
+        return view;
+    };
+    for (const auto& item : camp.player_inventory) snapshot_.inventory_items.push_back(map_item(item));
+    for (const auto& [actor_key, items] : camp.actor_inventory) {
+        auto& target = snapshot_.actor_inventory_items[actor_key];
+        for (const auto& item : items) target.push_back(map_item(item));
+    }
+
+    for (const auto& knowledge : camp.knowledge) {
+        LocalKnowledgeView view;
+        view.knowledge_id = knowledge.knowledge_id;
+        view.subject_id = knowledge.subject_id;
+        view.action_key = knowledge.action_key;
+        view.effect_key = knowledge.effect_key;
+        view.status = knowledge.status;
+        view.confidence = "camp_card";
+        view.subject_name = knowledge.subject_name;
+        view.action_name = knowledge.action_name;
+        view.effect_name = knowledge.effect_name;
+        view.summary_text = knowledge.summary_text;
+        view.recipe_text = knowledge.recipe_text;
+        view.actor_key = knowledge.actor_key;
+        snapshot_.knowledge_items.push_back(std::move(view));
+    }
+
+    for (const auto& card : camp.knowledge_cards) {
+        LocalKnowledgeCardView view;
+        view.card_id = card.card_id;
+        view.knowledge_key = card.knowledge_key;
+        view.name = card.name;
+        view.summary = card.summary;
+        view.status = card.status;
+        view.category = card.category;
+        view.assigned_actor_key = card.assigned_actor_key;
+        view.assigned_actor_name = card.assigned_actor_name;
+        view.recoverable = card.recoverable;
+        view.locked = card.locked;
+        snapshot_.knowledge_cards.push_back(std::move(view));
+    }
+}
+
 bool LocalClientRuntime::bootstrap() {
     try {
-        if (!factory_) {
-            const auto old_path = std::filesystem::current_path();
-            std::filesystem::current_path(repoRoot());
-            factory_ = std::make_unique<pathfinder::client_runtime_host::ClientRuntimeHostFactory>();
-            std::filesystem::current_path(old_path);
-        }
-
-        ClientBootstrapRequest request;
-        request.client_id = client_id_;
-        request.session_id = session_id_;
-        request.requested_actor_key = "player";
-        request.requested_layer_key = "surface";
-        request.create_if_missing = true;
-        auto result = factory_->session_gateway.bootstrap(request);
-        if (result.is_error()) {
-            last_error_ = firstErrorText(result.errors());
-            return false;
-        }
-        applyBootstrap(result.value());
+        if (!camp_runtime_) camp_runtime_ = std::make_unique<pathfinder::camp::CampRuntime>();
+        applyCampSnapshot(camp_runtime_->snapshot());
         last_error_.clear();
         return true;
     } catch (const std::exception& ex) {
@@ -103,63 +227,52 @@ bool LocalClientRuntime::bootstrap() {
 }
 
 bool LocalClientRuntime::refresh() {
-    if (!factory_ && !bootstrap()) return false;
-    ClientRefreshRequest request;
-    request.client_id = client_id_;
-    request.session_id = session_id_;
-    request.known_projection_version = snapshot_.projection_version;
-    request.requested_layer_key = "surface";
-    auto result = factory_->session_gateway.refresh(request);
-    if (result.is_error()) {
-        last_error_ = firstErrorText(result.errors());
-        return false;
-    }
-    applyRefresh(result.value());
+    if (!camp_runtime_ && !bootstrap()) return false;
+    applyCampSnapshot(camp_runtime_->snapshot());
     last_error_.clear();
     return true;
 }
 
 bool LocalClientRuntime::reset() {
-    if (!factory_ && !bootstrap()) return false;
-    snapshot_.knowledge_items.clear();
-    snapshot_.actor_inventory_items.clear();
-    snapshot_.actor_inventory_capacity_slots.clear();
-    snapshot_.actor_work_status.clear();
-    ClientResetRequest request;
-    request.client_id = client_id_;
-    request.session_id = session_id_;
-    request.confirmed = true;
-    auto result = factory_->session_gateway.reset(request);
-    if (result.is_error()) {
-        last_error_ = firstErrorText(result.errors());
-        return false;
-    }
-    applyBootstrap(result.value().bootstrap);
+    if (!camp_runtime_) camp_runtime_ = std::make_unique<pathfinder::camp::CampRuntime>();
+    camp_runtime_->reset();
+    applyCampSnapshot(camp_runtime_->snapshot());
     last_error_.clear();
     return true;
 }
 
 bool LocalClientRuntime::submitOption(const std::string& option_id) {
-    if (!factory_ && !bootstrap()) return false;
-    ClientCommandRequest request;
-    request.client_id = client_id_;
-    request.session_id = session_id_;
-    request.client_sequence = ++client_sequence_;
-    request.known_projection_version = snapshot_.projection_version;
-    request.submit_mode = ClientSubmitMode::OptionId;
-    request.option_id = option_id;
-    auto result = factory_->command_gateway.handleCommand(request);
-    if (result.is_error()) {
-        last_error_ = firstErrorText(result.errors());
+    if (!camp_runtime_ && !bootstrap()) return false;
+    std::string error;
+    if (!camp_runtime_->submitOption(option_id, error)) {
+        last_error_ = error;
         return false;
     }
-    const auto response = result.value();
-    applyCommand(response);
-    if (response.requires_full_refresh || response.projection_patch.requires_full_refresh) {
-        if (!refresh()) {
-            return false;
-        }
+    applyCampSnapshot(camp_runtime_->snapshot());
+    last_error_.clear();
+    return true;
+}
+
+bool LocalClientRuntime::assignKnowledgeCard(const std::string& actor_key, const std::string& card_id) {
+    if (!camp_runtime_ && !bootstrap()) return false;
+    std::string error;
+    if (!camp_runtime_->assignKnowledgeCard(actor_key, card_id, error)) {
+        last_error_ = error;
+        return false;
     }
+    applyCampSnapshot(camp_runtime_->snapshot());
+    last_error_.clear();
+    return true;
+}
+
+bool LocalClientRuntime::recoverKnowledgeCard(const std::string& actor_key, const std::string& card_id) {
+    if (!camp_runtime_ && !bootstrap()) return false;
+    std::string error;
+    if (!camp_runtime_->recoverKnowledgeCard(actor_key, card_id, error)) {
+        last_error_ = error;
+        return false;
+    }
+    applyCampSnapshot(camp_runtime_->snapshot());
     last_error_.clear();
     return true;
 }

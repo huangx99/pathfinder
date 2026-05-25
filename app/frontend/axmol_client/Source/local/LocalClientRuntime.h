@@ -1,6 +1,7 @@
 #pragma once
 
 #include "pathfinder/client_protocol/client_protocol_types.h"
+#include "pathfinder/camp/camp_runtime.h"
 #include <map>
 #include <memory>
 #include <optional>
@@ -63,6 +64,63 @@ struct LocalKnowledgeView {
     std::string actor_key;
 };
 
+struct LocalKnowledgeCardView {
+    std::string card_id;
+    std::string knowledge_key;
+    std::string name;
+    std::string summary;
+    std::string status;
+    std::string category;
+    std::string assigned_actor_key;
+    std::string assigned_actor_name;
+    bool recoverable{true};
+    bool locked{false};
+};
+
+struct LocalTaskGraphNodeView {
+    std::string node_id;
+    std::string label;
+    std::string node_type;
+    std::string status;
+    float x{0.0F};
+    float y{0.0F};
+};
+
+struct LocalTaskGraphEdgeView {
+    std::string edge_id;
+    std::string from_node_id;
+    std::string to_node_id;
+    std::string edge_type;
+    std::string status;
+};
+
+struct LocalTaskGraphView {
+    std::vector<LocalTaskGraphNodeView> nodes;
+    std::vector<LocalTaskGraphEdgeView> edges;
+    std::string active_node_id;
+    std::string graph_mode;
+};
+
+struct LocalActorTaskView {
+    bool active{false};
+    std::string task_key;
+    std::string label;
+    std::vector<std::string> nodes;
+    int node_index{0};
+    int progress{0};
+    int duration{1};
+    int percent{0};
+    bool outside_safe_zone{false};
+    bool handling_threat{false};
+    bool returning_home{false};
+    bool risk_encountered{false};
+    std::string required_card_key;
+    std::string blocked_reason;
+    std::string risk_text;
+    std::string reasoning_text;
+    LocalTaskGraphView task_graph;
+};
+
 struct LocalCommandOptionView {
     std::string option_id;
     std::string command_key;
@@ -86,6 +144,8 @@ struct LocalClientSnapshot {
     std::map<std::string, std::vector<LocalInventoryItemView>> actor_inventory_items;
     std::map<std::string, int> actor_inventory_capacity_slots;
     std::vector<LocalKnowledgeView> knowledge_items;
+    std::vector<LocalKnowledgeCardView> knowledge_cards;
+    std::map<std::string, LocalActorTaskView> actor_tasks;
     int inventory_capacity_slots{9};
     std::map<std::string, std::string> actor_work_status;
     std::vector<std::string> events;
@@ -100,6 +160,8 @@ public:
     bool refresh();
     bool reset();
     bool submitOption(const std::string& option_id);
+    bool assignKnowledgeCard(const std::string& actor_key, const std::string& card_id);
+    bool recoverKnowledgeCard(const std::string& actor_key, const std::string& card_id);
 
     std::optional<LocalCommandOptionView> findMoveOptionTo(int x, int y) const;
     std::optional<LocalCommandOptionView> findInspectOptionFor(int x, int y) const;
@@ -109,6 +171,7 @@ public:
     const std::string& lastError() const { return last_error_; }
 
 private:
+    void applyCampSnapshot(const pathfinder::camp::CampSnapshot& snapshot);
     void applyBootstrap(const pathfinder::client_protocol::ClientBootstrapResponse& response);
     void applyRefresh(const pathfinder::client_protocol::ClientRefreshResponse& response);
     void applyCommand(const pathfinder::client_protocol::ClientCommandResponse& response);
@@ -129,6 +192,7 @@ private:
     static std::string stringField(const std::map<std::string, std::string>& fields, const std::string& key, const std::string& fallback = "");
 
     std::unique_ptr<pathfinder::client_runtime_host::ClientRuntimeHostFactory> factory_;
+    std::unique_ptr<pathfinder::camp::CampRuntime> camp_runtime_;
     LocalClientSnapshot snapshot_;
     std::string session_id_{"axmol_local_session"};
     std::string client_id_{"axmol_local_client"};
