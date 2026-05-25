@@ -53,7 +53,7 @@ void AgentInfoPanel::setAgent(const pathfinder::v3_sandbox::V3AgentView* agent) 
     removeAllChildren();
     addChild(panelBackground(getContentSize(), color(8, 13, 26, 0.94F)), 0);
 
-    auto* title = label(agent ? agent->name : "选择小人", 22.0F, ax::Vec2(kWidth - 28.0F, 30.0F));
+    auto* title = panelLabel(agent ? agent->name : "选择小人", 22.0F, ax::Vec2(kWidth - 28.0F, 30.0F));
     title->setTextColor(ax::Color32(250, 204, 21, 255));
     title->setPosition(14.0F, kHeight - 16.0F);
     addChild(title, 2);
@@ -102,7 +102,7 @@ void AgentInfoPanel::setAgent(const pathfinder::v3_sandbox::V3AgentView* agent) 
 
 void AgentInfoPanel::addSectionTitle(const std::string& text, float& y) {
     y -= 8.0F;
-    auto* section = label(text, 15.0F, ax::Vec2(kWidth - 28.0F, 22.0F));
+    auto* section = panelLabel(text, 15.0F, ax::Vec2(kWidth - 28.0F, 22.0F));
     section->setTextColor(ax::Color32(147, 197, 253, 255));
     section->setPosition(14.0F, y);
     addChild(section, 2);
@@ -111,7 +111,7 @@ void AgentInfoPanel::addSectionTitle(const std::string& text, float& y) {
 
 void AgentInfoPanel::addLine(const std::string& text, float& y, float height, float size) {
     if (y < 18.0F) return;
-    auto* line = label(text, size, ax::Vec2(kWidth - 28.0F, height));
+    auto* line = panelLabel(text, size, ax::Vec2(kWidth - 28.0F, height));
     line->setPosition(14.0F, y);
     addChild(line, 2);
     y -= height;
@@ -119,7 +119,7 @@ void AgentInfoPanel::addLine(const std::string& text, float& y, float height, fl
 
 void AgentInfoPanel::addMeter(const std::string& label_text, double value, const ax::Color& fill, float& y) {
     if (y < 38.0F) return;
-    auto* title = label(label_text + " " + percentText(value), 13.0F, ax::Vec2(74.0F, 18.0F));
+    auto* title = panelLabel(label_text + " " + percentText(value), 13.0F, ax::Vec2(74.0F, 18.0F));
     title->setPosition(14.0F, y);
     addChild(title, 2);
 

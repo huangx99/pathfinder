@@ -39,6 +39,12 @@ ax::Label* label(const std::string& text, float size, const ax::Vec2& dimensions
     return result;
 }
 
+ax::Label* panelLabel(const std::string& text, float size, const ax::Vec2& dimensions) {
+    auto* result = label(text, size, dimensions);
+    result->setAnchorPoint(ax::Vec2(0.0F, 1.0F));
+    return result;
+}
+
 ax::DrawNode* panelBackground(const ax::Size& size, const ax::Color& fill) {
     auto* draw = ax::DrawNode::create();
     draw->drawSolidRect(ax::Vec2::ZERO, ax::Vec2(size.width, size.height), fill);

@@ -30,11 +30,11 @@ bool ToolPalettePanel::init(pf::client::V3LocalClient* client, std::function<voi
 void ToolPalettePanel::refresh() {
     removeAllChildren();
     addChild(panelBackground(getContentSize()), 0);
-    auto* title = label("工具", 24.0F, ax::Vec2(kWidth - 24.0F, 32.0F));
+    auto* title = panelLabel("工具", 24.0F, ax::Vec2(kWidth - 24.0F, 32.0F));
     title->setPosition(12.0F, kHeight - 16.0F);
     addChild(title, 2);
 
-    auto* selected = label("当前：" + client_->selectedTool().label, 15.0F, ax::Vec2(kWidth - 24.0F, 42.0F));
+    auto* selected = panelLabel("当前：" + client_->selectedTool().label, 15.0F, ax::Vec2(kWidth - 24.0F, 42.0F));
     selected->setTextColor(ax::Color32(250, 204, 21, 255));
     selected->setPosition(12.0F, kHeight - 56.0F);
     addChild(selected, 2);

@@ -27,13 +27,13 @@ bool InspectorPanel::init() {
 void InspectorPanel::setLines(const std::string& title_text, const std::vector<std::string>& lines) {
     removeAllChildren();
     addChild(panelBackground(getContentSize()), 0);
-    auto* title = label(title_text, 22.0F, ax::Vec2(kWidth - 24.0F, 30.0F));
+    auto* title = panelLabel(title_text, 22.0F, ax::Vec2(kWidth - 24.0F, 30.0F));
     title->setPosition(12.0F, kHeight - 16.0F);
     addChild(title, 2);
 
     float y = kHeight - 62.0F;
     for (const auto& line : lines) {
-        auto* text = label(shorten(line, 40), 15.0F, ax::Vec2(kWidth - 24.0F, 42.0F));
+        auto* text = panelLabel(shorten(line, 40), 15.0F, ax::Vec2(kWidth - 24.0F, 42.0F));
         text->setPosition(12.0F, y);
         addChild(text, 2);
         y -= 42.0F;

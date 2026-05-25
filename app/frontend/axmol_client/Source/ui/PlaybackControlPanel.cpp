@@ -11,7 +11,7 @@ ax::MenuItemLabel* menuButton(const std::string& text, const ax::Color& fill, co
     bg->drawSolidRect(ax::Vec2::ZERO, ax::Vec2(128.0F, 34.0F), fill);
     bg->drawRect(ax::Vec2::ZERO, ax::Vec2(128.0F, 34.0F), color(148, 163, 184, 0.75F));
 
-    auto* text_label = label(text, 16.0F, ax::Vec2(128.0F, 34.0F));
+    auto* text_label = panelLabel(text, 16.0F, ax::Vec2(128.0F, 34.0F));
     text_label->setAlignment(ax::TextHAlignment::CENTER, ax::TextVAlignment::CENTER);
     text_label->setTextColor(ax::Color32(248, 250, 252, 255));
     text_label->setPosition(0.0F, 34.0F);
@@ -56,12 +56,12 @@ void PlaybackControlPanel::render() {
     removeAllChildren();
     addChild(panelBackground(getContentSize(), color(10, 18, 32, 0.94F)), 0);
 
-    auto* title = label("时间", 14.0F, ax::Vec2(82.0F, 22.0F));
+    auto* title = panelLabel("时间", 14.0F, ax::Vec2(82.0F, 22.0F));
     title->setTextColor(ax::Color32(147, 197, 253, 255));
     title->setPosition(14.0F, kHeight - 12.0F);
     addChild(title, 1);
 
-    auto* tick_label = label("第 " + std::to_string(tick_) + " 回合", 16.0F, ax::Vec2(112.0F, 28.0F));
+    auto* tick_label = panelLabel("第 " + std::to_string(tick_) + " 回合", 16.0F, ax::Vec2(112.0F, 28.0F));
     tick_label->setPosition(14.0F, 36.0F);
     addChild(tick_label, 1);
 
