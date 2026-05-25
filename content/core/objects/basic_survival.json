@@ -135,7 +135,9 @@
       "safe_tags": [
         "tool",
         "sharp",
-        "weapon"
+        "weapon",
+        "crafted",
+        "manufactured"
       ],
       "allowed_actions": [
         "use",
@@ -278,7 +280,8 @@
       "safe_tags": [
         "fire",
         "light",
-        "heat"
+        "heat",
+        "crafted"
       ],
       "allowed_actions": [
         "use",
@@ -306,7 +309,9 @@
         "tool",
         "fire",
         "light",
-        "weapon"
+        "weapon",
+        "crafted",
+        "manufactured"
       ],
       "allowed_actions": [
         "use",
@@ -350,6 +355,195 @@
         "safe_trait_keys": [
           "石质材料",
           "可拾取"
+        ],
+        "unknown_use_text_key": "object.common.unknown_use"
+      }
+    },
+    {
+      "object_key": "flint",
+      "display_key": "object.flint.name",
+      "description_key": "object.flint.desc",
+      "kind": "material",
+      "visibility": "runtime_visible",
+      "safe_tags": [
+        "material",
+        "stone",
+        "spark_source",
+        "raw"
+      ],
+      "allowed_actions": [
+        "inspect",
+        "pickup",
+        "use"
+      ],
+      "initial_state": {
+        "quantity": 1,
+        "numeric": {},
+        "tags": []
+      },
+      "projection": {
+        "safe_trait_keys": [
+          "石质材料",
+          "可产生火花"
+        ],
+        "unknown_use_text_key": "object.common.unknown_use"
+      }
+    },
+    {
+      "object_key": "clay",
+      "display_key": "object.clay.name",
+      "description_key": "object.clay.desc",
+      "kind": "material",
+      "visibility": "runtime_visible",
+      "safe_tags": [
+        "material",
+        "earth",
+        "raw"
+      ],
+      "allowed_actions": [
+        "inspect",
+        "pickup",
+        "use"
+      ],
+      "initial_state": {
+        "quantity": 2,
+        "numeric": {},
+        "tags": []
+      },
+      "projection": {
+        "safe_trait_keys": [
+          "泥土材料",
+          "可塑形"
+        ],
+        "unknown_use_text_key": "object.common.unknown_use"
+      }
+    },
+    {
+      "object_key": "reed",
+      "display_key": "object.reed.name",
+      "description_key": "object.reed.desc",
+      "kind": "material",
+      "visibility": "runtime_visible",
+      "safe_tags": [
+        "material",
+        "plant",
+        "fiber",
+        "raw"
+      ],
+      "allowed_actions": [
+        "inspect",
+        "pickup",
+        "use"
+      ],
+      "initial_state": {
+        "quantity": 2,
+        "numeric": {},
+        "tags": []
+      },
+      "projection": {
+        "safe_trait_keys": [
+          "植物纤维",
+          "可编织"
+        ],
+        "unknown_use_text_key": "object.common.unknown_use"
+      }
+    },
+    {
+      "object_key": "vine",
+      "display_key": "object.vine.name",
+      "description_key": "object.vine.desc",
+      "kind": "material",
+      "visibility": "runtime_visible",
+      "safe_tags": [
+        "material",
+        "plant",
+        "fiber",
+        "binding",
+        "raw"
+      ],
+      "allowed_actions": [
+        "inspect",
+        "pickup",
+        "use"
+      ],
+      "initial_state": {
+        "quantity": 1,
+        "numeric": {},
+        "tags": []
+      },
+      "projection": {
+        "safe_trait_keys": [
+          "可捆绑",
+          "植物纤维"
+        ],
+        "unknown_use_text_key": "object.common.unknown_use"
+      }
+    },
+    {
+      "object_key": "mushroom",
+      "display_key": "object.mushroom.name",
+      "description_key": "object.mushroom.desc",
+      "kind": "food",
+      "visibility": "runtime_visible",
+      "safe_tags": [
+        "food_like",
+        "plant",
+        "fungus",
+        "raw"
+      ],
+      "allowed_actions": [
+        "eat",
+        "use",
+        "inspect",
+        "pickup"
+      ],
+      "initial_state": {
+        "quantity": 1,
+        "numeric": {},
+        "tags": []
+      },
+      "knowledge_hints": [
+        "can_be_eaten_unknown"
+      ],
+      "projection": {
+        "safe_trait_keys": [
+          "菌类",
+          "可尝试食用"
+        ],
+        "unknown_use_text_key": "object.common.unknown_use"
+      }
+    },
+    {
+      "object_key": "poison_mushroom",
+      "display_key": "object.poison_mushroom.name",
+      "description_key": "object.poison_mushroom.desc",
+      "kind": "food",
+      "visibility": "runtime_visible",
+      "safe_tags": [
+        "food_like",
+        "plant",
+        "fungus",
+        "toxic_hint",
+        "raw"
+      ],
+      "allowed_actions": [
+        "eat",
+        "use",
+        "inspect",
+        "pickup"
+      ],
+      "initial_state": {
+        "quantity": 1,
+        "numeric": {},
+        "tags": []
+      },
+      "knowledge_hints": [
+        "can_be_eaten_unknown"
+      ],
+      "projection": {
+        "safe_trait_keys": [
+          "菌类",
+          "颜色异常"
         ],
         "unknown_use_text_key": "object.common.unknown_use"
       }

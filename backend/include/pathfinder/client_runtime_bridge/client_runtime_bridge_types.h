@@ -34,6 +34,7 @@ enum class ClientCommandOptionProviderKind {
     Teach,
     Combat,
     AreaEffect,
+    MapEdit,
     TestOnly
 };
 

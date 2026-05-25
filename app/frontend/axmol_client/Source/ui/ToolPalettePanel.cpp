@@ -44,14 +44,19 @@ ax::ui::Layout* makeLayoutCell(const ax::Size& size, ax::Node* child) {
 }
 
 ax::Node* createToolIcon(const std::string& key, float size) {
-    if (key == "grass")  return pf::art::createGrassTile(size);
-    if (key == "soil")   return pf::art::createSoilTile(size);
-    if (key == "water")  return pf::art::createWaterTile(size);
+    if (key == "grass" || key == "plain") return pf::art::createGrassTile(size);
+    if (key == "soil" || key == "blocked") return pf::art::createSoilTile(size);
+    if (key == "water" || key == "water_edge") return pf::art::createWaterTile(size);
+    if (key == "forest") return pf::art::createForestTile(size);
+    if (key == "stone_field") return pf::art::createRockyTile(size);
     if (key == "red_berry")        return pf::art::createRedBerry(size);
     if (key == "decayed_red_berry") return pf::art::createDecayedRedBerry(size);
     if (key == "stone_flake")      return pf::art::createStoneFlake(size);
     if (key == "bitter_leaf")      return pf::art::createBitterLeaf(size);
     if (key == "wood")             return pf::art::createWood(size);
+    if (key == "dry_grass" || key == "reed" || key == "vine") return pf::art::createBitterLeaf(size);
+    if (key == "flint" || key == "clay") return pf::art::createLooseStone(size);
+    if (key == "mushroom" || key == "poison_mushroom") return pf::art::createRedBerry(size);
     if (key == "basic_npc")        return pf::art::createPlayer(size);
     return nullptr;
 }
@@ -184,7 +189,7 @@ void ToolPalettePanel::updateContent() {
         slot->setPosition(0.0F, kToolLabelHeight);
         item_cell->addChild(slot, 1);
 
-        auto* icon = createToolIcon(tools[index].key, kIconSize);
+        auto* icon = createToolIcon(tools[index].target_item_key.empty() ? tools[index].key : tools[index].target_item_key, kIconSize);
         if (icon) {
             icon->setPosition(kSlotSize * 0.5F, kToolLabelHeight + kSlotSize * 0.5F);
             item_cell->addChild(icon, 2);

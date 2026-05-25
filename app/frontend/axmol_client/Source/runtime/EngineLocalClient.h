@@ -89,6 +89,8 @@ struct ToolDefinition {
     std::string key;
     std::string label;
     std::string category;
+    pathfinder::world_command::WorldCommandKind command_kind{pathfinder::world_command::WorldCommandKind::Unknown};
+    std::string target_item_key;
 };
 
 class EngineLocalClient {
@@ -120,6 +122,7 @@ private:
     void applyCommand(const pathfinder::client_protocol::ClientCommandResponse& response);
     void rebuildSnapshot(const pathfinder::client_protocol::ClientWorldProjection& projection);
     void rebuildTools();
+    std::optional<pathfinder::world_command::WorldCommandOptionDto> findSelectedToolOptionForCell(int x, int y) const;
     std::optional<pathfinder::world_command::WorldCommandOptionDto> findOptionForCell(int x, int y) const;
     std::optional<pathfinder::world_command::WorldCommandOptionDto> findOptionByKind(pathfinder::world_command::WorldCommandKind kind) const;
 

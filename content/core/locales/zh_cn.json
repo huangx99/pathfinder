@@ -88,5 +88,17 @@
   "object.berry_bush.name": "红果灌木",
   "object.berry_bush.desc": "一丛结着红果的灌木，可以尝试采集。",
   "object.loose_stone_node.name": "石堆",
-  "object.loose_stone_node.desc": "地面上堆着几块可采集的碎石。"
+  "object.loose_stone_node.desc": "地面上堆着几块可采集的碎石。",
+  "object.flint.name": "燧石",
+  "object.flint.desc": "一块容易打出火星的石头，是原始火源材料。",
+  "object.clay.name": "黏土",
+  "object.clay.desc": "一团湿润的黏土，可以作为原始材料。",
+  "object.reed.name": "芦苇",
+  "object.reed.desc": "一束柔韧的芦苇，可以作为纤维材料。",
+  "object.vine.name": "藤蔓",
+  "object.vine.desc": "一段结实的藤蔓，可以用来捆绑材料。",
+  "object.mushroom.name": "蘑菇",
+  "object.mushroom.desc": "一朵普通蘑菇，是否能吃还需要尝试。",
+  "object.poison_mushroom.name": "毒蘑菇",
+  "object.poison_mushroom.desc": "一朵颜色异常的蘑菇，可能存在风险。"
 }

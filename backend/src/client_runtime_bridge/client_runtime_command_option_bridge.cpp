@@ -379,6 +379,15 @@ void ClientRuntimeCommandOptionBridge::setCraftServices(
 }
 
 
+void ClientRuntimeCommandOptionBridge::setMapEditServices(
+    std::shared_ptr<const pathfinder::content::ContentRegistry> content_registry) {
+    map_edit_provider_.reset();
+    if (content_registry) {
+        map_edit_provider_ = std::make_unique<pathfinder::world_map_edit::MapEditCommandOptionProvider>(
+            registry_, *content_registry);
+    }
+}
+
 void ClientRuntimeCommandOptionBridge::setKnowledgeServices(
     pathfinder::knowledge::KnowledgeRepository* knowledge_repository,
     std::shared_ptr<const pathfinder::content::ContentRegistry> content_registry) {
@@ -428,6 +437,7 @@ Result<std::vector<WorldCommandOptionDto>> ClientRuntimeCommandOptionBridge::bui
     bool run_craft = true;
     bool run_inventory = true;
     bool run_teaching = true;
+    bool run_map_edit = true;
 
     if (!request.provider_kinds.empty()) {
         run_wait = false;
@@ -437,6 +447,7 @@ Result<std::vector<WorldCommandOptionDto>> ClientRuntimeCommandOptionBridge::bui
         run_craft = false;
         run_inventory = false;
         run_teaching = false;
+        run_map_edit = false;
         for (const auto& kind : request.provider_kinds) {
             if (kind == ClientCommandOptionProviderKind::Wait) run_wait = true;
             if (kind == ClientCommandOptionProviderKind::Move) move_move = true;
@@ -445,6 +456,7 @@ Result<std::vector<WorldCommandOptionDto>> ClientRuntimeCommandOptionBridge::bui
             if (kind == ClientCommandOptionProviderKind::Craft) run_craft = true;
             if (kind == ClientCommandOptionProviderKind::Inventory) run_inventory = true;
             if (kind == ClientCommandOptionProviderKind::Teach) run_teaching = true;
+            if (kind == ClientCommandOptionProviderKind::MapEdit) run_map_edit = true;
         }
     }
 
@@ -481,6 +493,11 @@ Result<std::vector<WorldCommandOptionDto>> ClientRuntimeCommandOptionBridge::bui
     if (run_teaching && teaching_provider_) {
         auto teach_opts = teaching_provider_->buildOptions(*actor, runtime_);
         options.insert(options.end(), teach_opts.begin(), teach_opts.end());
+    }
+
+    if (run_map_edit && map_edit_provider_) {
+        auto map_edit_opts = map_edit_provider_->buildOptions(*actor, runtime_);
+        options.insert(options.end(), map_edit_opts.begin(), map_edit_opts.end());
     }
 
     return Result<std::vector<WorldCommandOptionDto>>::ok(std::move(options));

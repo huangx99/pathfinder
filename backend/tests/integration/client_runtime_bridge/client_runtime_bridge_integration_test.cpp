@@ -862,6 +862,112 @@ void run_npc_follow_command_moves_companion_tests() {
 }
 
 
+
+// ---------------------------------------------------------------------------
+// Map edit options come from backend command pipeline: raw objects are placeable,
+// crafted outputs stay unavailable for direct placement.
+// ---------------------------------------------------------------------------
+void run_map_edit_options_respect_raw_policy_tests() {
+    RuntimeBackedFixture f;
+
+    auto boot = f.harness.fakeBootstrap("client_1", "session_map_edit_policy", "player");
+    assert(boot.is_ok());
+
+    bool has_paint = false;
+    bool has_raw_stone = false;
+    bool has_raw_mushroom = false;
+    bool has_crafted_axe = false;
+    bool has_crafted_torch = false;
+    bool has_camp_fire = false;
+    for (const auto& option : boot.value().available_commands) {
+        if (option.command_kind == WorldCommandKind::PaintTerrain &&
+            option.command_key == "paint_terrain" &&
+            option.target.target_item_key == "forest") {
+            has_paint = true;
+        }
+        if (option.command_kind == WorldCommandKind::SpawnEntity &&
+            option.command_key == "place_raw_object") {
+            if (option.target.target_item_key == "loose_stone") has_raw_stone = true;
+            if (option.target.target_item_key == "mushroom") has_raw_mushroom = true;
+            if (option.target.target_item_key == "axe") has_crafted_axe = true;
+            if (option.target.target_item_key == "torch") has_crafted_torch = true;
+            if (option.target.target_item_key == "camp_fire") has_camp_fire = true;
+        }
+    }
+
+    assert(has_paint);
+    assert(has_raw_stone);
+    assert(has_raw_mushroom);
+    assert(!has_crafted_axe);
+    assert(!has_crafted_torch);
+    assert(!has_camp_fire);
+
+    std::cout << "client_runtime_bridge_map_edit_options_respect_raw_policy_tests: all passed" << std::endl;
+}
+
+// ---------------------------------------------------------------------------
+// Map edit command execution must be submitted through a session option_id,
+// then handled by WorldCommandPipeline and authoritative runtime ports.
+// ---------------------------------------------------------------------------
+void run_map_edit_commands_execute_through_pipeline_tests() {
+    RuntimeBackedFixture f;
+
+    auto boot = f.harness.fakeBootstrap("client_1", "session_map_edit_execute", "player");
+    assert(boot.is_ok());
+    uint64_t version = boot.value().projection_version;
+
+    const auto* paint = findOption(boot.value().available_commands, [](const auto& option) {
+        return option.command_kind == WorldCommandKind::PaintTerrain &&
+               option.command_key == "paint_terrain" &&
+               option.target.target_item_key == "stone_field" &&
+               option.target.target_coord &&
+               option.target.target_coord->x == 0 &&
+               option.target.target_coord->y == 0;
+    });
+    assert(paint != nullptr);
+
+    auto paint_response = f.harness.fakeSubmitOption("session_map_edit_execute", "client_1", 1, version, paint->option_id);
+    assert(paint_response.is_ok());
+    assert(paint_response.value().result.result_kind == WorldCommandResultKind::Succeeded);
+    version = paint_response.value().new_projection_version;
+
+    auto cell = f.factory.world_runtime->findCell({0, 0, "surface"});
+    assert(cell.is_ok());
+    assert(cell.value()->terrain_key == "stone_field");
+
+    auto refresh = f.harness.fakeRefresh("session_map_edit_execute", "client_1", version);
+    assert(refresh.is_ok());
+    version = refresh.value().projection_version;
+
+    const auto* place = findOption(refresh.value().available_commands, [](const auto& option) {
+        return option.command_kind == WorldCommandKind::SpawnEntity &&
+               option.command_key == "place_raw_object" &&
+               option.target.target_item_key == "flint" &&
+               option.target.target_coord &&
+               option.target.target_coord->x == 0 &&
+               option.target.target_coord->y == 0;
+    });
+    assert(place != nullptr);
+
+    auto place_response = f.harness.fakeSubmitOption("session_map_edit_execute", "client_1", 2, version, place->option_id);
+    assert(place_response.is_ok());
+    assert(place_response.value().result.result_kind == WorldCommandResultKind::Succeeded);
+
+    auto snap = f.factory.world_runtime->snapshotForDebug();
+    assert(snap.is_ok());
+    bool found_flint = false;
+    for (const auto& [entity_id, entity] : snap.value().entities) {
+        if (entity.entity_key == "flint" && entity.coord &&
+            entity.coord->x == 0 && entity.coord->y == 0 && entity.coord->layer_key == "surface") {
+            found_flint = true;
+            break;
+        }
+    }
+    assert(found_flint);
+
+    std::cout << "client_runtime_bridge_map_edit_commands_execute_through_pipeline_tests: all passed" << std::endl;
+}
+
 // ---------------------------------------------------------------------------
 // P63: wildlife is a real actor; waiting lets it move through BeastDecision and
 // eventually attack through the Attack command handler with projected health.
@@ -951,6 +1057,8 @@ int main(int argc, char* argv[]) {
         run_npc_order_torch_counters_threat_after_teaching_tests();
         run_pickup_options_exclude_predator_tests();
         run_npc_follow_command_moves_companion_tests();
+        run_map_edit_options_respect_raw_policy_tests();
+        run_map_edit_commands_execute_through_pipeline_tests();
         run_wildlife_actor_chases_and_attacks_tests();
         return 0;
     }
@@ -974,6 +1082,8 @@ int main(int argc, char* argv[]) {
     else if (test_name == "npc_order_torch_counters_threat_after_teaching") run_npc_order_torch_counters_threat_after_teaching_tests();
     else if (test_name == "pickup_options_exclude_predator") run_pickup_options_exclude_predator_tests();
     else if (test_name == "npc_follow_command_moves_companion") run_npc_follow_command_moves_companion_tests();
+    else if (test_name == "map_edit_options_respect_raw_policy") run_map_edit_options_respect_raw_policy_tests();
+    else if (test_name == "map_edit_commands_execute_through_pipeline") run_map_edit_commands_execute_through_pipeline_tests();
     else if (test_name == "wildlife_actor_chases_and_attacks") run_wildlife_actor_chases_and_attacks_tests();
     else {
         std::cerr << "Unknown test: " << test_name << std::endl;

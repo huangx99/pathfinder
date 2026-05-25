@@ -38,10 +38,13 @@ void run_enum_roundtrip_tests() {
     assert(toString(ClientCommandOptionProviderKind::Teach) == "teach");
     assert(toString(ClientCommandOptionProviderKind::Combat) == "combat");
     assert(toString(ClientCommandOptionProviderKind::AreaEffect) == "area_effect");
+    assert(toString(ClientCommandOptionProviderKind::MapEdit) == "map_edit");
     assert(toString(ClientCommandOptionProviderKind::TestOnly) == "test_only");
 
     auto k = clientCommandOptionProviderKindFromString("move");
     assert(k.is_ok() && k.value() == ClientCommandOptionProviderKind::Move);
+    k = clientCommandOptionProviderKindFromString("map_edit");
+    assert(k.is_ok() && k.value() == ClientCommandOptionProviderKind::MapEdit);
     k = clientCommandOptionProviderKindFromString("invalid");
     assert(k.is_error());
 

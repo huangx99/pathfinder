@@ -186,6 +186,7 @@ ClientRuntimeHostFactory::ClientRuntimeHostFactory()
     knowledge_learning_service = std::make_shared<pathfinder::world_learning::WorldKnowledgeLearningService>(
         *content_registry, *learning_service, *knowledge_repository);
     option_bridge->setKnowledgeServices(knowledge_repository.get(), content_registry);
+    option_bridge->setMapEditServices(content_registry);
 
     command_gateway.setPostCommandHook([this](const WorldCommandDto& command, ClientCommandResponse& response) {
         const auto run_world_modules = [&]() {

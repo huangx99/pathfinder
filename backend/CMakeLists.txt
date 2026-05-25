@@ -1052,6 +1052,26 @@ target_link_libraries(pathfinder_camp PUBLIC
     pathfinder_world_command
 )
 
+
+# World Map Edit library
+add_library(pathfinder_world_map_edit STATIC
+    src/world_map_edit/map_edit_content_policy.cpp
+    src/world_map_edit/map_edit_command_handlers.cpp
+    src/world_map_edit/map_edit_command_option_provider.cpp
+)
+
+target_include_directories(pathfinder_world_map_edit PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(pathfinder_world_map_edit PUBLIC
+    pathfinder_foundation
+    pathfinder_content
+    pathfinder_world_command
+    pathfinder_world_runtime
+    pathfinder_world_inventory
+)
+
 # Client Runtime Bridge library (P56)
 add_library(pathfinder_client_runtime_bridge STATIC
     src/client_runtime_bridge/client_runtime_bridge_types.cpp
@@ -1073,6 +1093,7 @@ target_link_libraries(pathfinder_client_runtime_bridge PUBLIC
     pathfinder_world_harvest
     pathfinder_world_inventory
     pathfinder_world_reaction
+    pathfinder_world_map_edit
     pathfinder_knowledge
 )
 
@@ -1156,6 +1177,7 @@ target_link_libraries(pathfinder_world_modules PUBLIC
     pathfinder_world_reaction
     pathfinder_world_teaching
     pathfinder_world_beast_ecology
+    pathfinder_world_map_edit
 )
 
 # Client HTTP library (P54)

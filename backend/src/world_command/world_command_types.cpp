@@ -31,6 +31,7 @@ std::string toString(WorldCommandKind kind) {
         case WorldCommandKind::Flee:              return "flee";
         case WorldCommandKind::GenerateWorld:     return "generate_world";
         case WorldCommandKind::GenerateRegion:    return "generate_region";
+        case WorldCommandKind::PaintTerrain:       return "paint_terrain";
         case WorldCommandKind::SpawnEntity:       return "spawn_entity";
         case WorldCommandKind::DespawnEntity:     return "despawn_entity";
         case WorldCommandKind::TriggerAreaEvent:  return "trigger_area_event";
@@ -60,6 +61,7 @@ Result<WorldCommandKind> worldCommandKindFromString(const std::string& str) {
     if (str == "flee")               return Result<WorldCommandKind>::ok(WorldCommandKind::Flee);
     if (str == "generate_world")     return Result<WorldCommandKind>::ok(WorldCommandKind::GenerateWorld);
     if (str == "generate_region")    return Result<WorldCommandKind>::ok(WorldCommandKind::GenerateRegion);
+    if (str == "paint_terrain")      return Result<WorldCommandKind>::ok(WorldCommandKind::PaintTerrain);
     if (str == "spawn_entity")       return Result<WorldCommandKind>::ok(WorldCommandKind::SpawnEntity);
     if (str == "despawn_entity")     return Result<WorldCommandKind>::ok(WorldCommandKind::DespawnEntity);
     if (str == "trigger_area_event") return Result<WorldCommandKind>::ok(WorldCommandKind::TriggerAreaEvent);

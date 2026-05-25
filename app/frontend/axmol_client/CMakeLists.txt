@@ -64,6 +64,11 @@ set(PATHFINDER_AXMOL_SOURCES
     Source/procedural/BitterLeaf.cpp
     Source/procedural/StoneFlake.cpp
     Source/procedural/Wood.cpp
+    Source/procedural/LooseStone.cpp
+    Source/procedural/TerrainVariants.cpp
+    Source/procedural/Axe.cpp
+    Source/procedural/FireThings.cpp
+    Source/procedural/NatureObjects.cpp
     proj.linux/main.cpp
 )
 

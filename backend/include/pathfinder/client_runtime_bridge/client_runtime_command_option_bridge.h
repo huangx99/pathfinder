@@ -9,6 +9,7 @@
 #include "pathfinder/world_reaction/world_reaction_service.h"
 #include "pathfinder/content/content_registry.h"
 #include "pathfinder/knowledge/knowledge_repository.h"
+#include "pathfinder/world_map_edit/map_edit_command_option_provider.h"
 #include <memory>
 
 namespace pathfinder::client_runtime_bridge {
@@ -187,6 +188,9 @@ public:
         pathfinder::knowledge::KnowledgeRepository* knowledge_repository,
         std::shared_ptr<const pathfinder::content::ContentRegistry> content_registry);
 
+    void setMapEditServices(
+        std::shared_ptr<const pathfinder::content::ContentRegistry> content_registry);
+
     pathfinder::foundation::Result<ClientRuntimeView> buildRuntimeView(
         const ClientRuntimeViewRequest& request) const override;
 
@@ -212,6 +216,7 @@ private:
     std::shared_ptr<const pathfinder::content::ContentRegistry> craft_content_registry_;
     std::shared_ptr<const pathfinder::content::ContentRegistry> knowledge_content_registry_;
     pathfinder::knowledge::KnowledgeRepository* knowledge_repository_{nullptr};
+    std::unique_ptr<pathfinder::world_map_edit::MapEditCommandOptionProvider> map_edit_provider_;
 };
 
 } // namespace pathfinder::client_runtime_bridge

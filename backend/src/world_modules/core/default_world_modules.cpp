@@ -12,6 +12,7 @@
 #include "pathfinder/world_runtime/world_command_runtime_handlers.h"
 #include "pathfinder/world_teaching/iworld_actor_query_port.h"
 #include "pathfinder/world_teaching/teach_command_handler.h"
+#include "pathfinder/world_map_edit/map_edit_command_handlers.h"
 #include <memory>
 #include <optional>
 
@@ -39,6 +40,11 @@ void registerCoreCommandHandlers(WorldModuleContext& context) {
         context.world_runtime, context.move_guard));
     context.registry.registerHandler(pathfinder::world_runtime::createWaitCommandHandler(context.world_runtime));
     context.registry.registerHandler(pathfinder::world_runtime::createAttackCommandHandler(context.world_runtime));
+
+    context.registry.registerHandler(pathfinder::world_map_edit::createPaintTerrainCommandHandler(
+        context.world_runtime));
+    context.registry.registerHandler(pathfinder::world_map_edit::createSpawnEntityCommandHandler(
+        context.world_runtime, context.world_runtime, context.content_registry));
 
     context.registry.registerHandler(pathfinder::world_command::createGatherCommandHandler(context.harvest_service));
     context.registry.registerHandler(pathfinder::world_command::createChopCommandHandler(context.harvest_service));

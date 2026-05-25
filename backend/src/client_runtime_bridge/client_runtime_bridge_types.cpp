@@ -48,6 +48,7 @@ std::string toString(ClientCommandOptionProviderKind kind) {
         case ClientCommandOptionProviderKind::Teach:       return "teach";
         case ClientCommandOptionProviderKind::Combat:      return "combat";
         case ClientCommandOptionProviderKind::AreaEffect:  return "area_effect";
+        case ClientCommandOptionProviderKind::MapEdit:     return "map_edit";
         case ClientCommandOptionProviderKind::TestOnly:    return "test_only";
         case ClientCommandOptionProviderKind::Unknown:
         default:                                           return "unknown";
@@ -64,6 +65,7 @@ Result<ClientCommandOptionProviderKind> clientCommandOptionProviderKindFromStrin
     if (str == "teach")       return Result<ClientCommandOptionProviderKind>::ok(ClientCommandOptionProviderKind::Teach);
     if (str == "combat")      return Result<ClientCommandOptionProviderKind>::ok(ClientCommandOptionProviderKind::Combat);
     if (str == "area_effect") return Result<ClientCommandOptionProviderKind>::ok(ClientCommandOptionProviderKind::AreaEffect);
+    if (str == "map_edit")    return Result<ClientCommandOptionProviderKind>::ok(ClientCommandOptionProviderKind::MapEdit);
     if (str == "test_only")   return Result<ClientCommandOptionProviderKind>::ok(ClientCommandOptionProviderKind::TestOnly);
     return Result<ClientCommandOptionProviderKind>::fail(
         makeError(ErrorCode::validation_enum_unknown, "Unknown ClientCommandOptionProviderKind: " + str));

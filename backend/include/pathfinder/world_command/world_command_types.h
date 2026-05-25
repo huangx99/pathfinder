@@ -33,6 +33,7 @@ enum class WorldCommandKind {
     Flee,
     GenerateWorld,
     GenerateRegion,
+    PaintTerrain,
     SpawnEntity,
     DespawnEntity,
     TriggerAreaEvent,

@@ -49,6 +49,12 @@ std::string displayNameForKey(const std::string& key) {
     if (key == "stone_flake") return "石片";
     if (key == "loose_stone") return "碎石";
     if (key == "wood") return "木头";
+    if (key == "flint") return "燧石";
+    if (key == "clay") return "黏土";
+    if (key == "reed") return "芦苇";
+    if (key == "vine") return "藤蔓";
+    if (key == "mushroom") return "蘑菇";
+    if (key == "poison_mushroom") return "毒蘑菇";
     if (key == "axe") return "斧头";
     if (key == "torch") return "火把";
     if (key == "berry_bush") return "浆果丛";
@@ -72,6 +78,8 @@ std::string optionCategory(pathfinder::world_command::WorldCommandKind kind) {
         case WorldCommandKind::Eat:
         case WorldCommandKind::Use: return "使用";
         case WorldCommandKind::Inspect: return "观察";
+        case WorldCommandKind::PaintTerrain: return "绘制";
+        case WorldCommandKind::SpawnEntity: return "投放";
         case WorldCommandKind::Teach: return "教学";
         case WorldCommandKind::Wait: return "时间";
         default: return "命令";
@@ -103,7 +111,10 @@ void EngineLocalClient::clearToolSelection() {
 
 bool EngineLocalClient::applySelectedToolToCell(int x, int y) {
     if (hasSelectedTool()) {
-        return submitOption(tools_[selected_tool_index_].key);
+        auto tool_option = findSelectedToolOptionForCell(x, y);
+        if (tool_option) return submitOption(tool_option->option_id);
+        last_error_ = "selected_tool_not_available_for_cell";
+        return false;
     }
 
     auto cell_option = findOptionForCell(x, y);
@@ -355,14 +366,42 @@ void EngineLocalClient::rebuildTools() {
     for (const auto& option : snapshot_.available_commands) {
         if (!option.enabled) continue;
         const auto kind = option.command_kind;
-        if (kind == pathfinder::world_command::WorldCommandKind::Move ||
-            kind == pathfinder::world_command::WorldCommandKind::Wait ||
-            kind == pathfinder::world_command::WorldCommandKind::Inspect) {
-            continue;
-        }
-        tools_.push_back({ToolKind::CommandOption, option.option_id, option.label_text, optionCategory(option.command_kind)});
+        const bool is_map_edit_tool =
+            kind == pathfinder::world_command::WorldCommandKind::PaintTerrain ||
+            kind == pathfinder::world_command::WorldCommandKind::SpawnEntity;
+        if (!is_map_edit_tool) continue;
+
+        const std::string target_item = option.target.target_item_key;
+        const std::string stable_key = option.command_key + ":" + target_item;
+        const auto exists = std::any_of(tools_.begin(), tools_.end(), [&](const auto& tool) {
+            return tool.key == stable_key;
+        });
+        if (exists) continue;
+
+        ToolDefinition tool;
+        tool.kind = ToolKind::CommandOption;
+        tool.key = stable_key;
+        tool.label = option.label_text;
+        tool.category = optionCategory(option.command_kind);
+        tool.command_kind = option.command_kind;
+        tool.target_item_key = target_item;
+        tools_.push_back(std::move(tool));
     }
     if (selected_tool_index_ >= static_cast<int>(tools_.size())) selected_tool_index_ = -1;
+}
+
+std::optional<pathfinder::world_command::WorldCommandOptionDto> EngineLocalClient::findSelectedToolOptionForCell(int x, int y) const {
+    const auto* tool = selectedTool();
+    if (!tool) return std::nullopt;
+    for (const auto& option : snapshot_.available_commands) {
+        if (!option.enabled) continue;
+        if (option.command_kind != tool->command_kind) continue;
+        if (option.target.target_item_key != tool->target_item_key) continue;
+        if (!option.target.target_coord) continue;
+        const auto& coord = *option.target.target_coord;
+        if (coord.x == x && coord.y == y && coord.layer_key == layer_key_) return option;
+    }
+    return std::nullopt;
 }
 
 std::optional<pathfinder::world_command::WorldCommandOptionDto> EngineLocalClient::findOptionForCell(int x, int y) const {
@@ -371,7 +410,10 @@ std::optional<pathfinder::world_command::WorldCommandOptionDto> EngineLocalClien
         if (!option.target.target_coord) continue;
         const auto& coord = *option.target.target_coord;
         if (coord.x == x && coord.y == y && coord.layer_key == layer_key_) {
-            if (option.command_kind != pathfinder::world_command::WorldCommandKind::Inspect) return option;
+            const bool is_map_edit_option =
+                option.command_kind == pathfinder::world_command::WorldCommandKind::PaintTerrain ||
+                option.command_kind == pathfinder::world_command::WorldCommandKind::SpawnEntity;
+            if (option.command_kind != pathfinder::world_command::WorldCommandKind::Inspect && !is_map_edit_option) return option;
         }
     }
     return std::nullopt;
