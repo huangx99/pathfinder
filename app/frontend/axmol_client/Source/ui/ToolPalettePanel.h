@@ -1,6 +1,7 @@
 #pragma once
 
 #include "axmol/axmol.h"
+#include "axmol/ui/UIScrollView.h"
 #include "runtime/V3LocalClient.h"
 #include <functional>
 
@@ -24,6 +25,7 @@ private:
 
     ax::Node* bg_{nullptr};
     ax::Node* cancel_button_{nullptr};
+    ax::ui::ScrollView* tool_scroll_{nullptr};
     std::vector<ax::Node*> tool_slots_;
     std::vector<ax::Label*> tool_labels_;
     int selected_index_{-1};

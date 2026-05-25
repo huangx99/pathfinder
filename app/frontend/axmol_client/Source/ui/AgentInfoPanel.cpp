@@ -2,6 +2,9 @@
 #include "ui/PixelUI.h"
 #include "procedural/ProceduralArt.h"
 
+#include "axmol/ui/UILayout.h"
+#include "axmol/ui/UILayoutParameter.h"
+
 #include <algorithm>
 #include <cmath>
 
@@ -16,19 +19,34 @@ constexpr float kGridCols = 4;
 constexpr float kGridRows = 4;
 constexpr float kGridWidth  = kGridCols * kSlotSize + (kGridCols - 1) * kSlotGap;
 constexpr float kGridHeight = kGridRows * kSlotSize + (kGridRows - 1) * kSlotGap;
-constexpr float kGridX = (kWidth - kGridWidth) * 0.5F;
 constexpr float kIconSize = 32.0F;
 constexpr float kPanelPadX = 12.0F;
-constexpr float kNameTop = kHeight - 10.0F;
-constexpr float kHealthTop = kHeight - 44.0F;
-constexpr float kHungerTop = kHeight - 74.0F;
-constexpr float kInventoryTitleTop = kHeight - 106.0F;
-constexpr float kInventoryGridTop = kHeight - 132.0F;
-constexpr float kInventoryGridBottom = kInventoryGridTop - kGridHeight;
-constexpr float kSelectedItemTop = kInventoryGridBottom - 14.0F;
-constexpr float kKnowledgeTitleTop = kSelectedItemTop - 28.0F;
-constexpr float kKnowledgeListTop = kKnowledgeTitleTop - 24.0F;
+constexpr float kContentWidth = kWidth - kPanelPadX * 2.0F;
+constexpr float kNameHeight = 30.0F;
+constexpr float kStatsHeight = 62.0F;
+constexpr float kSectionTitleHeight = 22.0F;
+constexpr float kSelectedItemHeight = 22.0F;
 constexpr float kKnowledgeLineHeight = 20.0F;
+constexpr float kInventoryGridX = (kContentWidth - kGridWidth) * 0.5F;
+constexpr float kInventoryGridBottom = kHeight - 10.0F - kNameHeight - 4.0F - kStatsHeight - 10.0F - kSectionTitleHeight - 6.0F - kGridHeight;
+
+
+ax::ui::LinearLayoutParameter* linearParam(float top, float bottom,
+                                           ax::ui::LinearLayoutParameter::LinearGravity gravity =
+                                               ax::ui::LinearLayoutParameter::LinearGravity::LEFT) {
+    auto* param = ax::ui::LinearLayoutParameter::create();
+    param->setGravity(gravity);
+    param->setMargin(ax::ui::Margin(0.0F, top, 0.0F, bottom));
+    return param;
+}
+
+ax::ui::Layout* makeLayoutCell(const ax::Size& size, ax::Node* child = nullptr) {
+    auto* cell = ax::ui::Layout::create();
+    cell->setContentSize(size);
+    cell->setAnchorPoint(ax::Vec2(0.0F, 1.0F));
+    if (child) cell->addChild(child, 1);
+    return cell;
+}
 
 std::string actionName(const std::string& key) {
     if (key == "eat") return "吃";
@@ -85,58 +103,71 @@ bool AgentInfoPanel::init() {
 }
 
 void AgentInfoPanel::buildSkeleton() {
-    // 背景
     bg_ = pixelPanelBackground(getContentSize());
     addChild(bg_, 0);
 
-    // 名字
-    name_label_ = pixelPanelLabel("", 18.0F, ax::Vec2(kWidth - 24.0F, 26.0F), PixelPalette::TextPrimary);
-    name_label_->setPosition(kPanelPadX, kNameTop);
-    addChild(name_label_, 2);
+    auto* root = ax::ui::Layout::create();
+    root->setContentSize(ax::Size(kContentWidth, kHeight - 20.0F));
+    root->setLayoutType(ax::ui::Layout::Type::VERTICAL);
+    root->setAnchorPoint(ax::Vec2(0.0F, 1.0F));
+    root->setPosition(ax::Vec2(kPanelPadX, kHeight - 10.0F));
+    addChild(root, 1);
 
-    // 心形图标 + 血条
+    name_label_ = pixelPanelLabel("", 18.0F, ax::Vec2(kContentWidth, kNameHeight), PixelPalette::TextPrimary);
+    auto* name_cell = makeLayoutCell(ax::Size(kContentWidth, kNameHeight), name_label_);
+    name_label_->setPosition(0.0F, kNameHeight);
+    name_cell->setLayoutParameter(linearParam(0.0F, 4.0F));
+    root->addChild(name_cell);
+
+    auto* stats_cell = makeLayoutCell(ax::Size(kContentWidth, kStatsHeight));
+    stats_cell->setLayoutParameter(linearParam(0.0F, 10.0F));
+    root->addChild(stats_cell);
+
     auto* heart = createHeartIcon(20.0F);
-    heart->setPosition(kPanelPadX, kHealthTop - 16.0F);
-    addChild(heart, 2);
+    heart->setPosition(0.0F, 38.0F);
+    stats_cell->addChild(heart, 2);
 
-    health_bar_ = pixelProgressBar(kWidth - 48.0F, 14.0F, 1.0F,
+    health_bar_ = pixelProgressBar(kContentWidth - 28.0F, 14.0F, 1.0F,
                                     PixelPalette::HealthFill,
                                     PixelPalette::PanelFill,
                                     PixelPalette::HealthBorder);
-    health_bar_->setPosition(40.0F, kHealthTop - 17.0F);
-    addChild(health_bar_, 2);
+    health_bar_->setPosition(28.0F, 41.0F);
+    stats_cell->addChild(health_bar_, 2);
 
     health_text_ = pixelLabel("100%", 11.0F, ax::Vec2(40.0F, 14.0F), PixelPalette::TextPrimary);
     health_text_->setAlignment(ax::TextHAlignment::CENTER, ax::TextVAlignment::CENTER);
-    health_text_->setPosition(kWidth - 28.0F, kHealthTop - 10.0F);
-    addChild(health_text_, 3);
+    health_text_->setPosition(kContentWidth - 12.0F, 48.0F);
+    stats_cell->addChild(health_text_, 3);
 
-    // 鸡腿图标 + 饥饿条
     auto* hunger = createHungerIcon(20.0F);
-    hunger->setPosition(kPanelPadX, kHungerTop - 16.0F);
-    addChild(hunger, 2);
+    hunger->setPosition(0.0F, 10.0F);
+    stats_cell->addChild(hunger, 2);
 
-    hunger_bar_ = pixelProgressBar(kWidth - 48.0F, 14.0F, 1.0F,
+    hunger_bar_ = pixelProgressBar(kContentWidth - 28.0F, 14.0F, 1.0F,
                                     PixelPalette::HungerFill,
                                     PixelPalette::PanelFill,
                                     PixelPalette::HungerBorder);
-    hunger_bar_->setPosition(40.0F, kHungerTop - 17.0F);
-    addChild(hunger_bar_, 2);
+    hunger_bar_->setPosition(28.0F, 13.0F);
+    stats_cell->addChild(hunger_bar_, 2);
 
     hunger_text_ = pixelLabel("100%", 11.0F, ax::Vec2(40.0F, 14.0F), PixelPalette::TextPrimary);
     hunger_text_->setAlignment(ax::TextHAlignment::CENTER, ax::TextVAlignment::CENTER);
-    hunger_text_->setPosition(kWidth - 28.0F, kHungerTop - 10.0F);
-    addChild(hunger_text_, 3);
+    hunger_text_->setPosition(kContentWidth - 12.0F, 20.0F);
+    stats_cell->addChild(hunger_text_, 3);
 
-    // 背包标题
-    auto* inv_title = pixelPanelLabel("背包", 14.0F, ax::Vec2(60.0F, 20.0F), PixelPalette::TextSecondary);
-    inv_title->setPosition(kPanelPadX, kInventoryTitleTop);
-    addChild(inv_title, 2);
+    auto* inv_title = pixelPanelLabel("背包", 14.0F, ax::Vec2(kContentWidth, kSectionTitleHeight), PixelPalette::TextSecondary);
+    auto* inv_title_cell = makeLayoutCell(ax::Size(kContentWidth, kSectionTitleHeight), inv_title);
+    inv_title->setPosition(0.0F, kSectionTitleHeight);
+    inv_title_cell->setLayoutParameter(linearParam(0.0F, 6.0F));
+    root->addChild(inv_title_cell);
 
-    // 背包网格
+    auto* grid_cell = makeLayoutCell(ax::Size(kContentWidth, kGridHeight));
+    grid_cell->setLayoutParameter(linearParam(0.0F, 12.0F));
+    root->addChild(grid_cell);
+
     inventory_container_ = ax::Node::create();
-    inventory_container_->setPosition(kGridX, kInventoryGridBottom);
-    addChild(inventory_container_, 2);
+    inventory_container_->setPosition(kInventoryGridX, 0.0F);
+    grid_cell->addChild(inventory_container_, 2);
 
     slot_nodes_.resize(16);
     slot_quantity_labels_.resize(16);
@@ -152,7 +183,6 @@ void AgentInfoPanel::buildSkeleton() {
         inventory_container_->addChild(slot, 0);
         slot_nodes_[i] = slot;
 
-        // 数量角标
         auto* qty = pixelLabel("", 10.0F, ax::Vec2(20.0F, 12.0F), pixelColor(255, 255, 255));
         qty->setAlignment(ax::TextHAlignment::RIGHT, ax::TextVAlignment::BOTTOM);
         qty->setPosition(x + kSlotSize - 2.0F, y + 2.0F);
@@ -160,7 +190,6 @@ void AgentInfoPanel::buildSkeleton() {
         inventory_container_->addChild(qty, 3);
         slot_quantity_labels_[i] = qty;
 
-        // Touch 监听（用于选中 + 长按 tooltip）
         auto* listener = ax::EventListenerTouchOneByOne::create();
         listener->setSwallowTouches(false);
         listener->onTouchBegan = [this, i](ax::Touch* touch, ax::Event*) {
@@ -193,20 +222,25 @@ void AgentInfoPanel::buildSkeleton() {
         _eventDispatcher->addEventListenerWithSceneGraphPriority(listener, slot);
     }
 
-    // 选中物品信息
-    selected_item_label_ = pixelPanelLabel("", 12.0F, ax::Vec2(kWidth - 24.0F, 18.0F), PixelPalette::TextSecondary);
-    selected_item_label_->setPosition(kPanelPadX, kSelectedItemTop);
-    addChild(selected_item_label_, 2);
+    selected_item_label_ = pixelPanelLabel("", 12.0F, ax::Vec2(kContentWidth, kSelectedItemHeight), PixelPalette::TextSecondary);
+    auto* selected_cell = makeLayoutCell(ax::Size(kContentWidth, kSelectedItemHeight), selected_item_label_);
+    selected_item_label_->setPosition(0.0F, kSelectedItemHeight);
+    selected_cell->setLayoutParameter(linearParam(0.0F, 8.0F));
+    root->addChild(selected_cell);
 
-    // 知识标题
-    knowledge_title_ = pixelPanelLabel("知识", 14.0F, ax::Vec2(60.0F, 20.0F), PixelPalette::TextSecondary);
-    knowledge_title_->setPosition(kPanelPadX, kKnowledgeTitleTop);
-    addChild(knowledge_title_, 2);
+    knowledge_title_ = pixelPanelLabel("知识", 14.0F, ax::Vec2(kContentWidth, kSectionTitleHeight), PixelPalette::TextSecondary);
+    auto* knowledge_title_cell = makeLayoutCell(ax::Size(kContentWidth, kSectionTitleHeight), knowledge_title_);
+    knowledge_title_->setPosition(0.0F, kSectionTitleHeight);
+    knowledge_title_cell->setLayoutParameter(linearParam(0.0F, 6.0F));
+    root->addChild(knowledge_title_cell);
 
-    // 知识容器
     knowledge_container_ = ax::Node::create();
-    knowledge_container_->setPosition(kPanelPadX, kKnowledgeListTop);
-    addChild(knowledge_container_, 2);
+    auto* knowledge_cell = makeLayoutCell(ax::Size(kContentWidth, 140.0F), knowledge_container_);
+    knowledge_container_->setPosition(0.0F, 140.0F);
+    knowledge_cell->setLayoutParameter(linearParam(0.0F, 0.0F));
+    root->addChild(knowledge_cell);
+
+    root->forceDoLayout();
 }
 
 void AgentInfoPanel::setAgent(const pathfinder::v3_sandbox::V3AgentView* agent) {
@@ -372,7 +406,7 @@ void AgentInfoPanel::showTooltip(int slot_index) {
     // 位置：格子上方
     const int col = slot_index % 4;
     const int row = slot_index / 4;
-    const float slot_x = kGridX + col * (kSlotSize + kSlotGap);
+    const float slot_x = kPanelPadX + kInventoryGridX + col * (kSlotSize + kSlotGap);
     const float slot_y = kInventoryGridBottom + (3 - row) * (kSlotSize + kSlotGap);
     float tx = slot_x + kSlotSize * 0.5F - tooltip_w * 0.5F;
     float ty = slot_y + kSlotSize + 4.0F;
@@ -438,7 +472,7 @@ void AgentInfoPanel::updateKnowledge(const pathfinder::v3_sandbox::V3AgentView* 
             line_label->setVisible(true);
         } else {
             line_label = pixelPanelLabel(text, 11.0F,
-                                     ax::Vec2(kWidth - 28.0F, line_h - 2.0F),
+                                     ax::Vec2(kContentWidth, line_h - 2.0F),
                                      statusColor(claim.status));
             line_label->setPosition(0.0F, y);
             knowledge_container_->addChild(line_label, 1);

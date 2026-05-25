@@ -32,14 +32,14 @@ bool V3SandboxScene::init() {
     playback_panel_ = pf::ui::PlaybackControlPanel::create(
         [this]() { togglePlayback(); },
         [this]() { stepOnce(); });
-    playback_panel_->setPosition(14.0F, 606.0F);
+    playback_panel_->setPosition(14.0F, 580.0F);
     addChild(playback_panel_, 12);
 
     // 工具栏（左侧）
     tool_panel_ = pf::ui::ToolPalettePanel::create(
         &client_,
         [this](int index) { handleToolClicked(index); });
-    tool_panel_->setPosition(14.0F, 90.0F);
+    tool_panel_->setPosition(14.0F, 64.0F);
     addChild(tool_panel_, 10);
 
     // 地图（中央）
