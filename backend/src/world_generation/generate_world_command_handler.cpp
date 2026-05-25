@@ -41,7 +41,7 @@ public:
 
         request.generator_version = command.parameters.count("generator_version") ? command.parameters.at("generator_version") : "1.0.0";
         request.content_version = command.parameters.count("content_version") ? command.parameters.at("content_version") : "1.0.0";
-        request.worldgen_profile_key = command.parameters.count("worldgen_profile_key") ? command.parameters.at("worldgen_profile_key") : "first_world";
+        request.worldgen_profile_key = command.parameters.count("worldgen_profile_key") ? command.parameters.at("worldgen_profile_key") : "sandbox_blank";
 
         try {
             request.region_size = command.parameters.count("region_size") ? std::stoi(command.parameters.at("region_size")) : 16;

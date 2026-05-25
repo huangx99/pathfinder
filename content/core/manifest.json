@@ -7,7 +7,6 @@
   "load_order": 0,
   "files": [
     { "path": "objects/basic_survival.json", "category": "objects", "required": true },
-    { "path": "worldgen/first_world.json", "category": "worldgen", "required": true },
     { "path": "effects/basic_effects.json", "category": "effects", "required": true },
     { "path": "feedbacks/basic_feedbacks.json", "category": "feedbacks", "required": true },
     { "path": "reactions/basic_reactions.json", "category": "reactions", "required": true },

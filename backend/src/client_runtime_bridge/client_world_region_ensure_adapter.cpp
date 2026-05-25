@@ -136,7 +136,7 @@ Result<WorldRegionEnsureResult> ClientWorldRegionEnsureAdapter::ensureWithCenter
     request.world_seed = world_runtime_.worldSeed();
     request.generator_version = "1.0.0";
     request.content_version = "1.0.0";
-    request.worldgen_profile_key = "first_world";
+    request.worldgen_profile_key = "sandbox_blank";
     request.layer_key = layer_key.empty() ? "surface" : layer_key;
     request.region_size = world_runtime_.regionSize();
     request.ensure_kind = ensure_kind;

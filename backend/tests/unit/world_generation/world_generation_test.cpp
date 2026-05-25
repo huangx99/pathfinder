@@ -44,16 +44,18 @@ std::shared_ptr<pathfinder::content::ContentRegistry> makeContentBackedWorldgenR
     draft.addObject(makeTestObject("loose_stone", "object.loose_stone.name", {"material", "stone", "ground_item", "stone_basic"}));
 
     pathfinder::content::WorldgenProfileDefinitionContent profile;
-    profile.profile_key = "first_world";
+    profile.profile_key = "sandbox_blank";
     profile.region_size = 16;
     profile.default_layer = "surface";
     profile.terrain_generation_mode = "WeightedRandom";
-    profile.terrain_weights.push_back({"plain", 100});
+    profile.terrain_weights.push_back({"plain", 50});
+    profile.terrain_weights.push_back({"forest", 30});
+    profile.terrain_weights.push_back({"stone_field", 20});
 
     pathfinder::content::WorldgenResourceRuleDto food;
     food.resource_key = "berry_bush";
     food.allowed_terrain_tags = {"plain"};
-    food.density = 0.02;
+    food.density = 0.08;
     food.tag_keys = {"food_basic"};
     food.node_kind = "Plant";
     food.required_action_key = "gather";
@@ -63,8 +65,8 @@ std::shared_ptr<pathfinder::content::ContentRegistry> makeContentBackedWorldgenR
 
     pathfinder::content::WorldgenResourceRuleDto wood;
     wood.resource_key = "young_tree";
-    wood.allowed_terrain_tags = {"plain"};
-    wood.density = 0.02;
+    wood.allowed_terrain_tags = {"plain", "forest"};
+    wood.density = 0.08;
     wood.tag_keys = {"wood_basic"};
     wood.node_kind = "Tree";
     wood.required_action_key = "chop";
@@ -74,8 +76,8 @@ std::shared_ptr<pathfinder::content::ContentRegistry> makeContentBackedWorldgenR
 
     pathfinder::content::WorldgenResourceRuleDto stone;
     stone.resource_key = "loose_stone_node";
-    stone.allowed_terrain_tags = {"plain"};
-    stone.density = 0.02;
+    stone.allowed_terrain_tags = {"plain", "stone_field"};
+    stone.density = 0.08;
     stone.tag_keys = {"stone_basic"};
     stone.node_kind = "Stone";
     stone.required_action_key = "gather";
@@ -85,8 +87,8 @@ std::shared_ptr<pathfinder::content::ContentRegistry> makeContentBackedWorldgenR
 
     pathfinder::content::WorldgenGroundItemRuleDto ground;
     ground.object_key = "loose_stone";
-    ground.allowed_terrain_tags = {"plain"};
-    ground.density = 0.02;
+    ground.allowed_terrain_tags = {"plain", "stone_field"};
+    ground.density = 0.08;
     ground.quantity = 1;
     ground.stackable = true;
     ground.stack_key = "loose_stone:default";
@@ -118,15 +120,15 @@ WorldGenerationService makeContentBackedWorldGenerationService() {
 // ---------------------------------------------------------------------------
 
 void run_world_generation_same_seed_same_region_same_result_tests() {
-    WorldGenerationService service1;
-    WorldGenerationService service2;
+    auto service1 = makeContentBackedWorldGenerationService();
+    auto service2 = makeContentBackedWorldGenerationService();
 
     WorldGenerationRequest request;
     request.world_id = "test_world";
     request.world_seed = 12345;
     request.generator_version = "1.0.0";
     request.content_version = "1.0.0";
-    request.worldgen_profile_key = "first_world";
+    request.worldgen_profile_key = "sandbox_blank";
     request.region_size = 16;
     request.enabled_layer_keys = {"surface"};
 
@@ -148,18 +150,18 @@ void run_world_generation_same_seed_same_region_same_result_tests() {
 }
 
 void run_world_generation_different_seed_different_distribution_tests() {
-    WorldGenerationService service;
+    auto service = makeContentBackedWorldGenerationService();
 
     WorldGenerationRequest req1;
     req1.world_id = "test_world";
     req1.world_seed = 111;
-    req1.worldgen_profile_key = "first_world";
+    req1.worldgen_profile_key = "sandbox_blank";
     req1.region_size = 16;
 
     WorldGenerationRequest req2;
     req2.world_id = "test_world_2";
     req2.world_seed = 222;
-    req2.worldgen_profile_key = "first_world";
+    req2.worldgen_profile_key = "sandbox_blank";
     req2.region_size = 16;
 
     auto result1 = service.generate(req1);
@@ -182,14 +184,14 @@ void run_world_generation_different_seed_different_distribution_tests() {
 }
 
 void run_world_generation_manifest_contains_seed_profile_version_tests() {
-    WorldGenerationService service;
+    auto service = makeContentBackedWorldGenerationService();
 
     WorldGenerationRequest request;
     request.world_id = "test_manifest";
     request.world_seed = 999;
     request.generator_version = "2.0.0";
     request.content_version = "3.0.0";
-    request.worldgen_profile_key = "first_world";
+    request.worldgen_profile_key = "sandbox_blank";
     request.region_size = 16;
 
     auto result = service.generate(request);
@@ -197,7 +199,7 @@ void run_world_generation_manifest_contains_seed_profile_version_tests() {
     assert(result.manifest.world_seed == 999);
     assert(result.manifest.generator_version == "2.0.0");
     assert(result.manifest.content_version == "3.0.0");
-    assert(result.manifest.worldgen_profile_key == "first_world");
+    assert(result.manifest.worldgen_profile_key == "sandbox_blank");
     assert(!result.manifest.trace_roll_keys.empty());
 
     std::cout << "world_generation_manifest_contains_seed_profile_version: passed" << std::endl;
@@ -208,12 +210,12 @@ void run_world_generation_manifest_contains_seed_profile_version_tests() {
 // ---------------------------------------------------------------------------
 
 void run_world_generation_creates_cells_with_layer_key_tests() {
-    WorldGenerationService service;
+    auto service = makeContentBackedWorldGenerationService();
 
     WorldGenerationRequest request;
     request.world_id = "test_layer";
     request.world_seed = 42;
-    request.worldgen_profile_key = "first_world";
+    request.worldgen_profile_key = "sandbox_blank";
     request.region_size = 16;
 
     auto result = service.generate(request);
@@ -229,12 +231,12 @@ void run_world_generation_creates_cells_with_layer_key_tests() {
 }
 
 void run_world_generation_cells_have_valid_terrain_tests() {
-    WorldGenerationService service;
+    auto service = makeContentBackedWorldGenerationService();
 
     WorldGenerationRequest request;
     request.world_id = "test_terrain";
     request.world_seed = 42;
-    request.worldgen_profile_key = "first_world";
+    request.worldgen_profile_key = "sandbox_blank";
     request.region_size = 16;
 
     auto result = service.generate(request);
@@ -251,12 +253,12 @@ void run_world_generation_cells_have_valid_terrain_tests() {
 }
 
 void run_world_generation_spawn_area_not_blocked_tests() {
-    WorldGenerationService service;
+    auto service = makeContentBackedWorldGenerationService();
 
     WorldGenerationRequest request;
     request.world_id = "test_blocked";
     request.world_seed = 42;
-    request.worldgen_profile_key = "first_world";
+    request.worldgen_profile_key = "sandbox_blank";
     request.region_size = 16;
 
     auto result = service.generate(request);
@@ -278,12 +280,12 @@ void run_world_generation_spawn_area_not_blocked_tests() {
 // ---------------------------------------------------------------------------
 
 void run_world_generation_places_resource_nodes_on_allowed_terrain_tests() {
-    WorldGenerationService service;
+    auto service = makeContentBackedWorldGenerationService();
 
     WorldGenerationRequest request;
     request.world_id = "test_resource_terrain";
     request.world_seed = 42;
-    request.worldgen_profile_key = "first_world";
+    request.worldgen_profile_key = "sandbox_blank";
     request.region_size = 16;
 
     auto result = service.generate(request);
@@ -306,12 +308,12 @@ void run_world_generation_places_resource_nodes_on_allowed_terrain_tests() {
 }
 
 void run_world_generation_resource_node_has_action_and_output_keys_tests() {
-    WorldGenerationService service;
+    auto service = makeContentBackedWorldGenerationService();
 
     WorldGenerationRequest request;
     request.world_id = "test_resource_action";
     request.world_seed = 42;
-    request.worldgen_profile_key = "first_world";
+    request.worldgen_profile_key = "sandbox_blank";
     request.region_size = 16;
 
     auto result = service.generate(request);
@@ -330,13 +332,13 @@ void run_world_generation_resource_node_has_action_and_output_keys_tests() {
 }
 
 void run_world_generation_resource_node_id_is_stable_tests() {
-    WorldGenerationService service1;
-    WorldGenerationService service2;
+    auto service1 = makeContentBackedWorldGenerationService();
+    auto service2 = makeContentBackedWorldGenerationService();
 
     WorldGenerationRequest request;
     request.world_id = "test_stable";
     request.world_seed = 777;
-    request.worldgen_profile_key = "first_world";
+    request.worldgen_profile_key = "sandbox_blank";
     request.region_size = 16;
 
     auto result1 = service1.generate(request);
@@ -363,7 +365,7 @@ void run_world_generation_spawn_safety_has_basic_food_tests() {
     WorldGenerationRequest request;
     request.world_id = "test_food";
     request.world_seed = 42;
-    request.worldgen_profile_key = "first_world";
+    request.worldgen_profile_key = "sandbox_blank";
     request.region_size = 16;
 
     auto result = service.generate(request);
@@ -393,7 +395,7 @@ void run_world_generation_spawn_safety_has_basic_materials_tests() {
     WorldGenerationRequest request;
     request.world_id = "test_materials";
     request.world_seed = 42;
-    request.worldgen_profile_key = "first_world";
+    request.worldgen_profile_key = "sandbox_blank";
     request.region_size = 16;
 
     auto result = service.generate(request);
@@ -410,6 +412,15 @@ void run_world_generation_spawn_safety_has_basic_materials_tests() {
             }
         }
     }
+    for (const auto& item : result.entity_drafts) {
+        int dist = std::abs(item.coord.x) + std::abs(item.coord.y);
+        if (dist <= 2) {
+            for (const auto& tag : item.tag_keys) {
+                if (tag == "wood_basic") has_wood = true;
+                if (tag == "stone_basic") has_stone = true;
+            }
+        }
+    }
     assert(has_wood);
     assert(has_stone);
 
@@ -417,12 +428,12 @@ void run_world_generation_spawn_safety_has_basic_materials_tests() {
 }
 
 void run_world_generation_spawn_safety_blocks_immediate_active_threat_tests() {
-    WorldGenerationService service;
+    auto service = makeContentBackedWorldGenerationService();
 
     WorldGenerationRequest request;
     request.world_id = "test_threat";
     request.world_seed = 42;
-    request.worldgen_profile_key = "first_world";
+    request.worldgen_profile_key = "sandbox_blank";
     request.region_size = 16;
 
     auto result = service.generate(request);
@@ -451,7 +462,7 @@ void run_world_generation_ground_items_are_on_map_only_tests() {
     WorldGenerationRequest request;
     request.world_id = "test_ownership";
     request.world_seed = 42;
-    request.worldgen_profile_key = "first_world";
+    request.worldgen_profile_key = "sandbox_blank";
     request.region_size = 16;
 
     auto result = service.generate(request);
@@ -473,7 +484,7 @@ void run_world_generation_ground_items_have_quantity_stack_key_tests() {
     WorldGenerationRequest request;
     request.world_id = "test_stack";
     request.world_seed = 42;
-    request.worldgen_profile_key = "first_world";
+    request.worldgen_profile_key = "sandbox_blank";
     request.region_size = 16;
 
     auto result = service.generate(request);
@@ -489,12 +500,12 @@ void run_world_generation_ground_items_have_quantity_stack_key_tests() {
 }
 
 void run_world_generation_does_not_create_player_inventory_items_tests() {
-    WorldGenerationService service;
+    auto service = makeContentBackedWorldGenerationService();
 
     WorldGenerationRequest request;
     request.world_id = "test_no_inv";
     request.world_seed = 42;
-    request.worldgen_profile_key = "first_world";
+    request.worldgen_profile_key = "sandbox_blank";
     request.region_size = 16;
 
     auto result = service.generate(request);
@@ -515,12 +526,12 @@ void run_world_generation_does_not_create_player_inventory_items_tests() {
 // ---------------------------------------------------------------------------
 
 void run_world_command_generate_world_uses_world_generation_service_tests() {
-    WorldGenerationService service;
+    auto service = makeContentBackedWorldGenerationService();
 
     WorldGenerationRequest request;
     request.world_id = "test_cmd";
     request.world_seed = 42;
-    request.worldgen_profile_key = "first_world";
+    request.worldgen_profile_key = "sandbox_blank";
     request.region_size = 16;
 
     auto result = service.generate(request);
@@ -538,7 +549,7 @@ void run_world_generation_same_seed_generates_same_manifest_tests() {
     WorldGenerationRequest request;
     request.world_id = "test_manifest2";
     request.world_seed = 555;
-    request.worldgen_profile_key = "first_world";
+    request.worldgen_profile_key = "sandbox_blank";
     request.region_size = 16;
 
     auto r1 = s1.generate(request);
@@ -559,19 +570,19 @@ void run_world_generation_same_seed_generates_same_manifest_tests() {
 // ---------------------------------------------------------------------------
 
 void run_world_generation_adjacent_regions_no_id_collision_tests() {
-    WorldGenerationService service;
+    auto service = makeContentBackedWorldGenerationService();
 
     WorldGenerationRequest req1;
     req1.world_id = "test_collision";
     req1.world_seed = 12345;
-    req1.worldgen_profile_key = "first_world";
+    req1.worldgen_profile_key = "sandbox_blank";
     req1.region_coord = WorldRegionCoord{0, 0};
     req1.region_size = 16;
 
     WorldGenerationRequest req2;
     req2.world_id = "test_collision";
     req2.world_seed = 12345;
-    req2.worldgen_profile_key = "first_world";
+    req2.worldgen_profile_key = "sandbox_blank";
     req2.region_coord = WorldRegionCoord{1, 0};
     req2.region_size = 16;
 
@@ -622,11 +633,11 @@ void run_world_generation_cells_created_in_runtime_tests() {
     WorldInventoryRuntime inventory_runtime(world_runtime);
     inventory_runtime.initialize();
 
-    WorldGenerationService service;
+    auto service = makeContentBackedWorldGenerationService();
     WorldGenerationRequest request;
     request.world_id = "runtime_cells";
     request.world_seed = 42;
-    request.worldgen_profile_key = "first_world";
+    request.worldgen_profile_key = "sandbox_blank";
     request.region_size = 16;
 
     auto gen_result = service.generate(request);
@@ -666,11 +677,11 @@ void run_world_generation_entity_attached_to_cell_tests() {
     WorldInventoryRuntime inventory_runtime(world_runtime);
     inventory_runtime.initialize();
 
-    WorldGenerationService service;
+    auto service = makeContentBackedWorldGenerationService();
     WorldGenerationRequest request;
     request.world_id = "entity_cell";
     request.world_seed = 42;
-    request.worldgen_profile_key = "first_world";
+    request.worldgen_profile_key = "sandbox_blank";
     request.region_size = 16;
 
     auto gen_result = service.generate(request);
@@ -714,7 +725,7 @@ void run_world_generation_resource_nodes_in_runtime_tests() {
     WorldGenerationRequest request;
     request.world_id = "resource_runtime";
     request.world_seed = 42;
-    request.worldgen_profile_key = "first_world";
+    request.worldgen_profile_key = "sandbox_blank";
     request.region_size = 16;
 
     auto gen_result = service.generate(request);
@@ -752,7 +763,7 @@ void run_world_generation_manifest_timestamp_deterministic_tests() {
     request.world_seed = 999;
     request.generator_version = "1.0.0";
     request.content_version = "1.0.0";
-    request.worldgen_profile_key = "first_world";
+    request.worldgen_profile_key = "sandbox_blank";
     request.region_size = 16;
 
     auto r1 = s1.generate(request);
@@ -775,12 +786,12 @@ void run_world_generation_manifest_timestamp_deterministic_tests() {
 // ---------------------------------------------------------------------------
 
 void run_world_generation_generate_is_pure_tests() {
-    WorldGenerationService service;
+    auto service = makeContentBackedWorldGenerationService();
 
     WorldGenerationRequest request;
     request.world_id = "pure_test";
     request.world_seed = 777;
-    request.worldgen_profile_key = "first_world";
+    request.worldgen_profile_key = "sandbox_blank";
     request.region_size = 16;
 
     auto r1 = service.generate(request);
@@ -808,11 +819,11 @@ void run_world_generation_repeated_apply_blocked_tests() {
     WorldInventoryRuntime inventory_runtime(world_runtime);
     inventory_runtime.initialize();
 
-    WorldGenerationService service;
+    auto service = makeContentBackedWorldGenerationService();
     WorldGenerationRequest request;
     request.world_id = "repeat_test";
     request.world_seed = 42;
-    request.worldgen_profile_key = "first_world";
+    request.worldgen_profile_key = "sandbox_blank";
     request.region_size = 16;
 
     auto gen_result = service.generate(request);
@@ -839,7 +850,7 @@ void run_world_generation_spawn_safety_uses_tags_not_fixed_keys_tests() {
     WorldGenerationRequest request;
     request.world_id = "tag_test";
     request.world_seed = 42;
-    request.worldgen_profile_key = "first_world";
+    request.worldgen_profile_key = "sandbox_blank";
     request.region_size = 16;
 
     auto result = service.generate(request);
@@ -853,6 +864,16 @@ void run_world_generation_spawn_safety_uses_tags_not_fixed_keys_tests() {
         int dist = std::abs(node.coord.x) + std::abs(node.coord.y);
         if (dist <= 2) {
             for (const auto& tag : node.tag_keys) {
+                if (tag == "food_basic") has_food_tag = true;
+                if (tag == "wood_basic") has_wood_tag = true;
+                if (tag == "stone_basic") has_stone_tag = true;
+            }
+        }
+    }
+    for (const auto& item : result.entity_drafts) {
+        int dist = std::abs(item.coord.x) + std::abs(item.coord.y);
+        if (dist <= 2) {
+            for (const auto& tag : item.tag_keys) {
                 if (tag == "food_basic") has_food_tag = true;
                 if (tag == "wood_basic") has_wood_tag = true;
                 if (tag == "stone_basic") has_stone_tag = true;
@@ -909,23 +930,23 @@ void run_world_generation_spawn_entity_missing_cell_fails_tests() {
 }
 
 // ---------------------------------------------------------------------------
-// P0: ground items non-empty for first_world
+// P0: ground items non-empty for sandbox_blank
 // ---------------------------------------------------------------------------
 
-void run_world_generation_ground_items_non_empty_for_first_world_tests() {
+void run_world_generation_ground_items_non_empty_for_sandbox_blank_tests() {
     auto service = makeContentBackedWorldGenerationService();
 
     WorldGenerationRequest request;
     request.world_id = "test_nonempty";
     request.world_seed = 42;
-    request.worldgen_profile_key = "first_world";
+    request.worldgen_profile_key = "sandbox_blank";
     request.region_size = 16;
 
     auto result = service.generate(request);
     assert(result.ok);
     assert(!result.entity_drafts.empty());
 
-    std::cout << "world_generation_ground_items_non_empty_for_first_world: passed" << std::endl;
+    std::cout << "world_generation_ground_items_non_empty_for_sandbox_blank: passed" << std::endl;
 }
 
 // ---------------------------------------------------------------------------
@@ -984,7 +1005,7 @@ void run_world_generation_resource_nodes_applied_to_existing_cells_tests() {
     WorldGenerationRequest request;
     request.world_id = "test_nodes";
     request.world_seed = 42;
-    request.worldgen_profile_key = "first_world";
+    request.worldgen_profile_key = "sandbox_blank";
     request.region_size = 16;
 
     auto gen_result = service.generate(request);
@@ -1014,12 +1035,12 @@ void run_world_generation_resource_nodes_applied_to_existing_cells_tests() {
 // ---------------------------------------------------------------------------
 
 void run_world_generation_invalid_layer_rejected_tests() {
-    WorldGenerationService service;
+    auto service = makeContentBackedWorldGenerationService();
 
     WorldGenerationRequest request;
     request.world_id = "test_layer";
     request.world_seed = 42;
-    request.worldgen_profile_key = "first_world";
+    request.worldgen_profile_key = "sandbox_blank";
     request.region_size = 16;
     request.enabled_layer_keys = {"surface", "underground"};
 
@@ -1035,11 +1056,11 @@ void run_world_generation_invalid_layer_rejected_tests() {
 // ---------------------------------------------------------------------------
 
 void run_world_generation_spawn_cell_is_walkable_tests() {
-    WorldGenerationService service;
+    auto service = makeContentBackedWorldGenerationService();
     WorldGenerationRequest request;
     request.world_id = "test_spawn_walkable";
     request.world_seed = 42;
-    request.worldgen_profile_key = "first_world";
+    request.worldgen_profile_key = "sandbox_blank";
     request.region_size = 16;
 
     auto result = service.generate(request);
@@ -1060,17 +1081,17 @@ void run_world_generation_spawn_cell_is_walkable_tests() {
 }
 
 void run_world_generation_spawn_radius_blocked_ratio_limited_tests() {
-    WorldGenerationService service;
+    auto service = makeContentBackedWorldGenerationService();
     WorldGenerationRequest request;
     request.world_id = "test_spawn_radius";
     request.world_seed = 42;
-    request.worldgen_profile_key = "first_world";
+    request.worldgen_profile_key = "sandbox_blank";
     request.region_size = 16;
 
     auto result = service.generate(request);
     assert(result.ok);
 
-    const auto* profile = service.findProfile("first_world");
+    const auto* profile = service.findProfile("sandbox_blank");
     assert(profile != nullptr);
     int safe_radius = profile->connectivity_policy.spawn_safe_radius;
     double max_blocked_ratio = profile->connectivity_policy.max_blocked_ratio_in_spawn_radius;
@@ -1093,17 +1114,17 @@ void run_world_generation_spawn_radius_blocked_ratio_limited_tests() {
 }
 
 void run_world_generation_walkable_ratio_above_policy_tests() {
-    WorldGenerationService service;
+    auto service = makeContentBackedWorldGenerationService();
     WorldGenerationRequest request;
     request.world_id = "test_walkable_ratio";
     request.world_seed = 42;
-    request.worldgen_profile_key = "first_world";
+    request.worldgen_profile_key = "sandbox_blank";
     request.region_size = 16;
 
     auto result = service.generate(request);
     assert(result.ok);
 
-    const auto* profile = service.findProfile("first_world");
+    const auto* profile = service.findProfile("sandbox_blank");
     assert(profile != nullptr);
     double min_walkable_ratio = profile->connectivity_policy.min_walkable_ratio;
 
@@ -1117,17 +1138,17 @@ void run_world_generation_walkable_ratio_above_policy_tests() {
 }
 
 void run_world_generation_reachable_from_spawn_above_minimum_tests() {
-    WorldGenerationService service;
+    auto service = makeContentBackedWorldGenerationService();
     WorldGenerationRequest request;
     request.world_id = "test_reachable";
     request.world_seed = 42;
-    request.worldgen_profile_key = "first_world";
+    request.worldgen_profile_key = "sandbox_blank";
     request.region_size = 16;
 
     auto result = service.generate(request);
     assert(result.ok);
 
-    const auto* profile = service.findProfile("first_world");
+    const auto* profile = service.findProfile("sandbox_blank");
     assert(profile != nullptr);
     int min_reachable = profile->connectivity_policy.min_reachable_cells_from_spawn;
 
@@ -1167,11 +1188,11 @@ void run_world_generation_reachable_from_spawn_above_minimum_tests() {
 }
 
 void run_world_generation_spawn_has_cardinal_escape_routes_tests() {
-    WorldGenerationService service;
+    auto service = makeContentBackedWorldGenerationService();
     WorldGenerationRequest request;
     request.world_id = "test_escape";
     request.world_seed = 42;
-    request.worldgen_profile_key = "first_world";
+    request.worldgen_profile_key = "sandbox_blank";
     request.region_size = 16;
 
     auto result = service.generate(request);
@@ -1202,11 +1223,11 @@ void run_world_generation_spawn_has_cardinal_escape_routes_tests() {
 }
 
 void run_world_generation_forest_is_walkable_with_cost_tests() {
-    WorldGenerationService service;
+    auto service = makeContentBackedWorldGenerationService();
     WorldGenerationRequest request;
     request.world_id = "test_forest";
     request.world_seed = 42;
-    request.worldgen_profile_key = "first_world";
+    request.worldgen_profile_key = "sandbox_blank";
     request.region_size = 16;
 
     auto result = service.generate(request);
@@ -1225,11 +1246,11 @@ void run_world_generation_forest_is_walkable_with_cost_tests() {
 }
 
 void run_world_generation_stone_field_is_walkable_with_cost_tests() {
-    WorldGenerationService service;
+    auto service = makeContentBackedWorldGenerationService();
     WorldGenerationRequest request;
     request.world_id = "test_stone";
     request.world_seed = 42;
-    request.worldgen_profile_key = "first_world";
+    request.worldgen_profile_key = "sandbox_blank";
     request.region_size = 16;
 
     auto result = service.generate(request);
@@ -1248,11 +1269,11 @@ void run_world_generation_stone_field_is_walkable_with_cost_tests() {
 }
 
 void run_world_generation_only_blocking_terrains_block_movement_tests() {
-    WorldGenerationService service;
+    auto service = makeContentBackedWorldGenerationService();
     WorldGenerationRequest request;
     request.world_id = "test_blocking";
     request.world_seed = 42;
-    request.worldgen_profile_key = "first_world";
+    request.worldgen_profile_key = "sandbox_blank";
     request.region_size = 16;
 
     auto result = service.generate(request);
@@ -1272,17 +1293,18 @@ void run_world_generation_only_blocking_terrains_block_movement_tests() {
 }
 
 void run_world_generation_many_seeds_never_trap_spawn_tests() {
-    const auto* profile = WorldGenerationService().findProfile("first_world");
+    auto service_for_profile = makeContentBackedWorldGenerationService();
+    const auto* profile = service_for_profile.findProfile("sandbox_blank");
     assert(profile != nullptr);
     int min_reachable = profile->connectivity_policy.min_reachable_cells_from_spawn;
     double min_walkable_ratio = profile->connectivity_policy.min_walkable_ratio;
 
     for (uint64_t seed = 1; seed <= 50; ++seed) {
-        WorldGenerationService service;
+        auto service = makeContentBackedWorldGenerationService();
         WorldGenerationRequest request;
         request.world_id = "test_trap";
         request.world_seed = seed;
-        request.worldgen_profile_key = "first_world";
+        request.worldgen_profile_key = "sandbox_blank";
         request.region_size = 16;
 
         auto result = service.generate(request);
@@ -1340,13 +1362,13 @@ void run_world_generation_many_seeds_never_trap_spawn_tests() {
 }
 
 void run_world_generation_far_region_is_deterministic_tests() {
-    WorldGenerationService service1;
-    WorldGenerationService service2;
+    auto service1 = makeContentBackedWorldGenerationService();
+    auto service2 = makeContentBackedWorldGenerationService();
 
     WorldGenerationRequest request;
     request.world_id = "test_far";
     request.world_seed = 777;
-    request.worldgen_profile_key = "first_world";
+    request.worldgen_profile_key = "sandbox_blank";
     request.region_coord = WorldRegionCoord{1000, -1000};
     request.region_size = 16;
 
@@ -1365,19 +1387,19 @@ void run_world_generation_far_region_is_deterministic_tests() {
 }
 
 void run_world_generation_adjacent_region_noise_has_no_seam_tests() {
-    WorldGenerationService service;
+    auto service = makeContentBackedWorldGenerationService();
 
     WorldGenerationRequest req00;
     req00.world_id = "test_seam";
     req00.world_seed = 555;
-    req00.worldgen_profile_key = "first_world";
+    req00.worldgen_profile_key = "sandbox_blank";
     req00.region_coord = WorldRegionCoord{0, 0};
     req00.region_size = 16;
 
     WorldGenerationRequest req10;
     req10.world_id = "test_seam";
     req10.world_seed = 555;
-    req10.worldgen_profile_key = "first_world";
+    req10.worldgen_profile_key = "sandbox_blank";
     req10.region_coord = WorldRegionCoord{1, 0};
     req10.region_size = 16;
 

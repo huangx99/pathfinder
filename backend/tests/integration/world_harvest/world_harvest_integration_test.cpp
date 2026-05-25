@@ -406,7 +406,7 @@ void run_world_generation_then_gather_berry_bush_tests() {
     WorldGenerationRequest gen_request;
     gen_request.world_id = "e2e_world";
     gen_request.world_seed = 42;
-    gen_request.worldgen_profile_key = "first_world";
+    gen_request.worldgen_profile_key = "sandbox_blank";
     gen_request.region_size = 16;
 
     auto gen_result = gen_service.generate(gen_request);
@@ -493,7 +493,7 @@ void run_world_generation_then_chop_tree_with_tool_tests() {
     WorldGenerationRequest gen_request;
     gen_request.world_id = "e2e_world";
     gen_request.world_seed = 42;
-    gen_request.worldgen_profile_key = "first_world";
+    gen_request.worldgen_profile_key = "sandbox_blank";
     gen_request.region_size = 16;
 
     auto gen_result = gen_service.generate(gen_request);
@@ -593,7 +593,7 @@ void run_world_generation_then_gather_loose_stone_tests() {
     WorldGenerationRequest gen_request;
     gen_request.world_id = "e2e_world";
     gen_request.world_seed = 42;
-    gen_request.worldgen_profile_key = "first_world";
+    gen_request.worldgen_profile_key = "sandbox_blank";
     gen_request.region_size = 16;
 
     auto gen_result = gen_service.generate(gen_request);

@@ -71,7 +71,7 @@ public:
                 bridge_.worldSeed(),
                 "1.0.0",
                 "1.0.0",
-                "first_world",
+                "sandbox_blank",
                 target.layer_key,
                 bridge_.regionSize());
             if (ensure_res.is_error()) {

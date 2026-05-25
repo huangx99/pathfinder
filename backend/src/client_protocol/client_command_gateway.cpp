@@ -432,7 +432,7 @@ Result<ClientCommandResponse> ClientCommandGateway::handleCommand(
         ctx.world_seed = world_seed_;
         ctx.world_tick = tick;
         ctx.state_version = tick;
-        ctx.worldgen_profile_key = "first_world";
+        ctx.worldgen_profile_key = "sandbox_blank";
         ctx.generator_version = "1.0.0";
         ctx.content_version = "1.0.0";
 

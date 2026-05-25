@@ -72,7 +72,7 @@ void run_world_generation_apply_to_runtime_tests() {
     WorldGenerationRequest request;
     request.world_id = "int_world";
     request.world_seed = 42;
-    request.worldgen_profile_key = "first_world";
+    request.worldgen_profile_key = "sandbox_blank";
     request.region_size = 16;
 
     auto gen_result = service.generate(request);
@@ -105,7 +105,7 @@ void run_world_generation_ground_items_on_map_after_apply_tests() {
     WorldGenerationRequest request;
     request.world_id = "int_world";
     request.world_seed = 42;
-    request.worldgen_profile_key = "first_world";
+    request.worldgen_profile_key = "sandbox_blank";
     request.region_size = 16;
 
     auto gen_result = service.generate(request);
@@ -133,7 +133,7 @@ void run_world_generation_trace_replayable_tests() {
     request.world_seed = 123;
     request.generator_version = "1.0.0";
     request.content_version = "1.0.0";
-    request.worldgen_profile_key = "first_world";
+    request.worldgen_profile_key = "sandbox_blank";
     request.region_size = 16;
 
     auto result = service.generate(request);
@@ -175,7 +175,7 @@ void run_world_generation_command_handler_invalid_seed_tests() {
     command.command_id = "cmd_1";
     command.command_kind = WorldCommandKind::GenerateWorld;
     command.parameters["world_seed"] = "not_a_number";
-    command.parameters["worldgen_profile_key"] = "first_world";
+    command.parameters["worldgen_profile_key"] = "sandbox_blank";
 
     WorldCommandContext context(command);
     auto result = handler->execute(context, command);
@@ -209,7 +209,7 @@ void run_world_generation_command_handler_region_xy_tests() {
     command.command_id = "cmd_2";
     command.command_kind = WorldCommandKind::GenerateWorld;
     command.parameters["world_seed"] = "42";
-    command.parameters["worldgen_profile_key"] = "first_world";
+    command.parameters["worldgen_profile_key"] = "sandbox_blank";
     command.parameters["region_x"] = "1";
     command.parameters["region_y"] = "-1";
     command.parameters["layer_keys"] = "surface";
@@ -267,7 +267,7 @@ void run_world_generation_command_handler_integration_tests() {
     command.command_id = "cmd_3";
     command.command_kind = WorldCommandKind::GenerateWorld;
     command.parameters["world_seed"] = "42";
-    command.parameters["worldgen_profile_key"] = "first_world";
+    command.parameters["worldgen_profile_key"] = "sandbox_blank";
     command.parameters["region_size"] = "16";
 
     WorldCommandContext context(command);

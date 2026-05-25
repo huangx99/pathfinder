@@ -63,7 +63,9 @@ struct WorldRuntimeConfig {
     int default_vision_radius = 3;
     std::string generator_version = "1.0.0";
     std::string content_version = "1.0.0";
-    std::string worldgen_profile_key = "first_world";
+    std::string worldgen_profile_key = "sandbox_blank";
+    bool create_player_entity = true;
+    bool player_is_controlled = true;
     WorldLayerPolicy layer_policy = WorldLayerPolicy::SurfaceOnly;
 };
 

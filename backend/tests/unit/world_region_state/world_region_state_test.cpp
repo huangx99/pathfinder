@@ -146,7 +146,7 @@ void run_snapshot_builder_tests() {
     context.world_seed = 42;
     context.world_tick = 0;
     context.state_version = 1;
-    context.worldgen_profile_key = "first_world";
+    context.worldgen_profile_key = "sandbox_blank";
     context.generator_version = "1.0.0";
     context.content_version = "1.0.0";
 
@@ -184,7 +184,7 @@ void run_snapshot_roundtrip_tests() {
     context.world_seed = 42;
     context.world_tick = 0;
     context.state_version = 1;
-    context.worldgen_profile_key = "first_world";
+    context.worldgen_profile_key = "sandbox_blank";
     context.generator_version = "1.0.0";
     context.content_version = "1.0.0";
 
@@ -288,7 +288,7 @@ void run_ensure_available_tests() {
     context.world_seed = 42;
     context.world_tick = 0;
     context.state_version = 1;
-    context.worldgen_profile_key = "first_world";
+    context.worldgen_profile_key = "sandbox_blank";
     context.generator_version = "1.0.0";
     context.content_version = "1.0.0";
 
@@ -341,7 +341,7 @@ void run_harvest_state_preservation_tests() {
     context.world_seed = 42;
     context.world_tick = 0;
     context.state_version = 1;
-    context.worldgen_profile_key = "first_world";
+    context.worldgen_profile_key = "sandbox_blank";
     context.generator_version = "1.0.0";
     context.content_version = "1.0.0";
 
@@ -416,7 +416,7 @@ void run_entity_roundtrip_tests() {
     context.world_seed = 42;
     context.world_tick = 0;
     context.state_version = 1;
-    context.worldgen_profile_key = "first_world";
+    context.worldgen_profile_key = "sandbox_blank";
     context.generator_version = "1.0.0";
     context.content_version = "1.0.0";
 
@@ -498,7 +498,7 @@ void run_negative_coord_region_tests() {
     context.world_seed = 42;
     context.world_tick = 0;
     context.state_version = 1;
-    context.worldgen_profile_key = "first_world";
+    context.worldgen_profile_key = "sandbox_blank";
     context.generator_version = "1.0.0";
     context.content_version = "1.0.0";
 
@@ -730,7 +730,7 @@ void run_active_region_restore_rejected_tests() {
     context.world_seed = 42;
     context.world_tick = 0;
     context.state_version = 1;
-    context.worldgen_profile_key = "first_world";
+    context.worldgen_profile_key = "sandbox_blank";
     context.generator_version = "1.0.0";
     context.content_version = "1.0.0";
 
@@ -746,7 +746,7 @@ void run_active_region_restore_rejected_tests() {
     snapshot.header.snapshot_schema_version = "world_region_snapshot.v1";
     snapshot.header.world_id = "test_world";
     snapshot.header.region_key = key;
-    snapshot.header.worldgen_profile_key = "first_world";
+    snapshot.header.worldgen_profile_key = "sandbox_blank";
     snapshot.header.generator_version = "1.0.0";
     snapshot.header.content_version = "1.0.0";
     store.put(snapshot);
@@ -773,7 +773,7 @@ void run_cross_region_entity_conflict_tests() {
     context.world_seed = 42;
     context.world_tick = 0;
     context.state_version = 1;
-    context.worldgen_profile_key = "first_world";
+    context.worldgen_profile_key = "sandbox_blank";
     context.generator_version = "1.0.0";
     context.content_version = "1.0.0";
 
@@ -861,7 +861,7 @@ void run_save_bridge_tests() {
     snapshot.header.snapshot_schema_version = "world_region_snapshot.v1";
     snapshot.header.world_id = "test_world";
     snapshot.header.region_key = makeKey(0, 0);
-    snapshot.header.worldgen_profile_key = "first_world";
+    snapshot.header.worldgen_profile_key = "sandbox_blank";
     snapshot.header.generator_version = "1.0.0";
     snapshot.header.content_version = "1.0.0";
 
@@ -1003,7 +1003,7 @@ void run_p45_pickup_drop_boundary_tests() {
     context.world_seed = 42;
     context.world_tick = 0;
     context.state_version = 1;
-    context.worldgen_profile_key = "first_world";
+    context.worldgen_profile_key = "sandbox_blank";
     context.generator_version = "1.0.0";
     context.content_version = "1.0.0";
 

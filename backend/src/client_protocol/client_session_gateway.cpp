@@ -135,7 +135,7 @@ Result<ClientBootstrapResponse> ClientSessionGateway::bootstrap(
     ctx.world_seed = world_seed_;
     ctx.world_tick = lifecycle_tick;
     ctx.state_version = lifecycle_tick;
-    ctx.worldgen_profile_key = "first_world";
+    ctx.worldgen_profile_key = "sandbox_blank";
     ctx.generator_version = "1.0.0";
     ctx.content_version = "1.0.0";
     auto lifecycle_events = runLifecycleTrigger(
@@ -217,7 +217,7 @@ Result<ClientRefreshResponse> ClientSessionGateway::refresh(
     ctx.world_seed = world_seed_;
     ctx.world_tick = lifecycle_tick;
     ctx.state_version = lifecycle_tick;
-    ctx.worldgen_profile_key = "first_world";
+    ctx.worldgen_profile_key = "sandbox_blank";
     ctx.generator_version = "1.0.0";
     ctx.content_version = "1.0.0";
     auto lifecycle_events = runLifecycleTrigger(

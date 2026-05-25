@@ -29,7 +29,7 @@ void run_world_generation_repeated_apply_blocked_tests();
 void run_world_generation_spawn_safety_uses_tags_not_fixed_keys_tests();
 void run_world_generation_command_handler_parsing_tests();
 void run_world_generation_spawn_entity_missing_cell_fails_tests();
-void run_world_generation_ground_items_non_empty_for_first_world_tests();
+void run_world_generation_ground_items_non_empty_for_sandbox_blank_tests();
 void run_world_generation_resource_node_missing_cell_fails_tests();
 void run_world_generation_resource_nodes_applied_to_existing_cells_tests();
 void run_world_generation_invalid_layer_rejected_tests();
@@ -129,7 +129,7 @@ int main(int argc, char* argv[]) {
     } else if (test_name == "spawn_entity_missing_cell_fails") {
         run_world_generation_spawn_entity_missing_cell_fails_tests();
     } else if (test_name == "ground_items_non_empty") {
-        run_world_generation_ground_items_non_empty_for_first_world_tests();
+        run_world_generation_ground_items_non_empty_for_sandbox_blank_tests();
     } else if (test_name == "resource_node_missing_cell_fails") {
         run_world_generation_resource_node_missing_cell_fails_tests();
     } else if (test_name == "resource_nodes_applied_to_existing_cells") {

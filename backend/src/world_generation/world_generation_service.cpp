@@ -82,74 +82,23 @@ std::map<std::string, double> mergeNumericStates(
 // Built-in profiles
 // ---------------------------------------------------------------------------
 
-static WorldgenProfile buildFirstWorldProfile() {
+static WorldgenProfile buildSandboxBlankProfile() {
     WorldgenProfile profile;
-    profile.profile_key = "first_world";
+    profile.profile_key = "sandbox_blank";
     profile.region_size = 16;
     profile.default_layer = "surface";
-
-    // P57: default to noise field generation
-    profile.terrain_generation_mode = TerrainGenerationMode::NoiseField;
-
-    // Legacy weights kept for compatibility with WeightedRandom mode
-    profile.terrain_weights = {
-        {"plain", 50},
-        {"forest", 30},
-        {"stone_field", 15},
-        {"water_edge", 5}
-    };
-
-    // P57: noise channels
-    // Elevation + Moisture use large scales to form natural biomes.
-    // Roughness / ResourceRichness / DangerPressure use smaller scales for local detail.
-    profile.noise_channels = {
-        {NoiseChannelKind::Elevation,        NoiseAlgorithmKind::FractalPerlin2D, 20.0, 3, 0.5, 2.0, 0.0, 1.0, 101},
-        {NoiseChannelKind::Moisture,         NoiseAlgorithmKind::FractalPerlin2D, 16.0, 3, 0.5, 2.0, 0.0, 1.0, 202},
-        {NoiseChannelKind::Roughness,        NoiseAlgorithmKind::FractalPerlin2D, 5.0,  2, 0.5, 2.0, 0.0, 1.0, 303},
-        {NoiseChannelKind::ResourceRichness, NoiseAlgorithmKind::FractalPerlin2D, 4.0,  2, 0.5, 2.0, 0.0, 1.0, 404},
-        {NoiseChannelKind::DangerPressure,   NoiseAlgorithmKind::FractalPerlin2D, 8.0,  2, 0.5, 2.0, 0.0, 1.0, 505}
-    };
-
-    // P57: terrain threshold rules (higher priority = evaluated first)
-    // Thresholds relaxed so small regions still show multiple terrain types.
-    profile.terrain_threshold_rules = {
-        // blocked: very high elevation and rough
-        {"blocked",     0.75,  1.0,   -1.0,  1.0,   0.40,  1.0,   100, {"blocked", "rough"}},
-        // mountain: very high elevation
-        {"mountain",    0.65,  0.75,  -1.0,  1.0,   -1.0,  1.0,   90,  {"mountain"}},
-        // deep_water: very low elevation
-        {"deep_water",  -1.0,  -0.65, -1.0,  1.0,   -1.0,  1.0,   80,  {"deep_water", "water"}},
-        // water_edge: low elevation
-        {"water_edge",  -0.65, -0.30, -1.0,  1.0,   -1.0,  1.0,   70,  {"water_edge", "wet"}},
-        // forest: moderate moisture (relaxed lower bound)
-        {"forest",      -0.50, 0.60,  0.10,  1.0,   -1.0,  0.50,  60,  {"forest"}},
-        // stone_field: high roughness or high elevation
-        {"stone_field", -0.50, 0.70,  -1.0,  1.0,   0.30,  1.0,   50,  {"stone_field", "rough"}},
-        // plain: default catch-all (lowest priority)
-        {"plain",       -1.0,  1.0,   -1.0,  1.0,   -1.0,  1.0,   0,   {"plain"}}
-    };
-
-    // P57: connectivity policy
-    profile.connectivity_policy.enabled = true;
-    profile.connectivity_policy.spawn_safe_radius = 3;
-    profile.connectivity_policy.min_walkable_ratio = 0.75;
-    profile.connectivity_policy.max_blocked_ratio_in_spawn_radius = 0.05;
-    profile.connectivity_policy.min_reachable_cells_from_spawn = 120;
-    profile.connectivity_policy.carve_cardinal_corridors = true;
-    profile.connectivity_policy.corridor_half_width = 1;
-    profile.connectivity_policy.repair_preferred_terrain_keys = {"plain"};
-
+    profile.terrain_generation_mode = TerrainGenerationMode::WeightedRandom;
+    profile.terrain_weights = {{"plain", 1}};
     profile.resource_rules.clear();
     profile.ground_item_rules.clear();
-
-    profile.spawn_safety.safe_radius = 2;
-    profile.spawn_safety.basic_food_min_count = 1;
-    profile.spawn_safety.basic_material_min_count = 2;
+    profile.connectivity_policy.enabled = false;
+    profile.spawn_safety.safe_radius = 0;
+    profile.spawn_safety.basic_food_min_count = 0;
+    profile.spawn_safety.basic_material_min_count = 0;
     profile.spawn_safety.tool_hint_min_count = 0;
     profile.spawn_safety.immediate_threat_max_count = 0;
-    profile.spawn_safety.guaranteed_resource_keys = {"food_basic", "wood_basic", "stone_basic"};
-    profile.spawn_safety.forbidden_danger_keys = {"active_predator"};
-
+    profile.spawn_safety.guaranteed_resource_keys.clear();
+    profile.spawn_safety.forbidden_danger_keys.clear();
     return profile;
 }
 
@@ -162,7 +111,7 @@ WorldGenerationService::WorldGenerationService() {
 }
 
 void WorldGenerationService::registerBuiltinProfiles() {
-    registerProfile(buildFirstWorldProfile());
+    registerProfile(buildSandboxBlankProfile());
 }
 
 void WorldGenerationService::registerProfile(const WorldgenProfile& profile) {

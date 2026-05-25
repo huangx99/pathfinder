@@ -389,7 +389,7 @@ void run_content_loader_tests() {
         std::string worldgen_json = R"({
             "worldgen_profiles": [
                 {
-                    "profile_key": "first_world",
+                    "profile_key": "sandbox_blank",
                     "region_size": 16,
                     "default_layer": "surface",
                     "terrain_generation_mode": "NoiseField",
@@ -428,7 +428,7 @@ void run_content_loader_tests() {
         assert(result.is_ok());
         const auto& file_dto = result.value();
         assert(file_dto.worldgen_profiles.size() == 1);
-        assert(file_dto.worldgen_profiles[0].profile_key == "first_world");
+        assert(file_dto.worldgen_profiles[0].profile_key == "sandbox_blank");
         assert(file_dto.worldgen_profiles[0].resource_rules.size() == 1);
         assert(file_dto.worldgen_profiles[0].resource_rules[0].output_object_keys[0] == "red_berry");
         assert(file_dto.worldgen_profiles[0].ground_item_rules.size() == 1);
@@ -466,7 +466,7 @@ void run_content_loader_tests() {
         std::ofstream(core / "worldgen" / "basic.json") << R"({
             "worldgen_profiles": [
                 {
-                    "profile_key": "first_world",
+                    "profile_key": "sandbox_blank",
                     "region_size": 16,
                     "default_layer": "surface",
                     "resource_rules": [

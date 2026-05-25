@@ -37,7 +37,7 @@ struct RegionEnsureFixture {
         req.world_seed = config.seed;
         req.generator_version = "1.0.0";
         req.content_version = "1.0.0";
-        req.worldgen_profile_key = "first_world";
+        req.worldgen_profile_key = "sandbox_blank";
         req.region_coord = WorldRegionCoord{0, 0};
         req.region_size = config.region_size;
         req.enabled_layer_keys = {"surface"};
@@ -61,7 +61,7 @@ void run_ensure_idempotency_tests() {
     req.world_seed = 42;
     req.generator_version = "1.0.0";
     req.content_version = "1.0.0";
-    req.worldgen_profile_key = "first_world";
+    req.worldgen_profile_key = "sandbox_blank";
     req.layer_key = "surface";
     req.region_size = 16;
     req.ensure_kind = WorldRegionEnsureKind::TestOnly;
@@ -152,7 +152,7 @@ void run_negative_coord_tests() {
     req.world_seed = 42;
     req.generator_version = "1.0.0";
     req.content_version = "1.0.0";
-    req.worldgen_profile_key = "first_world";
+    req.worldgen_profile_key = "sandbox_blank";
     req.layer_key = "surface";
     req.region_size = 16;
     req.ensure_kind = WorldRegionEnsureKind::TestOnly;
@@ -220,7 +220,7 @@ void run_max_regions_limit_tests() {
     req.world_seed = 42;
     req.generator_version = "1.0.0";
     req.content_version = "1.0.0";
-    req.worldgen_profile_key = "first_world";
+    req.worldgen_profile_key = "sandbox_blank";
     req.layer_key = "surface";
     req.region_size = 16;
     req.ensure_kind = WorldRegionEnsureKind::TestOnly;
@@ -252,7 +252,7 @@ void run_move_guard_tests() {
 
     // Target in ungenerated region (2,0)
     WorldCellCoord target{32, 0, "surface"};
-    auto res = guard.ensureMoveTarget("player", target, "test_world", 42, "1.0.0", "1.0.0", "first_world", "surface", 16);
+    auto res = guard.ensureMoveTarget("player", target, "test_world", 42, "1.0.0", "1.0.0", "sandbox_blank", "surface", 16);
     assert(res.is_ok());
     assert(res.value().ok);
     assert(res.value().generated_region_count == 1);

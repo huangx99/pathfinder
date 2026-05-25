@@ -128,11 +128,8 @@ bool EngineLocalClient::applySelectedToolToCell(int x, int y) {
         return false;
     }
 
-    auto cell_option = findOptionForCell(x, y);
-    if (cell_option) return submitOption(cell_option->option_id);
-
-    last_error_ = "no_available_command_for_cell";
-    pathfinder::logging::logError(pathfinder::logging::tag::Command, "no available command for cell x=" + std::to_string(x) + " y=" + std::to_string(y));
+    last_error_.clear();
+    pathfinder::logging::log(pathfinder::logging::tag::Command, "cell click has no selected tool; command not submitted x=" + std::to_string(x) + " y=" + std::to_string(y));
     return false;
 }
 
@@ -340,46 +337,6 @@ void EngineLocalClient::rebuildSnapshot(const pathfinder::client_protocol::Clien
         snapshot_.entities.push_back(std::move(entity));
     }
 
-    EngineAgentView player;
-    player.agent_id = actor_key_;
-    player.name = "探索者";
-    player.current_intent = "由正式引擎管线控制";
-    for (const auto& entity : snapshot_.entities) {
-        if (entity.entity_key == "player") {
-            player.x = entity.x;
-            player.y = entity.y;
-            player.health = entity.numeric_states.count("health") ? entity.numeric_states.at("health") : 10.0;
-            player.max_health = entity.numeric_states.count("max_health") ? entity.numeric_states.at("max_health") : 10.0;
-            break;
-        }
-    }
-
-    for (const auto& patch : projection.inventories) {
-        const int entry_count = intField(patch.fields, "entry_count");
-        for (int i = 0; i < entry_count; ++i) {
-            const std::string prefix = "entry_" + std::to_string(i) + "_";
-            EngineInventoryItemView item;
-            auto key_it = patch.fields.find(prefix + "entity_key");
-            if (key_it == patch.fields.end()) continue;
-            item.object_key = key_it->second;
-            item.display_name = displayNameForKey(item.object_key);
-            item.entry_id = patch.fields.count(prefix + "entry_id") ? patch.fields.at(prefix + "entry_id") : "";
-            item.entity_id = patch.fields.count(prefix + "entity_id") ? patch.fields.at(prefix + "entity_id") : "";
-            item.quantity = intField(patch.fields, prefix + "quantity", 1);
-            player.inventory.push_back(std::move(item));
-        }
-    }
-
-    for (const auto& patch : projection.knowledge) {
-        EngineKnowledgeClaimView claim;
-        claim.subject_object_key = patch.fields.count("subject_object_key") ? patch.fields.at("subject_object_key") : patch.fields.count("subject") ? patch.fields.at("subject") : "";
-        claim.action_key = patch.fields.count("action_key") ? patch.fields.at("action_key") : patch.fields.count("action") ? patch.fields.at("action") : "";
-        claim.effect_key = patch.fields.count("effect_key") ? patch.fields.at("effect_key") : patch.fields.count("effect") ? patch.fields.at("effect") : "";
-        claim.status = patch.fields.count("status") ? patch.fields.at("status") : "已记录";
-        claim.evidence_count = intField(patch.fields, "evidence_count", 1);
-        if (!claim.subject_object_key.empty() || !claim.effect_key.empty()) player.knowledge.push_back(std::move(claim));
-    }
-
     for (const auto& entity : snapshot_.entities) {
         if (entity.actor_key.empty() || entity.actor_key == actor_key_) continue;
         EngineAgentView agent;
@@ -393,7 +350,6 @@ void EngineLocalClient::rebuildSnapshot(const pathfinder::client_protocol::Clien
         agent.current_intent = "正在探索世界";
         snapshot_.agents.push_back(std::move(agent));
     }
-    snapshot_.agents.push_back(std::move(player));
 }
 
 void EngineLocalClient::rebuildTools() {

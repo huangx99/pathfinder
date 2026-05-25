@@ -194,7 +194,7 @@ Result<void> WorldGridRuntime::setupPlayerActor(const WorldRuntimeConfig& config
     player.coord = WorldCellCoord{0, 0, "surface"};
     player.entity_id = makeStableEntityId("player", player.coord);
     player.vision_radius = config.default_vision_radius;
-    player.is_player_controlled = true;
+    player.is_player_controlled = config.player_is_controlled;
     player.max_health = 10;
     player.health = 10;
     player.alive = true;
@@ -202,28 +202,30 @@ Result<void> WorldGridRuntime::setupPlayerActor(const WorldRuntimeConfig& config
     WorldCellCoord player_coord = player.coord;
     actors_[player.actor_key] = std::move(player);
 
-    // Create player entity instance on map
-    WorldEntityInstance player_entity;
-    player_entity.entity_id = player_entity_id;
-    player_entity.entity_key = "player";
-    player_entity.display_name_key = "entity.player";
-    player_entity.coord = player_coord;
-    player_entity.location_kind = WorldEntityLocationKind::OnMap;
-    player_entity.visible_by_default = true;
-    player_entity.tag_keys = {"actor", "humanoid", "player", "prey"};
-    syncActorHealthToEntity(player_entity, actors_.at("player"));
-    entities_[player_entity.entity_id] = std::move(player_entity);
+    if (config.create_player_entity) {
+        // Create player entity instance on map.
+        WorldEntityInstance player_entity;
+        player_entity.entity_id = player_entity_id;
+        player_entity.entity_key = "player";
+        player_entity.display_name_key = "entity.player";
+        player_entity.coord = player_coord;
+        player_entity.location_kind = WorldEntityLocationKind::OnMap;
+        player_entity.visible_by_default = true;
+        player_entity.tag_keys = {"actor", "humanoid", "player", "prey"};
+        syncActorHealthToEntity(player_entity, actors_.at("player"));
+        entities_[player_entity.entity_id] = std::move(player_entity);
 
-    // Add player to origin cell if it exists
-    auto origin_it = cells_.find(player_coord.cellId());
-    if (origin_it != cells_.end()) {
-        auto& eids = origin_it->second.entity_ids;
-        if (std::find(eids.begin(), eids.end(), player_entity_id) == eids.end()) {
-            eids.push_back(player_entity_id);
+        // Add player to origin cell if it exists.
+        auto origin_it = cells_.find(player_coord.cellId());
+        if (origin_it != cells_.end()) {
+            auto& eids = origin_it->second.entity_ids;
+            if (std::find(eids.begin(), eids.end(), player_entity_id) == eids.end()) {
+                eids.push_back(player_entity_id);
+            }
         }
     }
 
-    // Initialize exploration for player
+    // Initialize exploration for the session actor, even when the Axmol sandbox hides the controller entity.
     updateExplorationForActor("player");
     return Result<void>::ok();
 }

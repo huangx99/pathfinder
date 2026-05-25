@@ -229,7 +229,7 @@ void run_bootstrap_non_empty_tests() {
 }
 
 // ---------------------------------------------------------------------------
-// Bootstrap returns player entity
+// Bootstrap creates hidden session actor without exposing a default player entity
 // ---------------------------------------------------------------------------
 void run_bootstrap_player_visible_tests() {
     RuntimeBackedFixture f;
@@ -237,14 +237,18 @@ void run_bootstrap_player_visible_tests() {
     auto boot = f.harness.fakeBootstrap("client_1", "session_2", "player");
     assert(boot.is_ok());
 
-    bool has_player = false;
+    auto actor_res = f.factory.world_runtime->findActor("player");
+    assert(actor_res.is_ok());
+    assert(!actor_res.value()->is_player_controlled);
+
+    bool has_player_entity = false;
     for (const auto& ent : boot.value().full_projection.visible_entities) {
         if (ent.fields.count("entity_key") && ent.fields.at("entity_key") == "player") {
-            has_player = true;
+            has_player_entity = true;
             break;
         }
     }
-    assert(has_player);
+    assert(!has_player_entity);
 
     std::cout << "client_runtime_bridge_bootstrap_player_visible_tests: all passed" << std::endl;
 }
@@ -563,17 +567,12 @@ void run_cross_region_move_tests() {
     // Verify runtime generated region (1,0)
     assert(f.factory.world_runtime->isRegionGenerated("world_default:surface:region:1:0:16"));
 
-    // Verify player now at x=8 via refresh
+    // Verify hidden session actor now at x=8 via runtime authority.
     auto refresh = f.harness.fakeRefresh("session_cross", "client_1", version);
     assert(refresh.is_ok());
-    int new_x = -1;
-    for (const auto& ent : refresh.value().full_projection.visible_entities) {
-        if (ent.fields.count("entity_key") && ent.fields.at("entity_key") == "player") {
-            new_x = std::stoi(ent.fields.at("x"));
-            break;
-        }
-    }
-    assert(new_x == 8);
+    auto actor_res = f.factory.world_runtime->findActor("player");
+    assert(actor_res.is_ok());
+    assert(actor_res.value()->coord.x == 8);
 
     std::cout << "client_runtime_bridge_cross_region_move_tests: all passed" << std::endl;
 }

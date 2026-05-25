@@ -130,7 +130,7 @@ void run_lifecycle_trigger_tests() {
     context.world_seed = 42;
     context.world_tick = 100;
     context.state_version = 1;
-    context.worldgen_profile_key = "first_world";
+    context.worldgen_profile_key = "sandbox_blank";
     context.generator_version = "1.0.0";
     context.content_version = "1.0.0";
 
