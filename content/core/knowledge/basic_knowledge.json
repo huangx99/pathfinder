@@ -12,6 +12,17 @@
       "summary_key": "knowledge.red_berry.eat.restore_hunger.summary"
     },
     {
+      "knowledge_key": "knowledge_red_berry_use_no_visible_effect",
+      "subject_object_key": "red_berry",
+      "action_key": "use",
+      "effect_key": "no_visible_effect",
+      "target_object_key": "",
+      "default_status": "hypothesis",
+      "teachable": true,
+      "usable_by_ai": true,
+      "summary_key": "knowledge.red_berry.use.no_visible_effect.summary"
+    },
+    {
       "knowledge_key": "knowledge_decayed_red_berry_eat_no_effect",
       "subject_object_key": "decayed_red_berry",
       "action_key": "eat",

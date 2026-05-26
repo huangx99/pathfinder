@@ -1,4 +1,5 @@
 #include "pathfinder/world_modules/object_interaction/world_object_interaction_module.h"
+#include "pathfinder/world_inventory/inventory_projection_adapter.h"
 #include "pathfinder/world_runtime/world_projection_adapter.h"
 #include "pathfinder/logging/logger.h"
 
@@ -29,6 +30,7 @@ using pathfinder::world_command::WorldStateDeltaDto;
 using pathfinder::world_runtime::WorldCellCoord;
 using pathfinder::world_runtime::WorldEntityInstance;
 using pathfinder::world_runtime::WorldGridRuntime;
+using pathfinder::world_runtime::WorldEntityLocationKind;
 
 bool sameOrAdjacent(const WorldCellCoord& left, const WorldCellCoord& right) {
     if (left.layer_key != right.layer_key) return false;
@@ -56,9 +58,11 @@ const FeedbackDefinitionContent* bestFeedback(
 
 WorldProjectionPatchDto buildObjectActionPatch(
     WorldGridRuntime& runtime,
+    const pathfinder::world_inventory::IInventoryRuntime* inventory_runtime,
     const std::string& viewer_actor_key,
     const std::vector<std::string>& changed_cell_ids,
     const std::vector<std::string>& changed_entity_ids,
+    const std::vector<std::string>& changed_inventory_ids,
     const std::vector<WorldEntityPatchDto>& manual_entity_patches) {
     WorldProjectionPatchDto patch;
     patch.new_projection_version = runtime.stateVersion();
@@ -70,12 +74,34 @@ WorldProjectionPatchDto buildObjectActionPatch(
     if (entity_patches.is_ok()) patch.changed_entities = std::move(entity_patches.value());
     patch.changed_entities.insert(
         patch.changed_entities.end(), manual_entity_patches.begin(), manual_entity_patches.end());
+    if (inventory_runtime) {
+        pathfinder::world_inventory::InventoryProjectionAdapter inventory_adapter;
+        auto inventory_patches = inventory_adapter.buildInventoryPatches(
+            changed_inventory_ids, viewer_actor_key, *inventory_runtime);
+        if (inventory_patches.is_ok()) patch.changed_inventories = std::move(inventory_patches.value());
+    }
     return patch;
+}
+
+bool actorInventoryContains(
+    const pathfinder::world_inventory::IInventoryRuntime& inventory_runtime,
+    const std::string& actor_key,
+    const std::string& entity_id,
+    pathfinder::world_inventory::InventoryItemEntry* out_entry = nullptr) {
+    auto inventory_res = inventory_runtime.findActorInventory(actor_key);
+    if (inventory_res.is_error()) return false;
+    for (const auto& entry : inventory_res.value()->entries) {
+        if (entry.entity_id != entity_id) continue;
+        if (out_entry) *out_entry = entry;
+        return true;
+    }
+    return false;
 }
 
 WorldCommandExecutionResult executeObjectAction(
     WorldGridRuntime& runtime,
     const ContentRegistry& content_registry,
+    pathfinder::world_inventory::IInventoryRuntime* inventory_runtime,
     WorldCommandContext& context,
     const WorldCommandDto& command,
     const std::string& action_key) {
@@ -88,8 +114,7 @@ WorldCommandExecutionResult executeObjectAction(
     }
 
     auto actor_res = runtime.findActor(command.actor_key);
-    auto entity_res = runtime.findEntity(command.target.target_entity_id);
-    if (actor_res.is_error() || entity_res.is_error()) {
+    if (actor_res.is_error()) {
         result.result_kind = WorldCommandResultKind::Blocked;
         result.failure_reason_keys.push_back("object_action_target_unavailable");
         logObjectAction("blocked action=" + action_key + " actor=" + command.actor_key + " target=" + command.target.target_entity_id + " reason=object_action_target_unavailable");
@@ -97,8 +122,41 @@ WorldCommandExecutionResult executeObjectAction(
     }
 
     const auto actor = *actor_res.value();
-    const auto entity = *entity_res.value();
-    if (!entity.coord.has_value() || !sameOrAdjacent(actor.coord, *entity.coord)) {
+    auto entity_res = runtime.findEntity(command.target.target_entity_id);
+    WorldEntityInstance entity;
+    bool target_in_inventory = false;
+    pathfinder::world_inventory::InventoryItemEntry inventory_entry;
+    if (entity_res.is_ok()) {
+        entity = *entity_res.value();
+        target_in_inventory = entity.location_kind == WorldEntityLocationKind::InInventory;
+    } else if (inventory_runtime && action_key == "eat" && actorInventoryContains(
+                   *inventory_runtime, command.actor_key, command.target.target_entity_id, &inventory_entry)) {
+        entity.entity_id = inventory_entry.entity_id;
+        entity.entity_key = inventory_entry.entity_key;
+        entity.display_name_key = "object." + inventory_entry.entity_key + ".name";
+        entity.quantity = inventory_entry.quantity;
+        entity.stack_key = inventory_entry.stack_key;
+        entity.stackable = inventory_entry.stackable;
+        entity.state_keys = inventory_entry.state_keys;
+        entity.numeric_states = inventory_entry.numeric_states;
+        entity.location_kind = WorldEntityLocationKind::InInventory;
+        target_in_inventory = true;
+    } else {
+        result.result_kind = WorldCommandResultKind::Blocked;
+        result.failure_reason_keys.push_back("object_action_target_unavailable");
+        logObjectAction("blocked action=" + action_key + " actor=" + command.actor_key + " target=" + command.target.target_entity_id + " reason=object_action_target_unavailable");
+        return result;
+    }
+
+    if (target_in_inventory) {
+        if (action_key != "eat" || !inventory_runtime ||
+            !actorInventoryContains(*inventory_runtime, command.actor_key, entity.entity_id, &inventory_entry)) {
+            result.result_kind = WorldCommandResultKind::Blocked;
+            result.failure_reason_keys.push_back("object_action_target_unavailable");
+            logObjectAction("blocked action=" + action_key + " actor=" + command.actor_key + " target=" + entity.entity_id + " object=" + entity.entity_key + " reason=inventory_target_unavailable");
+            return result;
+        }
+    } else if (!entity.coord.has_value() || !sameOrAdjacent(actor.coord, *entity.coord)) {
         result.result_kind = WorldCommandResultKind::Blocked;
         result.failure_reason_keys.push_back("object_action_out_of_range");
         logObjectAction("blocked action=" + action_key + " actor=" + command.actor_key + " target=" + entity.entity_id + " object=" + entity.entity_key + " reason=object_action_out_of_range");
@@ -115,23 +173,44 @@ WorldCommandExecutionResult executeObjectAction(
 
     std::vector<std::string> changed_cell_ids;
     std::vector<std::string> changed_entity_ids;
+    std::vector<std::string> changed_inventory_ids;
     std::vector<WorldEntityPatchDto> manual_entity_patches;
 
     if (action_key == "eat") {
-        const auto coord = *entity.coord;
-        auto destroy_res = runtime.destroyEntity(entity.entity_id);
-        if (destroy_res.is_error()) {
-            result.result_kind = WorldCommandResultKind::Failed;
-            result.failure_reason_keys.push_back("object_action_consume_failed");
-            logObjectAction("failed action=" + action_key + " actor=" + command.actor_key + " target=" + entity.entity_id + " object=" + entity.entity_key + " reason=object_action_consume_failed");
-            return result;
+        if (target_in_inventory) {
+            pathfinder::world_inventory::InventoryTransferRequest consume;
+            consume.transfer_id = command.command_id + "_consume_inventory";
+            consume.transfer_kind = pathfinder::world_inventory::InventoryTransferKind::ConsumeToNowhere;
+            consume.actor_key = command.actor_key;
+            consume.entity_id = entity.entity_id;
+            consume.entity_key = entity.entity_key;
+            consume.quantity = 1;
+            auto consume_res = inventory_runtime->transfer(consume);
+            if (consume_res.is_error() || !consume_res.value().ok) {
+                result.result_kind = WorldCommandResultKind::Failed;
+                result.failure_reason_keys.push_back("object_action_consume_failed");
+                logObjectAction("failed action=" + action_key + " actor=" + command.actor_key + " target=" + entity.entity_id + " object=" + entity.entity_key + " reason=inventory_consume_failed");
+                return result;
+            }
+            for (const auto& id : consume_res.value().changed_inventory_ids) changed_inventory_ids.push_back(id);
+            for (const auto& id : consume_res.value().changed_entity_ids) changed_entity_ids.push_back(id);
+            for (const auto& id : consume_res.value().changed_cell_ids) changed_cell_ids.push_back(id);
+        } else {
+            const auto coord = *entity.coord;
+            auto destroy_res = runtime.destroyEntity(entity.entity_id);
+            if (destroy_res.is_error()) {
+                result.result_kind = WorldCommandResultKind::Failed;
+                result.failure_reason_keys.push_back("object_action_consume_failed");
+                logObjectAction("failed action=" + action_key + " actor=" + command.actor_key + " target=" + entity.entity_id + " object=" + entity.entity_key + " reason=object_action_consume_failed");
+                return result;
+            }
+            changed_cell_ids.push_back(coord.cellId());
+            WorldEntityPatchDto removed;
+            removed.entity_id = entity.entity_id;
+            removed.op = PatchOp::Remove;
+            removed.fields["entity_id"] = entity.entity_id;
+            manual_entity_patches.push_back(std::move(removed));
         }
-        changed_cell_ids.push_back(coord.cellId());
-        WorldEntityPatchDto removed;
-        removed.entity_id = entity.entity_id;
-        removed.op = PatchOp::Remove;
-        removed.fields["entity_id"] = entity.entity_id;
-        manual_entity_patches.push_back(std::move(removed));
     }
 
     if (effect_key == "poison") {
@@ -164,7 +243,7 @@ WorldCommandExecutionResult executeObjectAction(
     event.body_text = command.actor_key + " 对 " + objectName(content_registry, entity.entity_key) + " 执行" + (action_key == "eat" ? "食用" : "使用") + "：" + reply;
     event.actor_key = command.actor_key;
     event.target_entity_id = entity.entity_id;
-    event.coord = pathfinder::world_command::WorldCoordinateDto{entity.coord->x, entity.coord->y, entity.coord->layer_key};
+    if (entity.coord) event.coord = pathfinder::world_command::WorldCoordinateDto{entity.coord->x, entity.coord->y, entity.coord->layer_key};
     result.events.push_back(std::move(event));
 
     WorldExperienceDto exp;
@@ -190,25 +269,29 @@ WorldCommandExecutionResult executeObjectAction(
     result.state_deltas.push_back(std::move(delta));
 
     result.projection_patch_override = buildObjectActionPatch(
-        runtime, command.actor_key, changed_cell_ids, changed_entity_ids, manual_entity_patches);
+        runtime, inventory_runtime, command.actor_key, changed_cell_ids, changed_entity_ids, changed_inventory_ids, manual_entity_patches);
     logObjectAction("succeeded action=" + action_key + " actor=" + command.actor_key + " target=" + entity.entity_id + " object=" + entity.entity_key + " effect=" + effect_key + " feedback=" + feedback_key + " experiences=" + std::to_string(result.experiences.size()));
     return result;
 }
 
 class EatObjectCommandHandler final : public IWorldCommandHandler {
 public:
-    EatObjectCommandHandler(WorldGridRuntime& runtime, const ContentRegistry& content_registry)
-        : runtime_(runtime), content_registry_(content_registry) {}
+    EatObjectCommandHandler(
+        WorldGridRuntime& runtime,
+        const ContentRegistry& content_registry,
+        pathfinder::world_inventory::IInventoryRuntime* inventory_runtime)
+        : runtime_(runtime), content_registry_(content_registry), inventory_runtime_(inventory_runtime) {}
 
     WorldCommandKind kind() const override { return WorldCommandKind::Eat; }
 
     Result<WorldCommandExecutionResult> execute(WorldCommandContext& context, const WorldCommandDto& command) const override {
-        return Result<WorldCommandExecutionResult>::ok(executeObjectAction(runtime_, content_registry_, context, command, "eat"));
+        return Result<WorldCommandExecutionResult>::ok(executeObjectAction(runtime_, content_registry_, inventory_runtime_, context, command, "eat"));
     }
 
 private:
     WorldGridRuntime& runtime_;
     const ContentRegistry& content_registry_;
+    pathfinder::world_inventory::IInventoryRuntime* inventory_runtime_;
 };
 
 class UseObjectCommandHandler final : public pathfinder::world_modules::IWorldUseCommandHandler {
@@ -221,7 +304,7 @@ public:
     }
 
     Result<WorldCommandExecutionResult> execute(WorldCommandContext& context, const WorldCommandDto& command) const override {
-        return Result<WorldCommandExecutionResult>::ok(executeObjectAction(runtime_, content_registry_, context, command, "use"));
+        return Result<WorldCommandExecutionResult>::ok(executeObjectAction(runtime_, content_registry_, nullptr, context, command, "use"));
     }
 
 private:
@@ -233,8 +316,9 @@ private:
 
 std::shared_ptr<IWorldCommandHandler> createEatObjectCommandHandler(
     WorldGridRuntime& runtime,
-    const ContentRegistry& content_registry) {
-    return std::make_shared<EatObjectCommandHandler>(runtime, content_registry);
+    const ContentRegistry& content_registry,
+    pathfinder::world_inventory::IInventoryRuntime* inventory_runtime) {
+    return std::make_shared<EatObjectCommandHandler>(runtime, content_registry, inventory_runtime);
 }
 
 std::shared_ptr<pathfinder::world_modules::IWorldUseCommandHandler> createUseObjectCommandHandler(

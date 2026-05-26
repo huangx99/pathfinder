@@ -162,6 +162,26 @@ static int inventoryQuantity(RuntimeBackedFixture& f,
     return total;
 }
 
+static bool actorHasClaim(RuntimeBackedFixture& f,
+                          const std::string& actor_key,
+                          const std::string& subject_key,
+                          const std::string& action_key,
+                          const std::string& effect_key) {
+    pathfinder::knowledge::KnowledgeOwner owner;
+    owner.kind = pathfinder::knowledge::KnowledgeOwnerKind::Actor;
+    owner.entity_id = pathfinder::foundation::EntityId(actor_key);
+    auto claims = f.factory.knowledge_repository->listByOwner(owner);
+    assert(claims.is_ok());
+    for (const auto& claim : claims.value()) {
+        if (claim.subject.subject_id == subject_key &&
+            claim.predicate.action_key == action_key &&
+            claim.predicate.effect_key == effect_key) {
+            return true;
+        }
+    }
+    return false;
+}
+
 static const WorldCommandOptionDto* findOption(
     const std::vector<WorldCommandOptionDto>& options,
     const std::function<bool(const WorldCommandOptionDto&)>& predicate) {
@@ -1247,10 +1267,84 @@ void run_idle_npc_uses_then_picks_up_when_not_hungry_tests() {
 
     assert(saw_use);
     assert(saw_pickup);
+    assert(actorHasClaim(f, "companion_collector", "red_berry", "use", "no_visible_effect"));
     assert(!entityOnMap(f, "test_red_berry_for_pickup"));
     assert(inventoryQuantity(f, "companion_collector", "red_berry") == 1);
 
     std::cout << "client_runtime_bridge_idle_npc_uses_then_picks_up_when_not_hungry_tests: all passed" << std::endl;
+}
+
+// ---------------------------------------------------------------------------
+// Once an NPC has tried direct use on red berries and learned there is no
+// visible effect, it should not repeat that same exploratory use for every
+// equivalent stack before switching to pickup.
+// ---------------------------------------------------------------------------
+void run_idle_npc_does_not_repeat_red_berry_use_tests() {
+    RuntimeBackedFixture f;
+    spawnTestActor(f, "companion_no_repeat", "companion", {0, 0, "surface"});
+    spawnMapItem(f, "test_red_berry_repeat_a", "red_berry", {1, 0, "surface"}, 1);
+    spawnMapItem(f, "test_red_berry_repeat_b", "red_berry", {0, 1, "surface"}, 1);
+    spawnMapItem(f, "test_red_berry_repeat_c", "red_berry", {1, 1, "surface"}, 1);
+
+    auto boot = f.harness.fakeBootstrap("client_1", "session_npc_no_repeat", "player");
+    assert(boot.is_ok());
+    uint64_t version = boot.value().projection_version;
+    uint64_t sequence = 1;
+
+    int use_count = 0;
+    int pickup_count = 0;
+    for (int step = 0; step < 5; ++step) {
+        auto response = submitWait(f, "session_npc_no_repeat", version, sequence);
+        for (const auto& event : response.event_feed) {
+            if (event.actor_key != "companion_no_repeat") continue;
+            if (event.event_kind == "ObjectUsed") ++use_count;
+            if (event.event_kind == "ItemPickedUp") ++pickup_count;
+        }
+    }
+
+    assert(use_count == 1);
+    assert(pickup_count >= 2);
+    assert(actorHasClaim(f, "companion_no_repeat", "red_berry", "use", "no_visible_effect"));
+    assert(inventoryQuantity(f, "companion_no_repeat", "red_berry") >= 2);
+
+    std::cout << "client_runtime_bridge_idle_npc_does_not_repeat_red_berry_use_tests: all passed" << std::endl;
+}
+
+// ---------------------------------------------------------------------------
+// Hungry NPCs should prioritize food already in their inventory and consume it
+// through the Eat command pipeline before wandering or searching the map.
+// ---------------------------------------------------------------------------
+void run_hungry_npc_eats_inventory_food_tests() {
+    RuntimeBackedFixture f;
+    spawnTestActor(f, "companion_inventory_eater", "companion", {0, 0, "surface"});
+    auto hunger_setup = f.factory.world_runtime->applyActorNumericStateDelta(
+        "companion_inventory_eater", "hunger", 50.0, 0.0, 100.0, {"test_make_inventory_eater_hungry"});
+    assert(hunger_setup.is_ok());
+    spawnInventoryItem(f, "companion_inventory_eater", "red_berry", 1, "inventory_eater_red_berry");
+
+    auto boot = f.harness.fakeBootstrap("client_1", "session_npc_inventory_eat", "player");
+    assert(boot.is_ok());
+    uint64_t version = boot.value().projection_version;
+    uint64_t sequence = 1;
+
+    auto response = submitWait(f, "session_npc_inventory_eat", version, sequence);
+    bool saw_eat = false;
+    for (const auto& event : response.event_feed) {
+        if (event.actor_key == "companion_inventory_eater" && event.event_kind == "ObjectEaten") saw_eat = true;
+    }
+    assert(saw_eat);
+    assert(inventoryQuantity(f, "companion_inventory_eater", "red_berry") == 0);
+    assert(actorHasClaim(f, "companion_inventory_eater", "red_berry", "eat", "restore_hunger"));
+
+    auto actor = f.factory.world_runtime->findActor("companion_inventory_eater");
+    assert(actor.is_ok());
+    auto entity = f.factory.world_runtime->findEntity(actor.value()->entity_id);
+    assert(entity.is_ok());
+    auto hunger_it = entity.value()->numeric_states.find("hunger");
+    assert(hunger_it != entity.value()->numeric_states.end());
+    assert(hunger_it->second < 60.0);
+
+    std::cout << "client_runtime_bridge_hungry_npc_eats_inventory_food_tests: all passed" << std::endl;
 }
 
 // ---------------------------------------------------------------------------
@@ -1350,6 +1444,8 @@ int main(int argc, char* argv[]) {
         run_idle_npc_wanders_on_wait_tests();
         run_idle_npc_tries_nearby_object_and_learns_tests();
         run_idle_npc_uses_then_picks_up_when_not_hungry_tests();
+        run_idle_npc_does_not_repeat_red_berry_use_tests();
+        run_hungry_npc_eats_inventory_food_tests();
         run_wildlife_actor_chases_and_attacks_tests();
         return 0;
     }
@@ -1379,6 +1475,8 @@ int main(int argc, char* argv[]) {
     else if (test_name == "idle_npc_wanders_on_wait") run_idle_npc_wanders_on_wait_tests();
     else if (test_name == "idle_npc_tries_nearby_object_and_learns") run_idle_npc_tries_nearby_object_and_learns_tests();
     else if (test_name == "idle_npc_uses_then_picks_up_when_not_hungry") run_idle_npc_uses_then_picks_up_when_not_hungry_tests();
+    else if (test_name == "idle_npc_does_not_repeat_red_berry_use") run_idle_npc_does_not_repeat_red_berry_use_tests();
+    else if (test_name == "hungry_npc_eats_inventory_food") run_hungry_npc_eats_inventory_food_tests();
     else if (test_name == "wildlife_actor_chases_and_attacks") run_wildlife_actor_chases_and_attacks_tests();
     else {
         std::cerr << "Unknown test: " << test_name << std::endl;

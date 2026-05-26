@@ -22,6 +22,27 @@
       }
     },
     {
+      "feedback_key": "red_berry_use_no_visible_effect",
+      "object_key": "red_berry",
+      "action_key": "use",
+      "target_object_key": "",
+      "effect_key": "no_visible_effect",
+      "priority": 100,
+      "conditions": [
+        "condition:test:eq:object.quantity.red_berry.gte.1"
+      ],
+      "reply_key": "feedback.red_berry.use.no_effect",
+      "utility_delta": -0.1,
+      "risk_delta": 0,
+      "causal_tags": ["food", "no_visible_effect"],
+      "outcome_signal_keys": ["no_visible_effect"],
+      "knowledge": {
+        "subject_object_key": "red_berry",
+        "action_key": "use",
+        "effect_key": "no_visible_effect"
+      }
+    },
+    {
       "feedback_key": "decayed_red_berry_eat_no_effect",
       "object_key": "decayed_red_berry",
       "action_key": "eat",

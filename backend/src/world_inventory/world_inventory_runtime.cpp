@@ -941,16 +941,17 @@ Result<void> WorldInventoryRuntime::applyConsumeToNowhere(InventoryTransferDraft
     if (request.quantity < target_entry->quantity) {
         target_entry->quantity -= request.quantity;
     } else {
+        const std::string consumed_entity_id = target_entry->entity_id;
         // Full consume: remove entry
         inv->entries.erase(inv->entries.begin() + target_index);
         inv->used_slots -= 1;
 
         // Destroy source entity if it still exists as an independent instance
-        auto destroy_res = world_port_.destroyEntity(target_entry->entity_id);
+        auto destroy_res = world_port_.destroyEntity(consumed_entity_id);
         if (destroy_res.is_error()) {
             // Non-fatal
         }
-        item_locations_.erase(target_entry->entity_id);
+        item_locations_.erase(consumed_entity_id);
     }
 
     return Result<void>::ok();

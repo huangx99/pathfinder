@@ -652,7 +652,7 @@ Result<AdvanceWorldTimeResult> WorldGridRuntime::advanceWorldTime(uint64_t tick_
         auto entity_it = entities_.find(actor.entity_id);
         if (entity_it == entities_.end()) continue;
         auto& hunger = entity_it->second.numeric_states["hunger"];
-        hunger = std::clamp(hunger + static_cast<double>(tick_delta), 0.0, 100.0);
+        hunger = std::clamp(hunger + static_cast<double>(tick_delta) * config_.hunger_per_tick, 0.0, 100.0);
         ++hunger_updates;
     }
     incrementStateVersion();

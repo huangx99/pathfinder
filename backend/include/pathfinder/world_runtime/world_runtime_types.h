@@ -64,6 +64,7 @@ struct WorldRuntimeConfig {
     std::string generator_version = "1.0.0";
     std::string content_version = "1.0.0";
     std::string worldgen_profile_key = "sandbox_blank";
+    double hunger_per_tick = 0.25;
     bool create_player_entity = true;
     bool player_is_controlled = true;
     WorldLayerPolicy layer_policy = WorldLayerPolicy::SurfaceOnly;

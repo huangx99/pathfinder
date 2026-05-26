@@ -43,7 +43,7 @@ void registerCoreCommandHandlers(WorldModuleContext& context) {
     context.registry.registerHandler(pathfinder::world_runtime::createWaitCommandHandler(context.world_runtime));
     context.registry.registerHandler(pathfinder::world_runtime::createAttackCommandHandler(context.world_runtime));
     context.registry.registerHandler(pathfinder::world_object_interaction::createEatObjectCommandHandler(
-        context.world_runtime, context.content_registry));
+        context.world_runtime, context.content_registry, &context.inventory_runtime));
 
     context.registry.registerHandler(pathfinder::world_map_edit::createPaintTerrainCommandHandler(
         context.world_runtime));
@@ -131,6 +131,7 @@ void registerPostCommandHooks(WorldModuleContext& context) {
 
     context.post_command_hooks.addHook("world_agent_wander", [world_runtime,
                                                                content_registry,
+                                                               inventory_runtime,
                                                                pipeline](
         const pathfinder::world_command::WorldCommandDto& command,
         pathfinder::client_protocol::ClientCommandResponse& response) {
@@ -138,6 +139,7 @@ void registerPostCommandHooks(WorldModuleContext& context) {
         pathfinder::world_agent_wander::runAgentWanderTicks(
             *world_runtime,
             *content_registry,
+            *inventory_runtime,
             *pipeline,
             [](const std::string& actor_key) {
                 return pathfinder::world_npc_work::isNpcWorkActive(actor_key) ||

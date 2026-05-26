@@ -26,6 +26,9 @@ using pathfinder::world_runtime::WorldEntityInstance;
 using pathfinder::world_runtime::WorldEntityLocationKind;
 using pathfinder::world_runtime::WorldGridRuntime;
 using pathfinder::world_runtime::WorldRuntimeSnapshot;
+using pathfinder::world_inventory::InventoryOwnerKind;
+using pathfinder::world_inventory::InventoryOwnerRef;
+using pathfinder::world_inventory::IInventoryRuntime;
 
 std::string coordText(const WorldCellCoord& coord) {
     return std::to_string(coord.x) + "," + std::to_string(coord.y) + "," + coord.layer_key;
@@ -105,6 +108,33 @@ struct ObjectActionCandidate {
     std::string action_key;
 };
 
+std::string attemptKey(const std::string& actor_key, const ObjectActionCandidate& candidate) {
+    if (candidate.action_key == "use") {
+        return actor_key + ":object:" + candidate.entity_key + ":" + candidate.action_key;
+    }
+    return actor_key + ":entity:" + candidate.entity_id + ":" + candidate.action_key;
+}
+
+std::optional<ObjectActionCandidate> findInventoryFoodAction(
+    const WorldRuntimeSnapshot& snapshot,
+    const ContentRegistry& content_registry,
+    const IInventoryRuntime& inventory_runtime,
+    const WorldActorRuntime& actor) {
+    if (actorHunger(snapshot, actor) < 60.0) return std::nullopt;
+    auto items_res = inventory_runtime.queryItems(InventoryOwnerRef{InventoryOwnerKind::Actor, actor.actor_key}, "");
+    if (items_res.is_error()) return std::nullopt;
+
+    for (const auto& item : items_res.value()) {
+        const auto* object = content_registry.findObject(item.entity_key);
+        if (!object) continue;
+        const bool food_like = object->kind == "food" || hasTag(object->safe_tags, "food_like");
+        if (!food_like || !hasAction(object->allowed_actions, "eat") || item.quantity <= 0) continue;
+        logAgent("inventory food decision actor=" + actor.actor_key + " hunger=" + std::to_string(actorHunger(snapshot, actor)) + " entity=" + item.entity_id + " object=" + item.entity_key + " action=eat");
+        return ObjectActionCandidate{item.entity_id, item.entity_key, WorldCommandKind::Eat, "eat"};
+    }
+    return std::nullopt;
+}
+
 std::optional<ObjectActionCandidate> findNearbyObjectAction(
     const WorldRuntimeSnapshot& snapshot,
     const ContentRegistry& content_registry,
@@ -142,7 +172,7 @@ std::optional<ObjectActionCandidate> findNearbyObjectAction(
         if (hasAction(object->allowed_actions, "use")) actions.push_back({WorldCommandKind::Use, "use"});
         actions.push_back({WorldCommandKind::Pickup, "pickup"});
         for (const auto& [kind, action] : actions) {
-            const auto attempt_key = actor.actor_key + ":" + entity->entity_id + ":" + action;
+            const auto attempt_key = attemptKey(actor.actor_key, ObjectActionCandidate{entity->entity_id, entity->entity_key, kind, action});
             if (attemptedObjectActions().count(attempt_key) > 0) continue;
             logAgent("nearby object decision actor=" + actor.actor_key + " hunger=" + std::to_string(actorHunger(snapshot, actor)) + " entity=" + entity->entity_id + " object=" + entity->entity_key + " action=" + action + " food_like=" + (food_like ? std::string("true") : std::string("false")));
             return ObjectActionCandidate{entity->entity_id, entity->entity_key, kind, action};
@@ -209,7 +239,7 @@ bool issueObjectAction(
         return false;
     }
 
-    attemptedObjectActions().insert(actor_key + ":" + candidate.entity_id + ":" + candidate.action_key);
+    if (candidate.action_key != "eat") attemptedObjectActions().insert(attemptKey(actor_key, candidate));
     mergePipelineResponse(response, inner);
     command_version = response.new_projection_version;
     logAgent("object action succeeded actor=" + actor_key + " entity=" + candidate.entity_id + " object=" + candidate.entity_key + " action=" + candidate.action_key + " new_version=" + std::to_string(command_version));
@@ -266,6 +296,7 @@ bool issueWanderMove(
 bool runAgentWanderTicks(
     WorldGridRuntime& runtime,
     const ContentRegistry& content_registry,
+    IInventoryRuntime& inventory_runtime,
     pathfinder::world_command::WorldCommandPipeline& pipeline,
     const std::function<bool(const std::string&)>& is_actor_busy,
     pathfinder::client_protocol::ClientCommandResponse& response) {
@@ -281,6 +312,12 @@ bool runAgentWanderTicks(
         if (!isIdleHumanoidNpc(actor, runtime, content_registry)) continue;
         if (is_actor_busy && is_actor_busy(actor_key)) {
             logAgent("skip busy actor=" + actor_key);
+            continue;
+        }
+
+        auto inventory_action = findInventoryFoodAction(snapshot, content_registry, inventory_runtime, actor);
+        if (inventory_action.has_value() && issueObjectAction(pipeline, inventory_action.value(), actor_key, response, command_version)) {
+            acted_any = true;
             continue;
         }
 
