@@ -1311,6 +1311,31 @@ void run_idle_npc_does_not_repeat_red_berry_use_tests() {
 }
 
 // ---------------------------------------------------------------------------
+// All core food-like objects that expose Use should have matching no-effect
+// learning templates, not only the fresh red berry path.
+// ---------------------------------------------------------------------------
+void run_idle_npc_learns_food_use_no_effect_templates_tests() {
+    RuntimeBackedFixture f;
+    spawnTestActor(f, "companion_food_use", "companion", {0, 0, "surface"});
+    spawnMapItem(f, "test_decayed_use_no_effect", "decayed_red_berry", {1, 0, "surface"}, 1);
+    spawnMapItem(f, "test_bitter_use_no_effect", "bitter_leaf", {0, 1, "surface"}, 1);
+
+    auto boot = f.harness.fakeBootstrap("client_1", "session_food_use_no_effect", "player");
+    assert(boot.is_ok());
+    uint64_t version = boot.value().projection_version;
+    uint64_t sequence = 1;
+
+    for (int step = 0; step < 6; ++step) {
+        (void)submitWait(f, "session_food_use_no_effect", version, sequence);
+    }
+
+    assert(actorHasClaim(f, "companion_food_use", "decayed_red_berry", "use", "no_visible_effect"));
+    assert(actorHasClaim(f, "companion_food_use", "bitter_leaf", "use", "no_visible_effect"));
+
+    std::cout << "client_runtime_bridge_idle_npc_learns_food_use_no_effect_templates_tests: all passed" << std::endl;
+}
+
+// ---------------------------------------------------------------------------
 // Hungry NPCs should prioritize food already in their inventory and consume it
 // through the Eat command pipeline before wandering or searching the map.
 // ---------------------------------------------------------------------------
@@ -1445,6 +1470,7 @@ int main(int argc, char* argv[]) {
         run_idle_npc_tries_nearby_object_and_learns_tests();
         run_idle_npc_uses_then_picks_up_when_not_hungry_tests();
         run_idle_npc_does_not_repeat_red_berry_use_tests();
+        run_idle_npc_learns_food_use_no_effect_templates_tests();
         run_hungry_npc_eats_inventory_food_tests();
         run_wildlife_actor_chases_and_attacks_tests();
         return 0;
@@ -1476,6 +1502,7 @@ int main(int argc, char* argv[]) {
     else if (test_name == "idle_npc_tries_nearby_object_and_learns") run_idle_npc_tries_nearby_object_and_learns_tests();
     else if (test_name == "idle_npc_uses_then_picks_up_when_not_hungry") run_idle_npc_uses_then_picks_up_when_not_hungry_tests();
     else if (test_name == "idle_npc_does_not_repeat_red_berry_use") run_idle_npc_does_not_repeat_red_berry_use_tests();
+    else if (test_name == "idle_npc_learns_food_use_no_effect_templates") run_idle_npc_learns_food_use_no_effect_templates_tests();
     else if (test_name == "hungry_npc_eats_inventory_food") run_hungry_npc_eats_inventory_food_tests();
     else if (test_name == "wildlife_actor_chases_and_attacks") run_wildlife_actor_chases_and_attacks_tests();
     else {

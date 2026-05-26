@@ -64,6 +64,27 @@
       }
     },
     {
+      "feedback_key": "decayed_red_berry_use_no_visible_effect",
+      "object_key": "decayed_red_berry",
+      "action_key": "use",
+      "target_object_key": "",
+      "effect_key": "no_visible_effect",
+      "priority": 100,
+      "conditions": [
+        "condition:test:eq:object.quantity.decayed_red_berry.gte.1"
+      ],
+      "reply_key": "feedback.decayed_red_berry.use.no_effect",
+      "utility_delta": -0.1,
+      "risk_delta": 0.1,
+      "causal_tags": ["food", "decayed", "no_visible_effect"],
+      "outcome_signal_keys": ["no_visible_effect"],
+      "knowledge": {
+        "subject_object_key": "decayed_red_berry",
+        "action_key": "use",
+        "effect_key": "no_visible_effect"
+      }
+    },
+    {
       "feedback_key": "bitter_leaf_eat_no_effect",
       "object_key": "bitter_leaf",
       "action_key": "eat",
@@ -81,6 +102,27 @@
       "knowledge": {
         "subject_object_key": "bitter_leaf",
         "action_key": "eat",
+        "effect_key": "no_visible_effect"
+      }
+    },
+    {
+      "feedback_key": "bitter_leaf_use_no_visible_effect",
+      "object_key": "bitter_leaf",
+      "action_key": "use",
+      "target_object_key": "",
+      "effect_key": "no_visible_effect",
+      "priority": 100,
+      "conditions": [
+        "condition:test:eq:object.quantity.bitter_leaf.gte.1"
+      ],
+      "reply_key": "feedback.bitter_leaf.use.no_effect",
+      "utility_delta": -0.1,
+      "risk_delta": 0,
+      "causal_tags": ["food", "bitter", "no_visible_effect"],
+      "outcome_signal_keys": ["no_visible_effect"],
+      "knowledge": {
+        "subject_object_key": "bitter_leaf",
+        "action_key": "use",
         "effect_key": "no_visible_effect"
       }
     },

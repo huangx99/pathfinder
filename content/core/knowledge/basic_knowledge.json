@@ -34,6 +34,28 @@
       "summary_key": "knowledge.decayed_red_berry.eat.no_effect.summary"
     },
     {
+      "knowledge_key": "knowledge_decayed_red_berry_use_no_visible_effect",
+      "subject_object_key": "decayed_red_berry",
+      "action_key": "use",
+      "effect_key": "no_visible_effect",
+      "target_object_key": "",
+      "default_status": "hypothesis",
+      "teachable": true,
+      "usable_by_ai": true,
+      "summary_key": "knowledge.decayed_red_berry.use.no_visible_effect.summary"
+    },
+    {
+      "knowledge_key": "knowledge_bitter_leaf_use_no_visible_effect",
+      "subject_object_key": "bitter_leaf",
+      "action_key": "use",
+      "effect_key": "no_visible_effect",
+      "target_object_key": "",
+      "default_status": "hypothesis",
+      "teachable": true,
+      "usable_by_ai": true,
+      "summary_key": "knowledge.bitter_leaf.use.no_visible_effect.summary"
+    },
+    {
       "knowledge_key": "knowledge_make_torch",
       "subject_object_key": "wood",
       "action_key": "craft",
