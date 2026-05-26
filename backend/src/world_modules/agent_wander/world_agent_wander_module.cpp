@@ -1,4 +1,5 @@
 #include "pathfinder/world_modules/agent_wander/world_agent_wander_module.h"
+#include "pathfinder/logging/logger.h"
 
 #include <algorithm>
 #include <cmath>
@@ -25,6 +26,14 @@ using pathfinder::world_runtime::WorldEntityInstance;
 using pathfinder::world_runtime::WorldEntityLocationKind;
 using pathfinder::world_runtime::WorldGridRuntime;
 using pathfinder::world_runtime::WorldRuntimeSnapshot;
+
+std::string coordText(const WorldCellCoord& coord) {
+    return std::to_string(coord.x) + "," + std::to_string(coord.y) + "," + coord.layer_key;
+}
+
+void logAgent(const std::string& message) {
+    pathfinder::logging::log(pathfinder::logging::tag::Agent, message);
+}
 
 std::set<std::string>& attemptedObjectActions() {
     static std::set<std::string> attempts;
@@ -135,6 +144,7 @@ std::optional<ObjectActionCandidate> findNearbyObjectAction(
         for (const auto& [kind, action] : actions) {
             const auto attempt_key = actor.actor_key + ":" + entity->entity_id + ":" + action;
             if (attemptedObjectActions().count(attempt_key) > 0) continue;
+            logAgent("nearby object decision actor=" + actor.actor_key + " hunger=" + std::to_string(actorHunger(snapshot, actor)) + " entity=" + entity->entity_id + " object=" + entity->entity_key + " action=" + action + " food_like=" + (food_like ? std::string("true") : std::string("false")));
             return ObjectActionCandidate{entity->entity_id, entity->entity_key, kind, action};
         }
     }
@@ -189,13 +199,20 @@ bool issueObjectAction(
 
     pipeline.setCurrentProjectionVersion(command_version);
     auto inner_res = pipeline.execute("agent_object_internal", command);
-    if (inner_res.is_error()) return false;
+    if (inner_res.is_error()) {
+        logAgent("object action pipeline error actor=" + actor_key + " entity=" + candidate.entity_id + " action=" + candidate.action_key);
+        return false;
+    }
     auto inner = inner_res.value();
-    if (inner.result.result_kind != WorldCommandResultKind::Succeeded) return false;
+    if (inner.result.result_kind != WorldCommandResultKind::Succeeded) {
+        logAgent("object action not succeeded actor=" + actor_key + " entity=" + candidate.entity_id + " object=" + candidate.entity_key + " action=" + candidate.action_key + " result=" + pathfinder::world_command::toString(inner.result.result_kind));
+        return false;
+    }
 
     attemptedObjectActions().insert(actor_key + ":" + candidate.entity_id + ":" + candidate.action_key);
     mergePipelineResponse(response, inner);
     command_version = response.new_projection_version;
+    logAgent("object action succeeded actor=" + actor_key + " entity=" + candidate.entity_id + " object=" + candidate.entity_key + " action=" + candidate.action_key + " new_version=" + std::to_string(command_version));
     return true;
 }
 
@@ -218,9 +235,15 @@ bool issueWanderMove(
 
     pipeline.setCurrentProjectionVersion(command_version);
     auto move_response_res = pipeline.execute("agent_wander_internal", move_command);
-    if (move_response_res.is_error()) return false;
+    if (move_response_res.is_error()) {
+        logAgent("wander move pipeline error actor=" + actor.actor_key + " target=" + coordText(candidate));
+        return false;
+    }
     auto move_response = move_response_res.value();
-    if (move_response.result.result_kind != WorldCommandResultKind::Succeeded) return false;
+    if (move_response.result.result_kind != WorldCommandResultKind::Succeeded) {
+        logAgent("wander move not succeeded actor=" + actor.actor_key + " from=" + coordText(actor.coord) + " target=" + coordText(candidate) + " result=" + pathfinder::world_command::toString(move_response.result.result_kind));
+        return false;
+    }
 
     mergePipelineResponse(response, move_response);
     command_version = response.new_projection_version;
@@ -234,6 +257,7 @@ bool issueWanderMove(
     event.actor_key = actor.actor_key;
     event.coord = WorldCoordinateDto{candidate.x, candidate.y, candidate.layer_key};
     response.event_feed.push_back(std::move(event));
+    logAgent("wander move succeeded actor=" + actor.actor_key + " from=" + coordText(actor.coord) + " to=" + coordText(candidate) + " new_version=" + std::to_string(command_version));
     return true;
 }
 
@@ -255,7 +279,10 @@ bool runAgentWanderTicks(
 
     for (const auto& [actor_key, actor] : snapshot.actors) {
         if (!isIdleHumanoidNpc(actor, runtime, content_registry)) continue;
-        if (is_actor_busy && is_actor_busy(actor_key)) continue;
+        if (is_actor_busy && is_actor_busy(actor_key)) {
+            logAgent("skip busy actor=" + actor_key);
+            continue;
+        }
 
         auto object_action = findNearbyObjectAction(snapshot, content_registry, actor, command_version);
         if (object_action.has_value() && issueObjectAction(pipeline, object_action.value(), actor_key, response, command_version)) {

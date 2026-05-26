@@ -1,5 +1,6 @@
 #include "pathfinder/world_inventory/world_inventory_runtime.h"
 #include "pathfinder/foundation/error.h"
+#include "pathfinder/logging/logger.h"
 #include <algorithm>
 #include <cmath>
 #include <sstream>
@@ -13,6 +14,38 @@ using pathfinder::foundation::makeError;
 using namespace pathfinder::world_runtime;
 using namespace pathfinder::world_command;
 
+namespace {
+
+std::string idsSummary(const std::vector<std::string>& ids) {
+    if (ids.empty()) return "none";
+    std::ostringstream oss;
+    for (size_t i = 0; i < ids.size(); ++i) {
+        if (i > 0) oss << ',';
+        oss << ids[i];
+    }
+    return oss.str();
+}
+
+std::string requestSummary(const InventoryTransferRequest& request) {
+    std::ostringstream oss;
+    oss << "transfer_id=" << request.transfer_id
+        << " kind=" << toString(request.transfer_kind)
+        << " actor=" << request.actor_key
+        << " entity_id=" << (request.entity_id.empty() ? "none" : request.entity_id)
+        << " entity_key=" << (request.entity_key.empty() ? "none" : request.entity_key)
+        << " quantity=" << request.quantity;
+    if (request.to.coord) {
+        oss << " to=" << request.to.coord->x << ',' << request.to.coord->y << ',' << request.to.coord->layer_key;
+    }
+    return oss.str();
+}
+
+void logInventory(const std::string& message) {
+    pathfinder::logging::log(pathfinder::logging::tag::Inventory, message);
+}
+
+} // namespace
+
 // ---------------------------------------------------------------------------
 // Construction / Initialization
 // ---------------------------------------------------------------------------
@@ -24,6 +57,7 @@ Result<void> WorldInventoryRuntime::initialize() {
     state_version_ = 1;
     inventories_.clear();
     item_locations_.clear();
+    logInventory("runtime initialized state_version=1");
     return Result<void>::ok();
 }
 
@@ -98,6 +132,7 @@ Result<std::string> WorldInventoryRuntime::ensureActorInventory(const std::strin
     state.public_take = false;
     inventories_[inventory_id] = std::move(state);
     incrementStateVersion();
+    logInventory("created actor inventory actor=" + actor_key + " inventory=" + inventory_id + " state_version=" + std::to_string(state_version_));
     return Result<std::string>::ok(inventory_id);
 }
 
@@ -117,6 +152,7 @@ Result<std::string> WorldInventoryRuntime::ensureContainerInventory(const std::s
     state.public_take = false;
     inventories_[inventory_id] = std::move(state);
     incrementStateVersion();
+    logInventory("created container inventory container=" + container_entity_id + " inventory=" + inventory_id + " state_version=" + std::to_string(state_version_));
     return Result<std::string>::ok(inventory_id);
 }
 
@@ -242,6 +278,7 @@ Result<InventoryTransferResult> WorldInventoryRuntime::transfer(const InventoryT
     InventoryTransferResult result;
     result.ok = false;
     result.failure_kind = InventoryFailureKind::None;
+    logInventory("transfer requested " + requestSummary(request));
 
     // 1. Validate and build draft
     auto draft_res = validateTransfer(request);
@@ -273,6 +310,7 @@ Result<InventoryTransferResult> WorldInventoryRuntime::transfer(const InventoryT
         } else {
             result.failure_kind = InventoryFailureKind::RuntimeMismatch;
         }
+        logInventory("transfer blocked " + requestSummary(request) + " failure=" + toString(result.failure_kind));
         return Result<InventoryTransferResult>::ok(std::move(result));
     }
     auto draft = std::move(draft_res.value());
@@ -281,6 +319,7 @@ Result<InventoryTransferResult> WorldInventoryRuntime::transfer(const InventoryT
     auto apply_res = applyTransfer(draft);
     if (apply_res.is_error()) {
         result.failure_kind = InventoryFailureKind::ConflictLocationState;
+        logInventory("transfer apply failed " + requestSummary(request) + " failure=" + toString(result.failure_kind));
         return Result<InventoryTransferResult>::ok(std::move(result));
     }
 
@@ -290,6 +329,11 @@ Result<InventoryTransferResult> WorldInventoryRuntime::transfer(const InventoryT
     result.changed_entity_ids = std::move(draft.changed_entity_ids);
     result.changed_cell_ids = std::move(draft.changed_cell_ids);
     incrementStateVersion();
+    logInventory("transfer succeeded " + requestSummary(request) +
+        " changed_inventories=" + idsSummary(result.changed_inventory_ids) +
+        " changed_entities=" + idsSummary(result.changed_entity_ids) +
+        " changed_cells=" + idsSummary(result.changed_cell_ids) +
+        " state_version=" + std::to_string(state_version_));
 
     // Emit event
     WorldEventDto event;

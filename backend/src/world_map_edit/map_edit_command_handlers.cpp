@@ -1,8 +1,10 @@
 #include "pathfinder/world_map_edit/map_edit_command_handlers.h"
 #include "pathfinder/world_map_edit/map_edit_content_policy.h"
 #include "pathfinder/foundation/error.h"
+#include "pathfinder/logging/logger.h"
 #include <algorithm>
 #include <atomic>
+#include <sstream>
 
 namespace pathfinder::world_map_edit {
 namespace {
@@ -23,6 +25,16 @@ using pathfinder::world_command::WorldProjectionPatchDto;
 using pathfinder::world_runtime::WorldCellCoord;
 
 std::atomic<uint64_t> g_spawn_counter{0};
+
+std::string coordText(const WorldCellCoord& coord) {
+    std::ostringstream oss;
+    oss << coord.x << ',' << coord.y << ',' << coord.layer_key;
+    return oss.str();
+}
+
+void logMapEdit(const std::string& message) {
+    pathfinder::logging::log(pathfinder::logging::tag::Map, "map_edit " + message);
+}
 
 std::string makePlacedEntityId(const std::string& object_key, const WorldCellCoord& coord) {
     return "placed_" + object_key + "_" + coord.layer_key + "_" +
@@ -77,11 +89,13 @@ public:
         if (command.command_key != "paint_terrain") {
             result.result_kind = WorldCommandResultKind::Blocked;
             result.failure_reason_keys.push_back("map_edit_wrong_paint_command_key");
+            logMapEdit("paint blocked actor=" + command.actor_key + " key=" + command.command_key + " reason=map_edit_wrong_paint_command_key");
             return Result<WorldCommandExecutionResult>::ok(std::move(result));
         }
         if (!command.target.target_coord || command.target.target_item_key.empty()) {
             result.result_kind = WorldCommandResultKind::Failed;
             result.failure_reason_keys.push_back("map_edit_missing_paint_target");
+            logMapEdit("paint failed actor=" + command.actor_key + " reason=map_edit_missing_paint_target");
             return Result<WorldCommandExecutionResult>::ok(std::move(result));
         }
 
@@ -89,6 +103,7 @@ public:
         if (!terrain) {
             result.result_kind = WorldCommandResultKind::Blocked;
             result.failure_reason_keys.push_back("terrain_not_paintable");
+            logMapEdit("paint blocked actor=" + command.actor_key + " terrain=" + command.target.target_item_key + " reason=terrain_not_paintable");
             return Result<WorldCommandExecutionResult>::ok(std::move(result));
         }
 
@@ -97,6 +112,7 @@ public:
         if (cell_res.is_error()) {
             result.result_kind = WorldCommandResultKind::Blocked;
             result.failure_reason_keys.push_back("cell_not_found");
+            logMapEdit("paint blocked actor=" + command.actor_key + " coord=" + coordText(coord) + " reason=cell_not_found");
             return Result<WorldCommandExecutionResult>::ok(std::move(result));
         }
 
@@ -110,6 +126,7 @@ public:
         if (update_res.is_error()) {
             result.result_kind = WorldCommandResultKind::Failed;
             result.failure_reason_keys.push_back("paint_terrain_failed");
+            logMapEdit("paint failed actor=" + command.actor_key + " coord=" + coordText(coord) + " terrain=" + terrain->terrain_key + " reason=paint_terrain_failed");
             return Result<WorldCommandExecutionResult>::ok(std::move(result));
         }
 
@@ -126,6 +143,7 @@ public:
         event.actor_key = command.actor_key;
         event.coord = command.target.target_coord;
         result.events.push_back(std::move(event));
+        logMapEdit("paint succeeded actor=" + command.actor_key + " coord=" + coordText(coord) + " terrain=" + terrain->terrain_key);
         return Result<WorldCommandExecutionResult>::ok(std::move(result));
     }
 
@@ -152,6 +170,7 @@ public:
         if (!command.target.target_coord || command.target.target_item_key.empty()) {
             result.result_kind = WorldCommandResultKind::Failed;
             result.failure_reason_keys.push_back("map_edit_missing_spawn_target");
+            logMapEdit("spawn failed actor=" + command.actor_key + " reason=map_edit_missing_spawn_target");
             return Result<WorldCommandExecutionResult>::ok(std::move(result));
         }
 
@@ -160,6 +179,7 @@ public:
         if (cell_res.is_error() || cell_res.value()->blocks_movement) {
             result.result_kind = WorldCommandResultKind::Blocked;
             result.failure_reason_keys.push_back("spawn_cell_not_available");
+            logMapEdit("spawn blocked actor=" + command.actor_key + " item=" + command.target.target_item_key + " coord=" + coordText(coord) + " reason=spawn_cell_not_available");
             return Result<WorldCommandExecutionResult>::ok(std::move(result));
         }
 
@@ -172,6 +192,7 @@ public:
 
         result.result_kind = WorldCommandResultKind::Blocked;
         result.failure_reason_keys.push_back("map_edit_wrong_spawn_command_key");
+        logMapEdit("spawn blocked actor=" + command.actor_key + " key=" + command.command_key + " reason=map_edit_wrong_spawn_command_key");
         return Result<WorldCommandExecutionResult>::ok(std::move(result));
     }
 
@@ -185,6 +206,7 @@ private:
         if (!object || !isRawPlaceableObject(*object)) {
             result.result_kind = WorldCommandResultKind::Blocked;
             result.failure_reason_keys.push_back("object_not_raw_placeable");
+            logMapEdit("place object blocked actor=" + command.actor_key + " object=" + command.target.target_item_key + " coord=" + coordText(coord) + " reason=object_not_raw_placeable");
             return Result<WorldCommandExecutionResult>::ok(std::move(result));
         }
 
@@ -203,6 +225,7 @@ private:
         if (spawn_res.is_error()) {
             result.result_kind = WorldCommandResultKind::Failed;
             result.failure_reason_keys.push_back("spawn_entity_failed");
+            logMapEdit("place object failed actor=" + command.actor_key + " object=" + object->key.value() + " entity_id=" + entity_id + " coord=" + coordText(coord) + " reason=spawn_entity_failed");
             return Result<WorldCommandExecutionResult>::ok(std::move(result));
         }
 
@@ -235,6 +258,7 @@ private:
         event.actor_key = command.actor_key;
         event.coord = command.target.target_coord;
         result.events.push_back(std::move(event));
+        logMapEdit("place object succeeded actor=" + command.actor_key + " object=" + object->key.value() + " entity_id=" + entity_id + " coord=" + coordText(coord));
         return Result<WorldCommandExecutionResult>::ok(std::move(result));
     }
 
@@ -250,6 +274,7 @@ private:
         if (agent_it == agents.end()) {
             result.result_kind = WorldCommandResultKind::Blocked;
             result.failure_reason_keys.push_back("agent_not_placeable");
+            logMapEdit("place agent blocked actor=" + command.actor_key + " agent=" + command.target.target_item_key + " coord=" + coordText(coord) + " reason=agent_not_placeable");
             return Result<WorldCommandExecutionResult>::ok(std::move(result));
         }
 
@@ -268,6 +293,7 @@ private:
         if (spawn_res.is_error()) {
             result.result_kind = WorldCommandResultKind::Failed;
             result.failure_reason_keys.push_back("spawn_agent_failed");
+            logMapEdit("place agent failed actor=" + command.actor_key + " agent=" + agent_it->agent_key + " actor_key=" + actor_key + " coord=" + coordText(coord) + " reason=spawn_agent_failed");
             return Result<WorldCommandExecutionResult>::ok(std::move(result));
         }
 
@@ -301,6 +327,7 @@ private:
         event.actor_key = command.actor_key;
         event.coord = command.target.target_coord;
         result.events.push_back(std::move(event));
+        logMapEdit("place agent succeeded actor=" + command.actor_key + " agent=" + agent_it->agent_key + " spawned_actor=" + actor_key + " entity_id=" + entity_id + " coord=" + coordText(coord));
         return Result<WorldCommandExecutionResult>::ok(std::move(result));
     }
 

@@ -1,5 +1,6 @@
 #include "pathfinder/world_modules/object_interaction/world_object_interaction_module.h"
 #include "pathfinder/world_runtime/world_projection_adapter.h"
+#include "pathfinder/logging/logger.h"
 
 #include <algorithm>
 #include <cmath>
@@ -40,6 +41,10 @@ std::string objectName(const ContentRegistry& registry, const std::string& objec
     return translated == key ? object_key : translated;
 }
 
+void logObjectAction(const std::string& message) {
+    pathfinder::logging::log(pathfinder::logging::tag::Command, "object_action " + message);
+}
+
 const FeedbackDefinitionContent* bestFeedback(
     const ContentRegistry& registry,
     const std::string& object_key,
@@ -78,6 +83,7 @@ WorldCommandExecutionResult executeObjectAction(
     if (command.actor_key.empty() || command.target.target_entity_id.empty()) {
         result.result_kind = WorldCommandResultKind::Failed;
         result.failure_reason_keys.push_back("object_action_missing_target");
+        logObjectAction("failed action=" + action_key + " actor=" + command.actor_key + " target=" + command.target.target_entity_id + " reason=object_action_missing_target");
         return result;
     }
 
@@ -86,6 +92,7 @@ WorldCommandExecutionResult executeObjectAction(
     if (actor_res.is_error() || entity_res.is_error()) {
         result.result_kind = WorldCommandResultKind::Blocked;
         result.failure_reason_keys.push_back("object_action_target_unavailable");
+        logObjectAction("blocked action=" + action_key + " actor=" + command.actor_key + " target=" + command.target.target_entity_id + " reason=object_action_target_unavailable");
         return result;
     }
 
@@ -94,6 +101,7 @@ WorldCommandExecutionResult executeObjectAction(
     if (!entity.coord.has_value() || !sameOrAdjacent(actor.coord, *entity.coord)) {
         result.result_kind = WorldCommandResultKind::Blocked;
         result.failure_reason_keys.push_back("object_action_out_of_range");
+        logObjectAction("blocked action=" + action_key + " actor=" + command.actor_key + " target=" + entity.entity_id + " object=" + entity.entity_key + " reason=object_action_out_of_range");
         return result;
     }
 
@@ -115,6 +123,7 @@ WorldCommandExecutionResult executeObjectAction(
         if (destroy_res.is_error()) {
             result.result_kind = WorldCommandResultKind::Failed;
             result.failure_reason_keys.push_back("object_action_consume_failed");
+            logObjectAction("failed action=" + action_key + " actor=" + command.actor_key + " target=" + entity.entity_id + " object=" + entity.entity_key + " reason=object_action_consume_failed");
             return result;
         }
         changed_cell_ids.push_back(coord.cellId());
@@ -182,6 +191,7 @@ WorldCommandExecutionResult executeObjectAction(
 
     result.projection_patch_override = buildObjectActionPatch(
         runtime, command.actor_key, changed_cell_ids, changed_entity_ids, manual_entity_patches);
+    logObjectAction("succeeded action=" + action_key + " actor=" + command.actor_key + " target=" + entity.entity_id + " object=" + entity.entity_key + " effect=" + effect_key + " feedback=" + feedback_key + " experiences=" + std::to_string(result.experiences.size()));
     return result;
 }
 

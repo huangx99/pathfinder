@@ -1,8 +1,10 @@
 #include "pathfinder/world_runtime/world_grid_runtime.h"
 #include "pathfinder/foundation/error.h"
+#include "pathfinder/logging/logger.h"
 #include <cmath>
 #include <algorithm>
 #include <set>
+#include <sstream>
 
 namespace pathfinder::world_runtime {
 
@@ -10,6 +12,24 @@ using pathfinder::foundation::Result;
 using pathfinder::foundation::ErrorDetail;
 using pathfinder::foundation::ErrorCode;
 using pathfinder::foundation::makeError;
+
+namespace {
+
+std::string coordText(const WorldCellCoord& coord) {
+    std::ostringstream oss;
+    oss << coord.x << ',' << coord.y << ',' << coord.layer_key;
+    return oss.str();
+}
+
+void logRuntime(const std::string& message) {
+    pathfinder::logging::log(pathfinder::logging::tag::Runtime, message);
+}
+
+void logMap(const std::string& message) {
+    pathfinder::logging::log(pathfinder::logging::tag::Map, message);
+}
+
+} // namespace
 
 WorldGridRuntime::WorldGridRuntime() = default;
 
@@ -23,6 +43,7 @@ Result<void> WorldGridRuntime::initialize(const WorldRuntimeConfig& config) {
     exploration_.clear();
     resource_nodes_.clear();
     generated_regions_.clear();
+    logRuntime("world runtime initialized world_id=" + config_.world_id + " seed=" + std::to_string(config_.seed));
     return Result<void>::ok();
 }
 
@@ -243,18 +264,22 @@ Result<void> WorldGridRuntime::spawnActor(
     const std::string& entity_id_override) {
 
     if (actor_key.empty() || entity_key.empty()) {
+        logRuntime("spawn actor rejected actor=" + actor_key + " entity_key=" + entity_key + " reason=actor_key_or_entity_key_empty");
         return Result<void>::fail(
             makeError(ErrorCode::command_missing_required_field, "actor_key_or_entity_key_empty"));
     }
     if (actors_.find(actor_key) != actors_.end()) {
+        logRuntime("spawn actor ignored existing actor=" + actor_key);
         return Result<void>::ok();
     }
     auto cell_it = cells_.find(coord.cellId());
     if (cell_it == cells_.end()) {
+        logRuntime("spawn actor failed actor=" + actor_key + " coord=" + coordText(coord) + " reason=actor_spawn_cell_missing");
         return Result<void>::fail(
             makeError(ErrorCode::id_not_found, "actor_spawn_cell_missing", "Actor spawn cell missing: " + coord.cellId()));
     }
     if (cell_it->second.blocks_movement) {
+        logRuntime("spawn actor failed actor=" + actor_key + " coord=" + coordText(coord) + " reason=actor_spawn_cell_blocked");
         return Result<void>::fail(
             makeError(ErrorCode::state_change_invalid, "actor_spawn_cell_blocked", "Actor spawn cell blocked: " + coord.cellId()));
     }
@@ -290,6 +315,7 @@ Result<void> WorldGridRuntime::spawnActor(
 
     updateExplorationForActor(actor_key);
     incrementStateVersion();
+    logRuntime("spawn actor succeeded actor=" + actor_key + " entity_id=" + entity_id + " entity_key=" + entity_key + " coord=" + coordText(coord) + " state_version=" + std::to_string(state_version_));
     return Result<void>::ok();
 }
 
@@ -360,6 +386,7 @@ Result<MoveActorResult> WorldGridRuntime::moveActor(const std::string& actor_key
     auto actor_it = actors_.find(actor_key);
     if (actor_it == actors_.end()) {
         result.block_reason = WorldMoveBlockReason::ActorMissing;
+        logRuntime("move blocked actor=" + actor_key + " target=" + coordText(target) + " reason=actor_missing");
         return Result<MoveActorResult>::ok(std::move(result));
     }
 
@@ -368,6 +395,7 @@ Result<MoveActorResult> WorldGridRuntime::moveActor(const std::string& actor_key
 
     if (!actor.alive) {
         result.block_reason = WorldMoveBlockReason::ActorMissing;
+        logRuntime("move blocked actor=" + actor_key + " target=" + coordText(target) + " reason=actor_not_alive");
         return Result<MoveActorResult>::ok(std::move(result));
     }
 
@@ -375,6 +403,7 @@ Result<MoveActorResult> WorldGridRuntime::moveActor(const std::string& actor_key
     auto target_cell_it = cells_.find(target.cellId());
     if (target_cell_it == cells_.end()) {
         result.block_reason = WorldMoveBlockReason::OutOfBounds;
+        logRuntime("move blocked actor=" + actor_key + " from=" + coordText(actor.coord) + " target=" + coordText(target) + " reason=out_of_bounds");
         return Result<MoveActorResult>::ok(std::move(result));
     }
 
@@ -382,6 +411,7 @@ Result<MoveActorResult> WorldGridRuntime::moveActor(const std::string& actor_key
     if (target.layer_key != actor.coord.layer_key) {
         if (config_.layer_policy == WorldLayerPolicy::SurfaceOnly && target.layer_key != "surface") {
             result.block_reason = WorldMoveBlockReason::UnknownLayer;
+            logRuntime("move blocked actor=" + actor_key + " from=" + coordText(actor.coord) + " target=" + coordText(target) + " reason=unknown_layer");
             return Result<MoveActorResult>::ok(std::move(result));
         }
     }
@@ -389,12 +419,14 @@ Result<MoveActorResult> WorldGridRuntime::moveActor(const std::string& actor_key
     // Check adjacency
     if (!isAdjacent(actor.coord, target)) {
         result.block_reason = WorldMoveBlockReason::NotAdjacent;
+        logRuntime("move blocked actor=" + actor_key + " from=" + coordText(actor.coord) + " target=" + coordText(target) + " reason=not_adjacent");
         return Result<MoveActorResult>::ok(std::move(result));
     }
 
     // Check cell blocks movement
     if (target_cell_it->second.blocks_movement) {
         result.block_reason = WorldMoveBlockReason::CellBlocked;
+        logRuntime("move blocked actor=" + actor_key + " from=" + coordText(actor.coord) + " target=" + coordText(target) + " reason=cell_blocked");
         return Result<MoveActorResult>::ok(std::move(result));
     }
 
@@ -403,6 +435,7 @@ Result<MoveActorResult> WorldGridRuntime::moveActor(const std::string& actor_key
         auto ent_it = entities_.find(entity_id);
         if (ent_it != entities_.end() && ent_it->second.blocks_movement) {
             result.block_reason = WorldMoveBlockReason::EntityBlocked;
+            logRuntime("move blocked actor=" + actor_key + " from=" + coordText(actor.coord) + " target=" + coordText(target) + " blocker=" + entity_id + " reason=entity_blocked");
             return Result<MoveActorResult>::ok(std::move(result));
         }
     }
@@ -464,6 +497,7 @@ Result<MoveActorResult> WorldGridRuntime::moveActor(const std::string& actor_key
     }
 
     incrementStateVersion();
+    logRuntime("move succeeded actor=" + actor_key + " from=" + coordText(old_coord) + " to=" + coordText(target) + " changed_cells=" + std::to_string(result.changed_cell_ids.size()) + " state_version=" + std::to_string(state_version_));
     return Result<MoveActorResult>::ok(std::move(result));
 }
 
@@ -551,6 +585,7 @@ Result<ActorNumericStateChangeResult> WorldGridRuntime::applyActorNumericStateDe
     result.changed_entity_ids.push_back(result.entity_id);
 
     incrementStateVersion();
+    logRuntime("numeric state changed actor=" + actor_key + " entity=" + result.entity_id + " state=" + state_key + " previous=" + std::to_string(previous) + " delta=" + std::to_string(delta) + " next=" + std::to_string(next) + " state_version=" + std::to_string(state_version_));
     return Result<ActorNumericStateChangeResult>::ok(std::move(result));
 }
 
@@ -610,6 +645,7 @@ Result<AdvanceWorldTimeResult> WorldGridRuntime::advanceWorldTime(uint64_t tick_
     result.previous_tick = world_tick_;
     world_tick_ += tick_delta;
     result.new_tick = world_tick_;
+    size_t hunger_updates = 0;
     for (const auto& [actor_key, actor] : actors_) {
         (void)actor_key;
         if (!actor.alive || actor.entity_id.empty()) continue;
@@ -617,9 +653,11 @@ Result<AdvanceWorldTimeResult> WorldGridRuntime::advanceWorldTime(uint64_t tick_
         if (entity_it == entities_.end()) continue;
         auto& hunger = entity_it->second.numeric_states["hunger"];
         hunger = std::clamp(hunger + static_cast<double>(tick_delta), 0.0, 100.0);
+        ++hunger_updates;
     }
     incrementStateVersion();
     result.new_state_version = state_version_;
+    logRuntime("time advanced previous_tick=" + std::to_string(result.previous_tick) + " new_tick=" + std::to_string(result.new_tick) + " tick_delta=" + std::to_string(tick_delta) + " hunger_updates=" + std::to_string(hunger_updates) + " state_version=" + std::to_string(state_version_));
     return Result<AdvanceWorldTimeResult>::ok(std::move(result));
 }
 
@@ -768,6 +806,7 @@ Result<void> WorldGridRuntime::removeEntityFromMap(const std::string& entity_id)
 
     entity.location_kind = WorldEntityLocationKind::Nowhere;
     incrementStateVersion();
+    logMap("entity removed from map entity_id=" + entity_id + " state_version=" + std::to_string(state_version_));
     return Result<void>::ok();
 }
 
@@ -861,6 +900,7 @@ Result<void> WorldGridRuntime::destroyEntity(const std::string& entity_id) {
 
     entities_.erase(ent_it);
     incrementStateVersion();
+    logMap("entity destroyed entity_id=" + entity_id + " state_version=" + std::to_string(state_version_));
     return Result<void>::ok();
 }
 
@@ -883,11 +923,13 @@ Result<void> WorldGridRuntime::spawnEntityOnMap(
     // P46: Reject spawning on non-existent cells to prevent ghost entities
     auto cell_it = cells_.find(coord.cellId());
     if (cell_it == cells_.end()) {
+        logMap("spawn entity failed entity_id=" + entity_id + " entity_key=" + entity_key + " coord=" + coordText(coord) + " reason=cell_not_found");
         return Result<void>::fail(
             makeError(ErrorCode::id_not_found, "cell_not_found", "Cannot spawn entity on missing cell: " + coord.cellId()));
     }
 
     auto ent_it = entities_.find(entity_id);
+    const bool updated_existing = ent_it != entities_.end();
     if (ent_it != entities_.end()) {
         // Entity already exists: update
         auto& entity = ent_it->second;
@@ -925,6 +967,7 @@ Result<void> WorldGridRuntime::spawnEntityOnMap(
     }
 
     incrementStateVersion();
+    logMap("spawn entity on map " + std::string(updated_existing ? "updated" : "created") + " entity_id=" + entity_id + " entity_key=" + entity_key + " coord=" + coordText(coord) + " quantity=" + std::to_string(quantity) + " stack_key=" + stack_key + " state_version=" + std::to_string(state_version_));
     return Result<void>::ok();
 }
 

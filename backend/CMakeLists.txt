@@ -775,6 +775,7 @@ target_include_directories(pathfinder_world_runtime PUBLIC
 target_link_libraries(pathfinder_world_runtime PUBLIC
     pathfinder_foundation
     pathfinder_world_command
+    pathfinder_logging
 )
 
 # World Command library (P43 only, no runtime dependency)
@@ -798,6 +799,7 @@ target_include_directories(pathfinder_world_command PUBLIC
 
 target_link_libraries(pathfinder_world_command PUBLIC
     pathfinder_foundation
+    pathfinder_logging
 )
 
 # World Generation library (P46 + P57)
@@ -864,6 +866,7 @@ target_link_libraries(pathfinder_world_inventory PUBLIC
     pathfinder_foundation
     pathfinder_world_command
     pathfinder_world_runtime
+    pathfinder_logging
 )
 
 # World Harvest library (P47)
@@ -1036,6 +1039,7 @@ target_link_libraries(pathfinder_world_learning PUBLIC
     pathfinder_memory
     pathfinder_cognition
     pathfinder_condition
+    pathfinder_logging
 )
 
 # Camp Runtime library (P66)
@@ -1083,6 +1087,7 @@ target_link_libraries(pathfinder_world_map_edit PUBLIC
     pathfinder_world_command
     pathfinder_world_runtime
     pathfinder_world_inventory
+    pathfinder_logging
 )
 
 # Client Runtime Bridge library (P56)
@@ -1108,6 +1113,7 @@ target_link_libraries(pathfinder_client_runtime_bridge PUBLIC
     pathfinder_world_reaction
     pathfinder_world_map_edit
     pathfinder_knowledge
+    pathfinder_world_learning
 )
 
 # World Map Interaction library (P60)
@@ -1156,6 +1162,7 @@ target_link_libraries(pathfinder_client_protocol PUBLIC
     pathfinder_world_command
     pathfinder_client_runtime_bridge
     pathfinder_world_map_interaction
+    pathfinder_logging
 )
 
 # World Modules library (P64)
@@ -1193,6 +1200,7 @@ target_link_libraries(pathfinder_world_modules PUBLIC
     pathfinder_world_teaching
     pathfinder_world_beast_ecology
     pathfinder_world_map_edit
+    pathfinder_logging
 )
 
 # Client HTTP library (P54)

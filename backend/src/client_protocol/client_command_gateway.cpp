@@ -1,6 +1,8 @@
 #include "pathfinder/client_protocol/client_command_gateway.h"
 #include "pathfinder/foundation/error.h"
+#include "pathfinder/logging/logger.h"
 #include <optional>
+#include <sstream>
 
 namespace pathfinder::client_protocol {
 
@@ -11,6 +13,49 @@ using pathfinder::world_command::WorldCommandResponseDto;
 using pathfinder::world_command::WorldCommandKind;
 using pathfinder::world_command::WorldCommandResultKind;
 using pathfinder::world_command::WorldCommandSource;
+
+namespace {
+
+std::string joinReasons(const std::vector<std::string>& reasons) {
+    if (reasons.empty()) return "none";
+    std::ostringstream oss;
+    for (size_t i = 0; i < reasons.size(); ++i) {
+        if (i > 0) oss << ',';
+        oss << reasons[i];
+    }
+    return oss.str();
+}
+
+std::string targetSummary(const WorldCommandTargetDto& target) {
+    std::ostringstream oss;
+    oss << "kind=" << pathfinder::world_command::toString(target.target_kind);
+    if (target.target_coord) {
+        oss << " coord=" << target.target_coord->x << ',' << target.target_coord->y
+            << ',' << target.target_coord->layer_key;
+    }
+    if (!target.target_entity_id.empty()) oss << " entity=" << target.target_entity_id;
+    if (!target.target_actor_key.empty()) oss << " target_actor=" << target.target_actor_key;
+    if (!target.target_item_key.empty()) oss << " item=" << target.target_item_key;
+    if (!target.target_inventory_id.empty()) oss << " inventory=" << target.target_inventory_id;
+    return oss.str();
+}
+
+void logBlockedClientCommand(
+    const std::string& session_id,
+    uint64_t client_sequence,
+    uint64_t projection_version,
+    const std::string& actor_key,
+    const std::string& reason_key) {
+    std::ostringstream oss;
+    oss << "blocked session=" << session_id
+        << " seq=" << client_sequence
+        << " actor=" << actor_key
+        << " projection=" << projection_version
+        << " reason=" << reason_key;
+    pathfinder::logging::log(pathfinder::logging::tag::Command, oss.str());
+}
+
+} // namespace
 
 ClientCommandGateway::ClientCommandGateway(
     ClientSessionGateway& session_gateway,
@@ -221,6 +266,8 @@ ClientCommandResponse ClientCommandGateway::buildBlockedResponse(
     response.result.result_kind = WorldCommandResultKind::Blocked;
     response.result.failure_reason_keys.push_back(reason_key);
 
+    logBlockedClientCommand(session_id, client_sequence, projection_version, actor_key, reason_key);
+
     auto snapshot_result = session_gateway_.getAvailableCommands(session_id);
     if (snapshot_result.is_ok()) {
         response.available_commands = snapshot_result.value();
@@ -290,6 +337,15 @@ Result<ClientCommandResponse> ClientCommandGateway::handleCommand(
     }
 
     auto command = cmd_result.value();
+    pathfinder::logging::log(
+        pathfinder::logging::tag::Command,
+        "resolved command session=" + request.session_id +
+            " seq=" + std::to_string(request.client_sequence) +
+            " actor=" + actor_key +
+            " kind=" + pathfinder::world_command::toString(command.command_kind) +
+            " key=" + command.command_key +
+            " source=" + pathfinder::world_command::toString(command.source) +
+            " target={" + targetSummary(command.target) + "}");
 
     // Helper to emit restored events from ensure results.
     auto emitRestoredEvents = [](std::vector<WorldEventDto>& event_feed,
@@ -477,6 +533,21 @@ Result<ClientCommandResponse> ClientCommandGateway::handleCommand(
             session_gateway_.updateProjectionVersion(request.session_id, final_version);
         }
     }
+
+    pathfinder::logging::log(
+        pathfinder::logging::tag::Command,
+        "completed command session=" + request.session_id +
+            " seq=" + std::to_string(request.client_sequence) +
+            " actor=" + actor_key +
+            " key=" + response.result.command_key +
+            " result=" + pathfinder::world_command::toString(response.result.result_kind) +
+            " reasons=" + joinReasons(response.result.failure_reason_keys) +
+            " base_version=" + std::to_string(response.base_projection_version) +
+            " new_version=" + std::to_string(response.new_projection_version) +
+            " events=" + std::to_string(response.event_feed.size()) +
+            " experiences=" + std::to_string(response.experiences.size()) +
+            " available=" + std::to_string(response.available_commands.size()) +
+            " full_refresh=" + (response.requires_full_refresh ? std::string("true") : std::string("false")));
 
     return Result<ClientCommandResponse>::ok(std::move(response));
 }

@@ -18,6 +18,9 @@ void registerDefaultTags(std::unordered_map<std::string, bool>& tags) {
     tags[tag::Runtime] = true;
     tags[tag::Command] = true;
     tags[tag::Map] = true;
+    tags[tag::Inventory] = true;
+    tags[tag::Learning] = true;
+    tags[tag::Agent] = true;
     tags[tag::Tool] = true;
     tags[tag::Error] = true;
 }

@@ -1,11 +1,40 @@
 #include "pathfinder/world_command/world_command_pipeline.h"
 #include "pathfinder/foundation/error.h"
+#include "pathfinder/logging/logger.h"
+
+#include <sstream>
 
 namespace pathfinder::world_command {
 
 using pathfinder::foundation::ErrorCode;
 using pathfinder::foundation::makeError;
 using pathfinder::foundation::Result;
+
+namespace {
+
+std::string joinReasons(const std::vector<std::string>& reasons) {
+    if (reasons.empty()) return "none";
+    std::ostringstream oss;
+    for (size_t i = 0; i < reasons.size(); ++i) {
+        if (i > 0) oss << ',';
+        oss << reasons[i];
+    }
+    return oss.str();
+}
+
+std::string commandTargetSummary(const WorldCommandTargetDto& target) {
+    std::ostringstream oss;
+    oss << pathfinder::world_command::toString(target.target_kind);
+    if (target.target_coord) {
+        oss << " coord=" << target.target_coord->x << ',' << target.target_coord->y << ',' << target.target_coord->layer_key;
+    }
+    if (!target.target_entity_id.empty()) oss << " entity=" << target.target_entity_id;
+    if (!target.target_actor_key.empty()) oss << " actor=" << target.target_actor_key;
+    if (!target.target_item_key.empty()) oss << " item=" << target.target_item_key;
+    return oss.str();
+}
+
+} // namespace
 
 WorldCommandPipeline::WorldCommandPipeline(WorldCommandDispatcher& dispatcher)
     : dispatcher_(dispatcher) {}
@@ -27,6 +56,16 @@ Result<WorldCommandResponseDto> WorldCommandPipeline::execute(
     WorldCommandResponseDto response;
     response.session_id = session_id;
     response.command_id = command.command_id;
+
+    pathfinder::logging::log(
+        pathfinder::logging::tag::Command,
+        "pipeline received session=" + session_id +
+            " command_id=" + command.command_id +
+            " kind=" + toString(command.command_kind) +
+            " key=" + command.command_key +
+            " source=" + toString(command.source) +
+            " actor=" + command.actor_key +
+            " target={" + commandTargetSummary(command.target) + "}");
 
     trace_recorder_.recordCommandReceived(command);
 
@@ -202,6 +241,18 @@ Result<WorldCommandResponseDto> WorldCommandPipeline::execute(
     trace_recorder_.recordStage("RecordTrace");
     trace_recorder_.recordResult(response.result);
     response.debug_trace_keys = trace_recorder_.getTrace();
+
+    pathfinder::logging::log(
+        pathfinder::logging::tag::Command,
+        "pipeline completed session=" + session_id +
+            " command_id=" + normalized.command_id +
+            " key=" + normalized.command_key +
+            " actor=" + normalized.actor_key +
+            " result=" + toString(response.result.result_kind) +
+            " reasons=" + joinReasons(response.result.failure_reason_keys) +
+            " events=" + std::to_string(response.event_feed.size()) +
+            " experiences=" + std::to_string(response.experiences.size()) +
+            " projection=" + std::to_string(response.projection_patch.base_projection_version) + "->" + std::to_string(response.projection_patch.new_projection_version));
 
     return Result<WorldCommandResponseDto>::ok(std::move(response));
 }

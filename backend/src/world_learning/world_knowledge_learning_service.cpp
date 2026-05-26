@@ -1,8 +1,27 @@
 #include "pathfinder/world_learning/world_knowledge_learning_service.h"
 #include "pathfinder/learning/learning_loop.h"
+#include "pathfinder/logging/logger.h"
 #include <algorithm>
+#include <sstream>
 
 namespace pathfinder::world_learning {
+namespace {
+
+std::string joinStrings(const std::vector<std::string>& values) {
+    if (values.empty()) return "none";
+    std::ostringstream oss;
+    for (size_t i = 0; i < values.size(); ++i) {
+        if (i > 0) oss << ',';
+        oss << values[i];
+    }
+    return oss.str();
+}
+
+void logLearning(const std::string& message) {
+    pathfinder::logging::log(pathfinder::logging::tag::Learning, message);
+}
+
+} // namespace
 
 WorldKnowledgeLearningService::WorldKnowledgeLearningService(
     const pathfinder::content::ContentRegistry& content_registry,
@@ -32,8 +51,11 @@ WorldKnowledgeLearningService::learnFromCommandResult(
         aggregate_result.decision = WorldKnowledgeLearningDecision::Failed;
         aggregate_result.failure_kind = WorldLearningFailureKind::InvalidRequest;
         aggregate_result.warning_keys.push_back("invalid_request");
+        logLearning("request invalid actor=" + request.actor_key + " command=" + request.source_command.command_key + " tick=" + std::to_string(request.tick));
         return pathfinder::foundation::Result<WorldKnowledgeLearningResult>::ok(aggregate_result);
     }
+
+    logLearning("request actor=" + request.actor_key + " command=" + request.source_command.command_key + " result=" + pathfinder::world_command::toString(request.command_result.result_kind) + " tick=" + std::to_string(request.tick));
 
     // Check command result success
     if (!isCommandResultSuccessful(request.command_result)) {
@@ -41,6 +63,7 @@ WorldKnowledgeLearningService::learnFromCommandResult(
         aggregate_result.ok = true;
         aggregate_result.decision = WorldKnowledgeLearningDecision::SkippedNoTemplate;
         aggregate_result.failure_kind = WorldLearningFailureKind::None;
+        logLearning("skipped failed command actor=" + request.actor_key + " command=" + request.source_command.command_key + " result=" + pathfinder::world_command::toString(request.command_result.result_kind));
         return pathfinder::foundation::Result<WorldKnowledgeLearningResult>::ok(aggregate_result);
     }
 
@@ -51,14 +74,17 @@ WorldKnowledgeLearningService::learnFromCommandResult(
         aggregate_result.decision = WorldKnowledgeLearningDecision::SkippedUnsafe;
         aggregate_result.failure_kind = WorldLearningFailureKind::UnsafeExperience;
         aggregate_result.warning_keys = extract_result.warning_keys;
+        logLearning("unsafe experience actor=" + request.actor_key + " command=" + request.source_command.command_key + " warnings=" + joinStrings(aggregate_result.warning_keys));
         return pathfinder::foundation::Result<WorldKnowledgeLearningResult>::ok(aggregate_result);
     }
     if (extract_result.experiences.empty()) {
         aggregate_result.ok = true;
         aggregate_result.decision = WorldKnowledgeLearningDecision::SkippedNoTemplate;
         aggregate_result.failure_kind = WorldLearningFailureKind::NoExperience;
+        logLearning("no experience actor=" + request.actor_key + " command=" + request.source_command.command_key);
         return pathfinder::foundation::Result<WorldKnowledgeLearningResult>::ok(aggregate_result);
     }
+    logLearning("extracted experiences actor=" + request.actor_key + " command=" + request.source_command.command_key + " count=" + std::to_string(extract_result.experiences.size()));
 
     bool any_learned = false;
     bool any_failure = false;
@@ -69,10 +95,12 @@ WorldKnowledgeLearningService::learnFromCommandResult(
 
     for (const auto& exp : extract_result.experiences) {
         working_request.existing_actor_claims = working_claims;
+        logLearning("process experience actor=" + request.actor_key + " experience=" + exp.experience_id + " command=" + exp.command_key + " subject=" + exp.subject_entity_key + " target=" + exp.target_entity_key + " effect=" + exp.effect_key);
         auto proc_res = processExperience(exp, working_request, aggregate_result);
         if (!proc_res.is_ok()) {
             any_failure = true;
             aggregate_result.warning_keys.push_back("process_experience_failed:" + exp.experience_id);
+            logLearning("process experience failed actor=" + request.actor_key + " experience=" + exp.experience_id);
             continue;
         }
         auto& proc_val = proc_res.value();
@@ -141,6 +169,8 @@ WorldKnowledgeLearningService::learnFromCommandResult(
         aggregate_result.decision = WorldKnowledgeLearningDecision::SkippedNoTemplate;
     }
 
+    logLearning("result actor=" + request.actor_key + " command=" + request.source_command.command_key + " decision=" + toString(aggregate_result.decision) + " failure=" + toString(aggregate_result.failure_kind) + " learned_claims=" + std::to_string(aggregate_result.learned_claims.size()) + " deltas=" + std::to_string(aggregate_result.knowledge_deltas.size()) + " warnings=" + joinStrings(aggregate_result.warning_keys));
+
     return pathfinder::foundation::Result<WorldKnowledgeLearningResult>::ok(aggregate_result);
 }
 
@@ -160,14 +190,17 @@ WorldKnowledgeLearningService::processExperience(
         single_result.decision = WorldKnowledgeLearningDecision::SkippedNoTemplate;
         single_result.failure_kind = WorldLearningFailureKind::TemplateMissing;
         single_result.warning_keys = resolve_res.warning_keys;
+        logLearning("template missing actor=" + request.actor_key + " experience=" + experience.experience_id + " command=" + experience.command_key + " subject=" + experience.subject_entity_key + " effect=" + experience.effect_key + " warnings=" + joinStrings(resolve_res.warning_keys));
         return pathfinder::foundation::Result<WorldKnowledgeLearningResult>::ok(single_result);
     }
     if (resolve_res.templates.empty()) {
         single_result.ok = true;
         single_result.decision = WorldKnowledgeLearningDecision::SkippedNoTemplate;
         single_result.failure_kind = WorldLearningFailureKind::TemplateMissing;
+        logLearning("no template actor=" + request.actor_key + " experience=" + experience.experience_id + " command=" + experience.command_key + " subject=" + experience.subject_entity_key + " effect=" + experience.effect_key);
         return pathfinder::foundation::Result<WorldKnowledgeLearningResult>::ok(single_result);
     }
+    logLearning("matched templates actor=" + request.actor_key + " experience=" + experience.experience_id + " templates=" + joinStrings(resolve_res.matched_keys));
 
     // 2. For each template, build feedback and run learning loop
     for (const auto& tmpl : resolve_res.templates) {
@@ -185,6 +218,7 @@ WorldKnowledgeLearningService::processExperience(
         if (fb_res.failure_kind != WorldLearningFailureKind::None) {
             single_result.warning_keys.insert(single_result.warning_keys.end(),
                 fb_res.warning_keys.begin(), fb_res.warning_keys.end());
+            logLearning("feedback build failed actor=" + request.actor_key + " experience=" + experience.experience_id + " template=" + tmpl.key.value() + " failure=" + toString(fb_res.failure_kind) + " warnings=" + joinStrings(fb_res.warning_keys));
             continue;
         }
 
@@ -255,6 +289,7 @@ WorldKnowledgeLearningService::processExperience(
         if (loop_res.failure_kind != WorldLearningFailureKind::None) {
             single_result.warning_keys.insert(single_result.warning_keys.end(),
                 loop_res.warning_keys.begin(), loop_res.warning_keys.end());
+            logLearning("learning loop failed actor=" + request.actor_key + " draft=" + draft.draft_id + " failure=" + toString(loop_res.failure_kind) + " warnings=" + joinStrings(loop_res.warning_keys));
             continue;
         }
 
@@ -313,11 +348,13 @@ WorldKnowledgeLearningService::processExperience(
                 single_result.decision = WorldKnowledgeLearningDecision::Failed;
                 single_result.failure_kind = WorldLearningFailureKind::StoreFailed;
                 single_result.warning_keys.push_back("store_failed:" + claim.knowledge_id.value());
+                logLearning("store claim failed actor=" + request.actor_key + " knowledge=" + claim.knowledge_id.value());
                 continue;
             }
             single_result.learned_claims.push_back(claim);
             single_result.knowledge_deltas.push_back(
                 makeDelta(claim, toString(WorldKnowledgeLearningDecision::Learned)));
+            logLearning("claim stored actor=" + request.actor_key + " knowledge=" + claim.knowledge_id.value() + " subject=" + claim.subject.subject_id + " action=" + claim.predicate.action_key + " effect=" + claim.predicate.effect_key + " status=" + pathfinder::knowledge::toString(claim.status));
         }
 
         if (!changed_claims.empty() && single_result.failure_kind != WorldLearningFailureKind::StoreFailed) {
@@ -325,6 +362,8 @@ WorldKnowledgeLearningService::processExperience(
             single_result.decision = WorldKnowledgeLearningDecision::Learned;
         }
     }
+
+    logLearning("experience result actor=" + request.actor_key + " experience=" + experience.experience_id + " decision=" + toString(single_result.decision) + " failure=" + toString(single_result.failure_kind) + " learned_claims=" + std::to_string(single_result.learned_claims.size()) + " warnings=" + joinStrings(single_result.warning_keys));
 
     return pathfinder::foundation::Result<WorldKnowledgeLearningResult>::ok(single_result);
 }

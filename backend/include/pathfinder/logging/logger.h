@@ -14,6 +14,9 @@ inline constexpr const char* Input = "input";
 inline constexpr const char* Runtime = "runtime";
 inline constexpr const char* Command = "command";
 inline constexpr const char* Map = "map";
+inline constexpr const char* Inventory = "inventory";
+inline constexpr const char* Learning = "learning";
+inline constexpr const char* Agent = "agent";
 inline constexpr const char* Tool = "tool";
 inline constexpr const char* Error = "error";
 } // namespace tag
