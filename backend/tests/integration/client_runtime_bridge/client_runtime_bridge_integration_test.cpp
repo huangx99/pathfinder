@@ -175,6 +175,11 @@ static bool entityExists(RuntimeBackedFixture& f, const std::string& entity_id) 
     return f.factory.world_runtime->findEntity(entity_id).is_ok();
 }
 
+static bool entityOnMap(RuntimeBackedFixture& f, const std::string& entity_id) {
+    auto entity_res = f.factory.world_runtime->findEntity(entity_id);
+    return entity_res.is_ok() && entity_res.value()->location_kind == pathfinder::world_runtime::WorldEntityLocationKind::OnMap;
+}
+
 static void destroyMapItemsByKey(RuntimeBackedFixture& f, const std::string& object_key) {
     auto snap = f.factory.world_runtime->snapshotForDebug();
     assert(snap.is_ok());
@@ -1118,6 +1123,11 @@ void run_idle_npc_wanders_on_wait_tests() {
         auto after = f.factory.world_runtime->findActor("companion_idle");
         assert(after.is_ok());
         moved = after.value()->coord.x != start.x || after.value()->coord.y != start.y;
+        if (moved) {
+            const int dx = std::abs(after.value()->coord.x - start.x);
+            const int dy = std::abs(after.value()->coord.y - start.y);
+            assert(dx + dy == 1 && "wander movement must be one cardinal grid step, not diagonal");
+        }
     }
 
     assert(moved);
@@ -1133,6 +1143,9 @@ void run_idle_npc_wanders_on_wait_tests() {
 void run_idle_npc_tries_nearby_object_and_learns_tests() {
     RuntimeBackedFixture f;
     spawnTestActor(f, "companion_taster", "companion", {0, 0, "surface"});
+    auto hunger_setup = f.factory.world_runtime->applyActorNumericStateDelta(
+        "companion_taster", "hunger", 60.0, 0.0, 100.0, {"test_make_hungry"});
+    assert(hunger_setup.is_ok());
     spawnMapItem(f, "test_red_berry_for_npc", "red_berry", {1, 0, "surface"}, 1);
 
     auto boot = f.harness.fakeBootstrap("client_1", "session_npc_object_try", "player");
@@ -1151,6 +1164,13 @@ void run_idle_npc_tries_nearby_object_and_learns_tests() {
 
     assert(!entityExists(f, "test_red_berry_for_npc"));
     assert(saw_object_event);
+    auto after_actor = f.factory.world_runtime->findActor("companion_taster");
+    assert(after_actor.is_ok());
+    auto after_entity = f.factory.world_runtime->findEntity(after_actor.value()->entity_id);
+    assert(after_entity.is_ok());
+    auto hunger_it = after_entity.value()->numeric_states.find("hunger");
+    assert(hunger_it != after_entity.value()->numeric_states.end());
+    assert(hunger_it->second < 60.0 && "red berry restore_hunger must reduce hunger in runtime state");
 
     pathfinder::knowledge::KnowledgeOwner npc_owner;
     npc_owner.kind = pathfinder::knowledge::KnowledgeOwnerKind::Actor;
@@ -1197,6 +1217,40 @@ void run_idle_npc_tries_nearby_object_and_learns_tests() {
     assert(npc_knowledge_projected);
 
     std::cout << "client_runtime_bridge_idle_npc_tries_nearby_object_and_learns_tests: all passed" << std::endl;
+}
+
+// ---------------------------------------------------------------------------
+// A not-hungry NPC should not immediately eat every berry. It should first try
+// non-consuming use, then put the spare object into its inventory through the
+// Pickup command pipeline.
+// ---------------------------------------------------------------------------
+void run_idle_npc_uses_then_picks_up_when_not_hungry_tests() {
+    RuntimeBackedFixture f;
+    spawnTestActor(f, "companion_collector", "companion", {0, 0, "surface"});
+    spawnMapItem(f, "test_red_berry_for_pickup", "red_berry", {1, 0, "surface"}, 1);
+
+    auto boot = f.harness.fakeBootstrap("client_1", "session_npc_pickup", "player");
+    assert(boot.is_ok());
+    uint64_t version = boot.value().projection_version;
+    uint64_t sequence = 1;
+
+    bool saw_use = false;
+    bool saw_pickup = false;
+    for (int step = 0; step < 4 && entityOnMap(f, "test_red_berry_for_pickup"); ++step) {
+        auto response = submitWait(f, "session_npc_pickup", version, sequence);
+        version = response.new_projection_version;
+        for (const auto& event : response.event_feed) {
+            if (event.event_kind == "ObjectUsed") saw_use = true;
+            if (event.event_kind == "ItemPickedUp") saw_pickup = true;
+        }
+    }
+
+    assert(saw_use);
+    assert(saw_pickup);
+    assert(!entityOnMap(f, "test_red_berry_for_pickup"));
+    assert(inventoryQuantity(f, "companion_collector", "red_berry") == 1);
+
+    std::cout << "client_runtime_bridge_idle_npc_uses_then_picks_up_when_not_hungry_tests: all passed" << std::endl;
 }
 
 // ---------------------------------------------------------------------------
@@ -1295,6 +1349,7 @@ int main(int argc, char* argv[]) {
         run_map_edit_commands_execute_through_pipeline_tests();
         run_idle_npc_wanders_on_wait_tests();
         run_idle_npc_tries_nearby_object_and_learns_tests();
+        run_idle_npc_uses_then_picks_up_when_not_hungry_tests();
         run_wildlife_actor_chases_and_attacks_tests();
         return 0;
     }
@@ -1323,6 +1378,7 @@ int main(int argc, char* argv[]) {
     else if (test_name == "map_edit_commands_execute_through_pipeline") run_map_edit_commands_execute_through_pipeline_tests();
     else if (test_name == "idle_npc_wanders_on_wait") run_idle_npc_wanders_on_wait_tests();
     else if (test_name == "idle_npc_tries_nearby_object_and_learns") run_idle_npc_tries_nearby_object_and_learns_tests();
+    else if (test_name == "idle_npc_uses_then_picks_up_when_not_hungry") run_idle_npc_uses_then_picks_up_when_not_hungry_tests();
     else if (test_name == "wildlife_actor_chases_and_attacks") run_wildlife_actor_chases_and_attacks_tests();
     else {
         std::cerr << "Unknown test: " << test_name << std::endl;

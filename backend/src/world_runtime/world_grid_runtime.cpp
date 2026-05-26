@@ -507,6 +507,53 @@ Result<ActorHealthChangeResult> WorldGridRuntime::applyActorHealthDelta(
     return Result<ActorHealthChangeResult>::ok(std::move(result));
 }
 
+Result<ActorNumericStateChangeResult> WorldGridRuntime::applyActorNumericStateDelta(
+    const std::string& actor_key,
+    const std::string& state_key,
+    double delta,
+    double min_value,
+    double max_value,
+    const std::vector<std::string>& reason_keys) {
+
+    ActorNumericStateChangeResult result;
+    result.actor_key = actor_key;
+    result.state_key = state_key;
+    result.reason_keys = reason_keys;
+
+    if (actor_key.empty() || state_key.empty()) {
+        return Result<ActorNumericStateChangeResult>::fail(
+            makeError(ErrorCode::validation_failed, "actor_or_state_empty", "Actor key or state key empty"));
+    }
+
+    auto actor_it = actors_.find(actor_key);
+    if (actor_it == actors_.end()) {
+        return Result<ActorNumericStateChangeResult>::fail(
+            makeError(ErrorCode::id_not_found, "actor_not_found", "Actor not found: " + actor_key));
+    }
+
+    result.entity_id = actor_it->second.entity_id;
+    auto entity_it = entities_.find(result.entity_id);
+    if (entity_it == entities_.end()) {
+        return Result<ActorNumericStateChangeResult>::fail(
+            makeError(ErrorCode::id_not_found, "actor_entity_not_found", "Actor entity not found: " + result.entity_id));
+    }
+
+    auto& states = entity_it->second.numeric_states;
+    const double previous = states.count(state_key) ? states[state_key] : min_value;
+    const double lower = std::min(min_value, max_value);
+    const double upper = std::max(min_value, max_value);
+    const double next = std::clamp(previous + delta, lower, upper);
+    states[state_key] = next;
+
+    result.ok = true;
+    result.previous_value = previous;
+    result.new_value = next;
+    result.changed_entity_ids.push_back(result.entity_id);
+
+    incrementStateVersion();
+    return Result<ActorNumericStateChangeResult>::ok(std::move(result));
+}
+
 Result<InspectWorldResult> WorldGridRuntime::inspect(
     const std::string& actor_key,
     const world_command::WorldCommandTargetDto& target) const {
@@ -563,6 +610,14 @@ Result<AdvanceWorldTimeResult> WorldGridRuntime::advanceWorldTime(uint64_t tick_
     result.previous_tick = world_tick_;
     world_tick_ += tick_delta;
     result.new_tick = world_tick_;
+    for (const auto& [actor_key, actor] : actors_) {
+        (void)actor_key;
+        if (!actor.alive || actor.entity_id.empty()) continue;
+        auto entity_it = entities_.find(actor.entity_id);
+        if (entity_it == entities_.end()) continue;
+        auto& hunger = entity_it->second.numeric_states["hunger"];
+        hunger = std::clamp(hunger + static_cast<double>(tick_delta), 0.0, 100.0);
+    }
     incrementStateVersion();
     result.new_state_version = state_version_;
     return Result<AdvanceWorldTimeResult>::ok(std::move(result));

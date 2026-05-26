@@ -133,6 +133,17 @@ struct ActorHealthChangeResult {
     std::vector<std::string> reason_keys;
 };
 
+struct ActorNumericStateChangeResult {
+    bool ok = false;
+    std::string actor_key;
+    std::string entity_id;
+    std::string state_key;
+    double previous_value = 0.0;
+    double new_value = 0.0;
+    std::vector<std::string> changed_entity_ids;
+    std::vector<std::string> reason_keys;
+};
+
 struct WorldExplorationState {
     std::string actor_key;
     std::map<std::string, WorldCellVisibility> cell_visibility_by_id;

@@ -41,6 +41,13 @@ public:
         const std::string& actor_key,
         int delta,
         const std::vector<std::string>& reason_keys) = 0;
+    virtual foundation::Result<ActorNumericStateChangeResult> applyActorNumericStateDelta(
+        const std::string& actor_key,
+        const std::string& state_key,
+        double delta,
+        double min_value,
+        double max_value,
+        const std::vector<std::string>& reason_keys) = 0;
     virtual foundation::Result<InspectWorldResult> inspect(const std::string& actor_key, const world_command::WorldCommandTargetDto& target) const = 0;
     virtual foundation::Result<AdvanceWorldTimeResult> advanceWorldTime(uint64_t tick_delta) = 0;
 

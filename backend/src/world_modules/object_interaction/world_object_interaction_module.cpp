@@ -132,6 +132,19 @@ WorldCommandExecutionResult executeObjectAction(
         }
     }
 
+    if (effect_key == "restore_hunger") {
+        auto hunger_res = runtime.applyActorNumericStateDelta(
+            command.actor_key,
+            "hunger",
+            -30.0,
+            0.0,
+            100.0,
+            {"object_action_restore_hunger", feedback_key});
+        if (hunger_res.is_ok()) {
+            for (const auto& id : hunger_res.value().changed_entity_ids) changed_entity_ids.push_back(id);
+        }
+    }
+
     result.result_kind = WorldCommandResultKind::Succeeded;
 
     WorldEventDto event;
@@ -164,6 +177,7 @@ WorldCommandExecutionResult executeObjectAction(
     delta.fields["object_key"] = entity.entity_key;
     delta.fields["action_key"] = action_key;
     delta.fields["effect_key"] = effect_key;
+    if (effect_key == "restore_hunger") delta.fields["need_delta_hunger"] = "-30";
     result.state_deltas.push_back(std::move(delta));
 
     result.projection_patch_override = buildObjectActionPatch(

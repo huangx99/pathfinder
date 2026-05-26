@@ -44,6 +44,13 @@ bool sameOrAdjacent(const WorldCellCoord& left, const WorldCellCoord& right) {
     return std::abs(left.x - right.x) <= 1 && std::abs(left.y - right.y) <= 1;
 }
 
+double actorHunger(const WorldRuntimeSnapshot& snapshot, const WorldActorRuntime& actor) {
+    auto entity_it = snapshot.entities.find(actor.entity_id);
+    if (entity_it == snapshot.entities.end()) return 0.0;
+    auto hunger_it = entity_it->second.numeric_states.find("hunger");
+    return hunger_it == entity_it->second.numeric_states.end() ? 0.0 : hunger_it->second;
+}
+
 bool isIdleHumanoidNpc(const WorldActorRuntime& actor,
                        const WorldGridRuntime& runtime,
                        const ContentRegistry& content_registry) {
@@ -115,13 +122,16 @@ std::optional<ObjectActionCandidate> findNearbyObjectAction(
     const auto rotate_by = static_cast<size_t>((std::hash<std::string>{}(actor.actor_key) + tick) % candidates.size());
     std::rotate(candidates.begin(), candidates.begin() + static_cast<long>(rotate_by), candidates.end());
 
+    const bool hungry = actorHunger(snapshot, actor) >= 60.0;
+
     for (const auto* entity : candidates) {
         const auto* object = content_registry.findObject(entity->entity_key);
         if (!object) continue;
         const bool food_like = object->kind == "food" || hasTag(object->safe_tags, "food_like");
         std::vector<std::pair<WorldCommandKind, std::string>> actions;
-        if (food_like && hasAction(object->allowed_actions, "eat")) actions.push_back({WorldCommandKind::Eat, "eat"});
+        if (hungry && food_like && hasAction(object->allowed_actions, "eat")) actions.push_back({WorldCommandKind::Eat, "eat"});
         if (hasAction(object->allowed_actions, "use")) actions.push_back({WorldCommandKind::Use, "use"});
+        actions.push_back({WorldCommandKind::Pickup, "pickup"});
         for (const auto& [kind, action] : actions) {
             const auto attempt_key = actor.actor_key + ":" + entity->entity_id + ":" + action;
             if (attemptedObjectActions().count(attempt_key) > 0) continue;

@@ -22,7 +22,7 @@
       "cognition_band": "social",
       "embodiment": "humanoid",
       "default_needs": {
-        "hunger": 50,
+        "hunger": 20,
         "trust": 80
       },
       "instinct_effect_keys": [],

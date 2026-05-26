@@ -68,6 +68,18 @@ std::string effectName(const std::string& key) {
     return key;
 }
 
+std::string objectName(const std::string& key) {
+    if (key == "red_berry") return "红果";
+    if (key == "decayed_red_berry") return "腐烂红果";
+    if (key == "bitter_leaf") return "苦叶";
+    if (key == "stone_flake") return "石片";
+    if (key == "loose_stone") return "碎石";
+    if (key == "wood") return "木头";
+    if (key == "axe") return "斧头";
+    if (key == "torch") return "火把";
+    return key.empty() ? "未知对象" : key;
+}
+
 std::string statusIcon(const std::string& status) {
     if (status == "active") return "✓";
     if (status == "hypothesis") return "?";
@@ -399,8 +411,8 @@ void AgentInfoPanel::showTooltip(int slot_index) {
     std::vector<std::string> lines;
     for (const auto& claim : current_agent_data_.knowledge) {
         if (claim.subject_object_key == item.object_key) {
-            lines.push_back(statusIcon(claim.status) + " " + actionName(claim.action_key) +
-                           " → " + effectName(claim.effect_key));
+            lines.push_back(statusIcon(claim.status) + " " + objectName(claim.subject_object_key) +
+                           "：" + actionName(claim.action_key) + " → " + effectName(claim.effect_key));
         }
     }
     if (lines.empty()) {
@@ -472,6 +484,7 @@ void AgentInfoPanel::updateKnowledge(const pf::client::EngineAgentView* agent) {
     for (size_t i = 0; i < filtered.size(); ++i) {
         const auto& claim = filtered[i];
         const std::string text = statusIcon(claim.status) + " " +
+                                 objectName(claim.subject_object_key) + "：" +
                                  actionName(claim.action_key) + " → " +
                                  effectName(claim.effect_key);
 
